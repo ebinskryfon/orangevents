@@ -110,6 +110,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $invoice['status'] = 'finalized';
             $event['status'] = 'confirmed';
         }
+        
+        if ($action === 'mark_paid') {
+            $amount_paid = isset($_POST['amount_paid']) ? (float)$_POST['amount_paid'] : 0.0;
+            $payment_method = isset($_POST['payment_method']) ? trim($_POST['payment_method']) : 'CASH';
+            $payment_treatment = isset($_POST['payment_treatment']) ? trim($_POST['payment_treatment']) : 'partial';
+            
+            $rest_to_give = $invoice['final_total'] - $invoice['advance_received'];
+            
+            if ($amount_paid > 0) {
+                $db->beginTransaction();
+                
+                if ($amount_paid >= $rest_to_give || $payment_treatment === 'write_off') {
+                    // Mark invoice as PAID
+                    $new_advance = $invoice['final_total'];
+                    $status = 'paid';
+                } else {
+                    // Record partial payment
+                    $new_advance = $invoice['advance_received'] + $amount_paid;
+                    $status = 'finalized'; // remains finalized
+                }
+                
+                $stmt = $db->prepare("UPDATE `invoices` SET `advance_received` = :advance, `status` = :status, `payment_method` = :method WHERE `id` = :id");
+                $stmt->execute([
+                    'advance' => $new_advance,
+                    'status' => $status,
+                    'method' => $payment_method,
+                    'id' => $invoice['id']
+                ]);
+                
+                $db->commit();
+                
+                header("Location: view-invoice.php?event_id=" . $event['id'] . "&payment_success=1");
+                exit;
+            }
+        }
     }
 }
 
@@ -178,7 +213,29 @@ $settings = get_settings();
 .invoice-card.hide-dishes .menu-category-section {
     display: none !important;
 }
+
+/* Premium modal styles */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+}
 </style>
+
+<?php if (isset($_GET['payment_success'])): ?>
+    <div style="background-color: #22c55e; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;" class="print-control-bar">
+        <span><i class="fa-solid fa-circle-check"></i> Payment recorded successfully!</span>
+        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    </div>
+<?php endif; ?>
 
 <!-- Admin Action Controls -->
 <div class="print-control-bar">
@@ -215,6 +272,12 @@ $settings = get_settings();
                     <i class="fa-solid fa-lock"></i> Finalize Package
                 </button>
             </form>
+        <?php endif; ?>
+        
+        <?php if ($invoice['status'] === 'finalized'): ?>
+            <button id="openPaymentModalBtn" class="btn btn-success">
+                <i class="fa-solid fa-circle-check"></i> Mark as Paid
+            </button>
         <?php endif; ?>
         
         <button id="downloadImageBtn" class="btn btn-secondary">
@@ -947,7 +1010,130 @@ document.getElementById('downloadImageBtn').addEventListener('click', function()
         this.disabled = false;
     });
 });
+
+<?php if ($invoice['status'] === 'finalized'): ?>
+    const openBtn = document.getElementById('openPaymentModalBtn');
+    const closeBtn = document.getElementById('closePaymentModalBtn');
+    const modal = document.getElementById('paymentModal');
+    const amountInput = document.getElementById('amount_paid');
+    const partialOptions = document.getElementById('partialPaymentOptions');
+    const remSpan = document.getElementById('remainingBalance');
+    const writeOffSpan = document.getElementById('writeOffBalance');
+    const restToGive = <?= (float)$rest_to_give ?>;
+
+    if (openBtn && modal) {
+        openBtn.addEventListener('click', function() {
+            modal.style.display = 'flex';
+        });
+    }
+
+    if (closeBtn && modal) {
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+    }
+
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    }
+
+    if (amountInput) {
+        amountInput.addEventListener('input', function() {
+            const val = parseFloat(amountInput.value) || 0;
+            if (val < restToGive) {
+                partialOptions.style.display = 'block';
+                const diff = (restToGive - val).toFixed(2);
+                remSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
+                writeOffSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
+            } else {
+                partialOptions.style.display = 'none';
+            }
+        });
+    }
+<?php endif; ?>
 </script>
+
+<!-- Payment Modal -->
+<?php if ($invoice['status'] === 'finalized'): ?>
+    <div id="paymentModal" class="modal-overlay">
+        <div class="card" style="width: 450px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0 0 1.5rem 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <i class="fa-solid fa-money-bill-wave" style="color: var(--accent-color);"></i>
+                Record Final Payment
+            </h3>
+            
+            <form action="" method="POST" id="paymentForm">
+                <input type="hidden" name="action" value="mark_paid">
+                
+                <div style="margin-bottom: 1.25rem;">
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Invoice Amount</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);"><?= format_price($invoice['final_total']) ?></div>
+                </div>
+                
+                <div style="margin-bottom: 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Already Received</span>
+                        <div style="font-size: 1rem; font-weight: 600; color: var(--text-primary);"><?= format_price($invoice['advance_received']) ?></div>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Rest to Give</span>
+                        <div style="font-size: 1rem; font-weight: 700; color: #dc2626;"><?= format_price($rest_to_give) ?></div>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="amount_paid" class="form-label" style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Amount Received Today (Rs.)</label>
+                    <input type="number" step="0.01" id="amount_paid" name="amount_paid" class="form-control" 
+                           value="<?= $rest_to_give ?>" 
+                           max="<?= $rest_to_give ?>" 
+                           min="0.01" required style="font-size: 1.1rem; font-weight: 700; width: 100%; box-sizing: border-box;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label for="payment_method" class="form-label" style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Payment Method</label>
+                    <select name="payment_method" id="payment_method" class="form-control" style="width: 100%; box-sizing: border-box;">
+                        <option value="CASH">Cash</option>
+                        <option value="BANK TRANSFER">Bank Transfer</option>
+                        <option value="UPI">UPI (GPay/PhonePe)</option>
+                        <option value="CARD">Debit/Credit Card</option>
+                        <option value="CHEQUE">Cheque</option>
+                    </select>
+                </div>
+                
+                <!-- Partial Payment options -->
+                <div id="partialPaymentOptions" style="display: none; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.2); padding: 0.75rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem;">
+                    <div style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.25rem;">Partial Payment Option</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
+                        The amount is less than the rest to give. Please choose how to handle the rest:
+                    </div>
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; margin-bottom: 0.5rem;">
+                        <input type="radio" name="payment_treatment" value="partial" checked style="margin-top: 2px;">
+                        <div>
+                            <strong>Add to received</strong><br>
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">Leaves a remaining balance of Rs. <span id="remainingBalance">0</span></span>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer;">
+                        <input type="radio" name="payment_treatment" value="write_off" style="margin-top: 2px;">
+                        <div>
+                            <strong>Mark as fully Paid anyway</strong><br>
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">Write off the remaining Rs. <span id="writeOffBalance">0</span></span>
+                        </div>
+                    </label>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                    <button type="button" id="closePaymentModalBtn" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-success">Confirm Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+<?php endif; ?>
 
 <?php
 require_once __DIR__ . '/../includes/footer.php';
