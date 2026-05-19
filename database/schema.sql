@@ -159,3 +159,24 @@ INSERT INTO `dishes` (`category_id`, `dish_name`, `description`) VALUES
 INSERT INTO `dishes` (`category_id`, `dish_name`, `description`) VALUES
 (5, 'Food Service Staff', 'Professional catering staff for buffet service.'),
 (5, 'Waste Management & Cleanup', 'Eco-friendly disposal and site cleaning service.');
+
+-- 10. Business Settings
+CREATE TABLE IF NOT EXISTS `settings` (
+    `key` VARCHAR(100) PRIMARY KEY,
+    `value` TEXT DEFAULT NULL,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Seed Business settings
+INSERT INTO `settings` (`key`, `value`) VALUES
+('company_name', 'Orange Decorations'),
+('company_subtitle', 'Premium Catering & Stage Decors'),
+('company_gstin', '32AACCO2938M1Z2'),
+('company_address', 'Thumpoly P.O, Alappuzha'),
+('company_email', 'orangedecorations@gmail.com'),
+('company_state', '32-Kerala'),
+('company_phone', '9946731720 | 9847634728'),
+('company_bank_name', 'STATE BANK OF INDIA'),
+('company_bank_acc', '40590127711'),
+('company_bank_ifsc', 'SBIN0000007'),
+('company_bank_holder', 'ORANGE DECORATIONS');
