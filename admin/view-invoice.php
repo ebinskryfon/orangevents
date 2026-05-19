@@ -131,11 +131,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $status = 'finalized'; // remains finalized
                 }
                 
-                $stmt = $db->prepare("UPDATE `invoices` SET `advance_received` = :advance, `status` = :status, `payment_method` = :method WHERE `id` = :id");
+                $new_adv_paid_at = $invoice['advance_paid_at'];
+                $new_adv_method = $invoice['advance_payment_method'];
+                $new_bal_paid_at = $invoice['balance_paid_at'];
+                $new_bal_method = $invoice['balance_payment_method'];
+                
+                if ($invoice['advance_received'] == 0 && $new_advance > 0) {
+                    $new_adv_paid_at = date('Y-m-d H:i:s');
+                    $new_adv_method = $payment_method;
+                }
+                
+                if ($status === 'paid') {
+                    $new_bal_paid_at = date('Y-m-d H:i:s');
+                    $new_bal_method = $payment_method;
+                }
+                
+                $stmt = $db->prepare("UPDATE `invoices` SET 
+                                        `advance_received` = :advance, 
+                                        `status` = :status, 
+                                        `payment_method` = :method,
+                                        `advance_paid_at` = :adv_paid_at,
+                                        `advance_payment_method` = :adv_method,
+                                        `balance_paid_at` = :bal_paid_at,
+                                        `balance_payment_method` = :bal_method
+                                      WHERE `id` = :id");
                 $stmt->execute([
                     'advance' => $new_advance,
                     'status' => $status,
                     'method' => $payment_method,
+                    'adv_paid_at' => $new_adv_paid_at,
+                    'adv_method' => $new_adv_method,
+                    'bal_paid_at' => $new_bal_paid_at,
+                    'bal_method' => $new_bal_method,
                     'id' => $invoice['id']
                 ]);
                 
@@ -308,10 +335,59 @@ $settings = get_settings();
         <a href="edit-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-secondary" style="background-color: var(--bg-body); border-color: var(--border-color); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
             <i class="fa-solid fa-pen-to-square"></i> Edit Details
         </a>
+<!-- Admin Action Controls -->
+</div>
+
+<!-- Screen Only: Payment Audit and Metadata Bar -->
+<div class="print-control-bar" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+    <!-- Box 1: Status & Payment Progress -->
+    <div class="card" style="padding: 1rem 1.25rem; display: flex; flex-direction: column; justify-content: center; border-left: 4px solid <?= $invoice['status'] === 'paid' ? '#16a34a' : ($invoice['status'] === 'finalized' ? '#eab308' : '#64748b') ?>; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+        <h4 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">Payment Progress & Status</h4>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">
+                <?= $invoice['status'] === 'paid' ? 'Full Payment Completed' : ($invoice['status'] === 'finalized' ? 'Partially Settled' : 'Draft Estimate') ?>
+            </span>
+            <span class="badge badge-<?= h($invoice['status']) ?>"><?= h($invoice['status']) ?></span>
+        </div>
+        <div style="margin-top: 0.5rem; background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden;">
+            <?php 
+            $progress = $invoice['final_total'] > 0 ? min(100, ($invoice['advance_received'] / $invoice['final_total']) * 100) : 0;
+            ?>
+            <div style="background: <?= $invoice['status'] === 'paid' ? '#16a34a' : 'var(--accent-color)' ?>; width: <?= $progress ?>%; height: 100%;"></div>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600;"><?= number_format($progress, 1) ?>% Paid</span>
+    </div>
+
+    <!-- Box 2: Advance Payment Info -->
+    <div class="card" style="padding: 1rem 1.25rem; border-left: 4px solid #3b82f6; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">Advance Payment Details</h4>
+        <?php if ($invoice['advance_received'] > 0): ?>
+            <div style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);"><?= format_price($invoice['advance_received']) ?></div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.35rem; line-height: 1.4;">
+                <i class="fa-solid fa-credit-card" style="color: var(--accent-color); width: 14px;"></i> Method: <strong><?= h($invoice['advance_payment_method'] ?: 'CASH') ?></strong><br>
+                <i class="fa-solid fa-calendar-day" style="color: var(--accent-color); width: 14px;"></i> Date: <strong><?= !empty($invoice['advance_paid_at']) ? date('d-M-Y h:i A', strtotime($invoice['advance_paid_at'])) : 'Unknown / Imported' ?></strong>
+            </div>
+        <?php else: ?>
+            <div style="color: var(--text-muted); font-size: 0.85rem; font-style: italic; margin-top: 0.5rem;">No advance payment recorded.</div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Box 3: Balance / Rest Payment Info -->
+    <div class="card" style="padding: 1rem 1.25rem; border-left: 4px solid #ef4444; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">Balance / Rest Details</h4>
+        <?php if ($invoice['status'] === 'paid'): ?>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #16a34a;"><i class="fa-solid fa-circle-check"></i> Paid Fully</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.35rem; line-height: 1.4;">
+                <i class="fa-solid fa-credit-card" style="color: #16a34a; width: 14px;"></i> Method: <strong><?= h($invoice['balance_payment_method'] ?: 'CASH') ?></strong><br>
+                <i class="fa-solid fa-calendar-day" style="color: #16a34a; width: 14px;"></i> Date: <strong><?= !empty($invoice['balance_paid_at']) ? date('d-M-Y h:i A', strtotime($invoice['balance_paid_at'])) : 'Unknown / Imported' ?></strong>
+            </div>
+        <?php else: ?>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #ef4444;"><?= format_price($invoice['final_total'] - $invoice['advance_received']) ?></div>
+            <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; display: inline-block;">Remaining balance outstanding.</span>
+        <?php endif; ?>
     </div>
 </div>
 
-<!-- Template Container -->
 <div class="template-preview-container">
     
     <!-- INVOICE CARD START -->
@@ -476,8 +552,11 @@ $settings = get_settings();
                             Client: <strong><?= h($event['client_name']) ?></strong><br>
                             Venue: <?= h($event['venue']) ?><br>
                             Inv Status: <?= strtoupper($invoice['status']) ?>
-                            <?php if (!empty($invoice['payment_method'])): ?>
-                                <br>Payment: <?= h($invoice['payment_method']) ?>
+                            <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
+                                <br>Advance Paid: <?= format_price($invoice['advance_received']) ?> (<?= h($invoice['advance_payment_method'] ?: 'CASH') ?>) on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                            <?php endif; ?>
+                            <?php if ($invoice['status'] === 'paid' && !empty($invoice['balance_paid_at'])): ?>
+                                <br>Balance Paid: <?= format_price($invoice['final_total'] - $invoice['advance_received']) ?> (<?= h($invoice['balance_payment_method'] ?: 'CASH') ?>) on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                             <?php endif; ?>
                         </div>
                         <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
@@ -634,8 +713,11 @@ $settings = get_settings();
                     <div style="line-height: 1.4;">
                         Client Name: <strong><?= h($event['client_name']) ?></strong><br>
                         Venue Location: <?= h($event['venue']) ?>
-                        <?php if (!empty($invoice['payment_method'])): ?>
-                            <br>Payment Method: <?= h($invoice['payment_method']) ?>
+                        <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
+                            <br>Advance Paid: <?= format_price($invoice['advance_received']) ?> via <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                        <?php endif; ?>
+                        <?php if ($invoice['status'] === 'paid' && !empty($invoice['balance_paid_at'])): ?>
+                            <br>Balance Paid: <?= format_price($invoice['final_total'] - $invoice['advance_received']) ?> via <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                         <?php endif; ?>
                     </div>
                     <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
@@ -764,8 +846,11 @@ $settings = get_settings();
                 <div class="footer-summary-bar" style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
                     <div style="font-size: 0.8rem; color: #8892b0; line-height: 1.4;">
                         Status: <?= strtoupper($invoice['status']) ?>
-                        <?php if (!empty($invoice['payment_method'])): ?>
-                            <br>Payment: <?= h($invoice['payment_method']) ?>
+                        <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
+                            <br>Advance: <?= format_price($invoice['advance_received']) ?> via <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                        <?php endif; ?>
+                        <?php if ($invoice['status'] === 'paid' && !empty($invoice['balance_paid_at'])): ?>
+                            <br>Balance: <?= format_price($invoice['final_total'] - $invoice['advance_received']) ?> via <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                         <?php endif; ?>
                     </div>
                     <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
@@ -997,13 +1082,32 @@ $settings = get_settings();
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Amount Paid</td>
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['advance_received']) ?></td>
                         </tr>
+                        <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
+                            <tr style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
+                                <td colspan="2" style="padding: 0.25rem 0.6rem; font-style: italic;">
+                                    ↳ Adv Paid: <?= format_price($invoice['advance_received']) ?> via <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                         <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #fcf2f2;">
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; color: #dc2626;">Rest to Pay</td>
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right; color: #dc2626;"><?= format_price($invoice['final_total'] - $invoice['advance_received']) ?></td>
                         </tr>
+                        <?php if ($invoice['status'] === 'paid' && !empty($invoice['balance_paid_at'])): ?>
+                            <tr style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
+                                <td colspan="2" style="padding: 0.25rem 0.6rem; font-style: italic;">
+                                    ↳ Bal Paid: <?= format_price($invoice['final_total'] - $invoice['advance_received']) ?> via <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
+                                </td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #e2f0d9;">
+                                <td colspan="2" style="padding: 0.35rem 0.6rem; font-size: 0.75rem; font-weight: 700; color: #15803d; text-align: center; text-transform: uppercase;">
+                                    <i class="fa-solid fa-circle-check"></i> Full Payment Completed
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                         <tr>
                             <td colspan="2" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
-                                Payment Method: <?= h($invoice['payment_method'] ?: 'PENDING / CASH') ?>
+                                Primary Method: <?= h($invoice['payment_method'] ?: 'PENDING / CASH') ?>
                             </td>
                         </tr>
                     </table>

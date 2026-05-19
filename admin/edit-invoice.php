@@ -189,6 +189,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tax_amount = $taxable * ($tax_rate / 100);
             $final_total = $taxable + $tax_amount;
             
+            // Manage advance payment metadata
+            $new_adv_paid_at = $invoice['advance_paid_at'];
+            $new_adv_method = $invoice['advance_payment_method'];
+            if ($advance_received > 0) {
+                if ((float)$invoice['advance_received'] == $advance_received && $invoice['advance_paid_at'] !== null) {
+                    // Keep original, but update method if it was updated
+                    if ($payment_method !== '') {
+                        $new_adv_method = $payment_method;
+                    }
+                } else {
+                    $new_adv_paid_at = date('Y-m-d H:i:s');
+                    $new_adv_method = $payment_method ?: 'CASH';
+                }
+            } else {
+                $new_adv_paid_at = null;
+                $new_adv_method = null;
+            }
+            
+            // Manage balance payment metadata
+            $new_bal_paid_at = $invoice['balance_paid_at'];
+            $new_bal_method = $invoice['balance_payment_method'];
+            if ($status === 'paid') {
+                if ($invoice['status'] === 'paid' && $invoice['balance_paid_at'] !== null) {
+                    if ($payment_method !== '') {
+                        $new_bal_method = $payment_method;
+                    }
+                } else {
+                    $new_bal_paid_at = date('Y-m-d H:i:s');
+                    $new_bal_method = $payment_method ?: 'CASH';
+                }
+            } else {
+                $new_bal_paid_at = null;
+                $new_bal_method = null;
+            }
+            
             // 5. Update invoice
             $stmt_update = $db->prepare("UPDATE invoices SET 
                                             invoice_number = :num,
@@ -201,7 +236,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             payment_method = :method,
                                             status = :status,
                                             template_name = :temp,
-                                            created_at = :created
+                                            created_at = :created,
+                                            advance_paid_at = :adv_paid_at,
+                                            advance_payment_method = :adv_method,
+                                            balance_paid_at = :bal_paid_at,
+                                            balance_payment_method = :bal_method
                                          WHERE id = :id");
             $stmt_update->execute([
                 'num' => $invoice_number,
@@ -215,6 +254,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'status' => $status,
                 'temp' => $template_name,
                 'created' => $created_at . ' ' . date('H:i:s', strtotime($invoice['created_at'])),
+                'adv_paid_at' => $new_adv_paid_at,
+                'adv_method' => $new_adv_method,
+                'bal_paid_at' => $new_bal_paid_at,
+                'bal_method' => $new_bal_method,
                 'id' => $invoice['id']
             ]);
             

@@ -189,30 +189,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $catering_total = $per_plate_price * $total_plates;
                 $invoice_subtotal = $catering_total + $stage_total;
                 
-                $invoice_check = $db->prepare("SELECT id, status, invoice_number FROM invoices WHERE event_id = :ev_id");
-                $invoice_check->execute(['ev_id' => $event_id]);
-                $loaded_invoice = $invoice_check->fetch();
+                // Fetch existing invoice data for comparison
+                $stmt_compare = $db->prepare("SELECT advance_received, advance_paid_at, advance_payment_method, status FROM invoices WHERE event_id = :ev_id");
+                $stmt_compare->execute(['ev_id' => $event_id]);
+                $existing_inv = $stmt_compare->fetch();
                 
-                if ($loaded_invoice) {
-                    $stmt_inv_up = $db->prepare("UPDATE invoices SET subtotal = :sub, final_total = :final, advance_received = :advance, payment_method = :pay_method WHERE id = :inv_id");
+                $new_adv_paid_at = null;
+                $new_adv_method = null;
+                $new_bal_paid_at = null;
+                $new_bal_method = null;
+                
+                if ($advance_received > 0) {
+                    if ($existing_inv && (float)$existing_inv['advance_received'] == $advance_received && $existing_inv['advance_paid_at'] !== null) {
+                        $new_adv_paid_at = $existing_inv['advance_paid_at'];
+                        $new_adv_method = $existing_inv['advance_payment_method'] ?: ($payment_method ?: 'CASH');
+                    } else {
+                        $new_adv_paid_at = date('Y-m-d H:i:s');
+                        $new_adv_method = $payment_method ?: 'CASH';
+                    }
+                }
+                
+                // If the invoice was already paid, ensure its balance metadata is preserved or aligned
+                if ($existing_inv && $existing_inv['status'] === 'paid') {
+                    $new_bal_paid_at = $existing_inv['balance_paid_at'] ?: date('Y-m-d H:i:s');
+                    $new_bal_method = $existing_inv['balance_payment_method'] ?: ($payment_method ?: 'CASH');
+                }
+
+                if ($existing_inv) {
+                    $stmt_inv_up = $db->prepare("UPDATE invoices SET 
+                                                    subtotal = :sub, 
+                                                    final_total = :final, 
+                                                    advance_received = :advance, 
+                                                    payment_method = :pay_method,
+                                                    advance_paid_at = :adv_paid_at,
+                                                    advance_payment_method = :adv_method,
+                                                    balance_paid_at = :bal_paid_at,
+                                                    balance_payment_method = :bal_method
+                                                 WHERE event_id = :ev_id");
                     $stmt_inv_up->execute([
                         'sub' => $invoice_subtotal,
                         'final' => $invoice_subtotal,
                         'advance' => $advance_received,
                         'pay_method' => $payment_method ?: null,
-                        'inv_id' => $loaded_invoice['id']
+                        'adv_paid_at' => $new_adv_paid_at,
+                        'adv_method' => $new_adv_method,
+                        'bal_paid_at' => $new_bal_paid_at,
+                        'bal_method' => $new_bal_method,
+                        'ev_id' => $event_id
                     ]);
                 } else {
                     // Generate new unique draft invoice number
                     $inv_num = "INV-" . date('Y') . "-" . str_pad($event_id, 4, '0', STR_PAD_LEFT);
-                    $stmt_inv_in = $db->prepare("INSERT INTO invoices (event_id, invoice_number, subtotal, final_total, advance_received, payment_method, status) VALUES (:ev_id, :num, :sub, :final, :advance, :pay_method, 'draft')");
+                    $stmt_inv_in = $db->prepare("INSERT INTO invoices (event_id, invoice_number, subtotal, final_total, advance_received, payment_method, status, advance_paid_at, advance_payment_method) VALUES (:ev_id, :num, :sub, :final, :advance, :pay_method, 'draft', :adv_paid_at, :adv_method)");
                     $stmt_inv_in->execute([
                         'ev_id' => $event_id,
                         'num' => $inv_num,
                         'sub' => $invoice_subtotal,
                         'final' => $invoice_subtotal,
                         'advance' => $advance_received,
-                        'pay_method' => $payment_method ?: null
+                        'pay_method' => $payment_method ?: null,
+                        'adv_paid_at' => $new_adv_paid_at,
+                        'adv_method' => $new_adv_method
                     ]);
                 }
                 
