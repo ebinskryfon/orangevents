@@ -424,7 +424,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
                     <div class="form-group">
-                        <label for="advance_received" class="form-label" style="font-weight: 600;">Amount Received / Paid (Rs.)</label>
+                        <label for="advance_received" class="form-label" style="font-weight: 600;">Advance Paid (Rs.)</label>
                         <input type="number" step="0.01" id="advance_received" name="advance_received" class="form-control" value="<?= (float)$invoice['advance_received'] ?>" min="0">
                     </div>
                     <div class="form-group">
@@ -488,7 +488,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <strong id="summaryGrandTotal" style="color: var(--accent-color);">Rs. 0.00</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; color: var(--text-secondary); border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">
-                        <span>Amount Paid / Received:</span>
+                        <span>Advance Paid:</span>
                         <span id="summaryPaid" style="font-weight: 600; color: #16a34a;">Rs. 0.00</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 0.75rem; font-size: 1.15rem; background: rgba(220, 38, 38, 0.05); padding: 0.75rem; border-radius: var(--border-radius-md); margin-top: 0.5rem;">

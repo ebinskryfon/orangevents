@@ -53,7 +53,7 @@ $invoices = $db->query($sql)->fetchAll();
                     <th style="width: 15%;">Invoice No</th>
                     <th style="width: 25%;">Client / Event</th>
                     <th style="width: 15%;">Event Date</th>
-                    <th style="width: 15%;">Subtotal</th>
+                    <th style="width: 15%;">Grand Total</th>
                     <th style="width: 15%;">Status</th>
                     <th style="width: 15%; text-align: right;">Actions</th>
                 </tr>
@@ -77,7 +77,13 @@ $invoices = $db->query($sql)->fetchAll();
                                 <div><?= format_date($inv['event_date']) ?></div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);"><?= h($inv['venue']) ?></div>
                             </td>
-                            <td style="font-weight: 600; color: var(--accent-color);"><?= format_price($inv['final_total']) ?></td>
+                            <td>
+                                <div style="font-weight: 600; color: var(--accent-color);"><?= format_price($inv['final_total']) ?></div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">
+                                    Paid: <span style="color: #16a34a; font-weight: 500;"><?= format_price($inv['advance_received']) ?></span><br>
+                                    Rest: <span style="color: #dc2626; font-weight: 500;"><?= format_price($inv['final_total'] - $inv['advance_received']) ?></span>
+                                </div>
+                            </td>
                             <td>
                                 <span class="badge badge-<?= h($inv['status']) ?>"><?= h($inv['status']) ?></span>
                             </td>
