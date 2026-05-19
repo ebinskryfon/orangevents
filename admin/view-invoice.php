@@ -116,6 +116,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $template = $invoice['template_name'];
 ?>
 
+<?php if ($template === 'aedan_gardens'): ?>
+<style>
+@media print {
+    @page {
+        size: landscape;
+        margin: 0.6cm;
+    }
+}
+</style>
+<?php else: ?>
+<style>
+@media print {
+    @page {
+        size: portrait;
+        margin: 0.8cm;
+    }
+}
+</style>
+<?php endif; ?>
+
 <style>
 /* Controls bar visible only on screen */
 .print-control-bar {
@@ -154,6 +174,7 @@ $template = $invoice['template_name'];
                 <option value="orange_classic" <?= $template == 'orange_classic' ? 'selected' : '' ?>>Orange Classic (Image representation)</option>
                 <option value="royal_gold" <?= $template == 'royal_gold' ? 'selected' : '' ?>>Royal Gold</option>
                 <option value="midnight_dark" <?= $template == 'midnight_dark' ? 'selected' : '' ?>>Midnight Dark</option>
+                <option value="aedan_gardens" <?= $template == 'aedan_gardens' ? 'selected' : '' ?>>Aedan Gardens (Tax Invoice)</option>
             </select>
         </form>
     </div>
@@ -626,6 +647,222 @@ $template = $invoice['template_name'];
                     </div>
                 </div>
             </div>
+        <?php elseif ($template === 'aedan_gardens'): ?>
+            <!-- AEDAN GARDENS TEMPLATE (TAX INVOICE) -->
+            <?php
+            // Prepare table items list
+            $table_items = [];
+            
+            // 1. Add Stage setup items
+            foreach ($stage_work_items as $sw) {
+                $table_items[] = [
+                    'name' => $sw['item_name'],
+                    'category' => 'Stage Work',
+                    'size' => 'Standard',
+                    'qty' => 1,
+                    'unit' => 'Setup',
+                    'price' => (float)$sw['custom_price'],
+                    'discount' => '0.00%',
+                    'amount' => (float)$sw['custom_price']
+                ];
+            }
+            
+            // 2. Add Catering Package
+            if ($catering) {
+                $table_items[] = [
+                    'name' => 'Catering Package (' . format_price($catering['per_plate_price']) . ' per plate)',
+                    'category' => 'Catering Services',
+                    'size' => 'Standard',
+                    'qty' => (int)$catering['total_plates'],
+                    'unit' => 'Plates',
+                    'price' => (float)$catering['per_plate_price'],
+                    'discount' => '0.00%',
+                    'amount' => (float)$catering_total
+                ];
+                
+                // 3. Add Selected Dishes (zero cost, marked as "INCLUDED")
+                foreach ($dishes_by_category as $cat_name => $dishes) {
+                    foreach ($dishes as $dish) {
+                        $qty = ($dish['plates'] > 0) ? (int)$dish['plates'] : 1;
+                        $unit = ($dish['plates'] > 0) ? 'Plates' : 'Nos';
+                        $size = ($dish['plates'] > 0) ? 'Custom' : 'Standard';
+                        
+                        $table_items[] = [
+                            'name' => $dish['name'],
+                            'category' => $cat_name,
+                            'size' => $size,
+                            'qty' => $qty,
+                            'unit' => $unit,
+                            'price' => 0.00,
+                            'discount' => '0.00%',
+                            'amount' => 0.00,
+                            'is_dish' => true
+                        ];
+                    }
+                }
+            }
+            ?>
+            
+            <!-- Header layout matching image -->
+            <div class="aedan-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif;">
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <img src="../assets/images/logo.png" alt="Aedan Gardens Logo" style="height: 55px; width: auto;">
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #2e7d32; line-height: 1; letter-spacing: -0.02em;">aedan gardens</div>
+                    </div>
+                    <div style="font-size: 0.85rem; line-height: 1.4; color: #1e293b;">
+                        <strong>(Plant Nursery & Garden Center)</strong><br>
+                        Thumpoly P.O Alappuzha<br>
+                        Alappuzha<br>
+                        Email: aedangardens04@gmail.com<br>
+                        State: 32-Kerala
+                    </div>
+                </div>
+                
+                <div style="text-align: right;">
+                    <h1 style="font-size: 2.2rem; font-weight: 800; color: #1e293b; margin: 0 0 0.75rem 0; letter-spacing: 0.05em; text-transform: uppercase;">Tax Invoice</h1>
+                    <div style="font-size: 0.9rem; line-height: 1.5; color: #1e293b;">
+                        <strong>Invoice No:</strong> <?= h($invoice['invoice_number']) ?><br>
+                        <strong>Date:</strong> <?= format_date($event['event_date']) ?><br>
+                        <strong>Place of Supply:</strong> 32-Kerala
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bill To Section -->
+            <div style="margin-bottom: 1.5rem; border-top: 1px solid #000000; padding-top: 0.75rem; font-family: 'Inter', sans-serif;">
+                <div style="font-size: 0.85rem; line-height: 1.4; color: #1e293b;">
+                    <strong style="font-size: 0.9rem; color: #000000; text-transform: uppercase;">Bill To:</strong><br>
+                    <span style="font-weight: 700; font-size: 0.95rem; color: #000000;"><?= h($event['client_name']) ?></span><br>
+                    <?= h($event['venue']) ?><br>
+                    Contact No: <?= h($event['client_phone']) ?><br>
+                    Email: <?= h($event['client_email']) ?><br>
+                    State: 32-Kerala
+                </div>
+            </div>
+            
+            <!-- Items Table -->
+            <table class="aedan-table" style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1.2px solid #000000; font-family: 'Inter', sans-serif;">
+                <thead>
+                    <tr style="background-color: #f8fafc; border-bottom: 1.2px solid #000000;">
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; width: 50px; text-align: center; color: #000000;">Sl No</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; color: #000000;">Item Name</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; width: 150px; color: #000000;">Category</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; width: 90px; color: #000000;">Size</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 80px; color: #000000;">Quantity</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 70px; color: #000000;">Unit</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; width: 110px; color: #000000;">Price/Unit</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 90px; color: #000000;">Discount</th>
+                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; width: 120px; color: #000000;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php 
+                    $sl = 1;
+                    foreach ($table_items as $item): 
+                        $is_dish = !empty($item['is_dish']);
+                    ?>
+                        <tr style="border-bottom: 1px solid #000000; background-color: #ffffff; color: #000000;">
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= $sl++ ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: <?= $is_dish ? 'normal' : '700' ?>;"><?= h($item['name']) ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;"><?= h($item['category']) ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;"><?= h($item['size']) ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= $item['qty'] ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= h($item['unit']) ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right;">
+                                <?= $item['price'] > 0 ? format_price($item['price']) : 'Included' ?>
+                            </td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= h($item['discount']) ?></td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; font-weight: bold;">
+                                <?= $item['amount'] > 0 ? format_price($item['amount']) : 'Included' ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <!-- Total Row -->
+                    <tr style="border-top: 1.2px solid #000000; font-weight: bold; background-color: #f8fafc; color: #000000;">
+                        <td colspan="8" style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; text-transform: uppercase;">Total</td>
+                        <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; font-weight: 800;">
+                            <?= format_price($invoice['final_total']) ?>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Bottom Boxes Layout (Side by Side) -->
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000;">
+                <!-- Left Details Box -->
+                <div style="border: 1.2px solid #000000; display: flex; flex-direction: column;">
+                    <div style="border-bottom: 1.2px solid #000000; padding: 0.5rem 0.75rem;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.03em;">Invoice Amount in Words</span>
+                        <div style="font-size: 0.8rem; font-weight: 700; margin-top: 0.15rem; color: #000000;">
+                            <?= convert_number_to_words($invoice['final_total']) ?> Only
+                        </div>
+                    </div>
+                    <div style="padding: 0.5rem 0.75rem; flex-grow: 1;">
+                        <span style="font-size: 0.75rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.03em;">Description</span>
+                        <div style="font-size: 0.8rem; margin-top: 0.15rem; color: #000000; line-height: 1.4;">
+                            Event package setup: "<?= h($event['title']) ?>" at <?= h($event['venue']) ?>. 
+                            Includes all standard catering management, curated stage decors, guest reception coordination, and venue cleanup.
+                            <?php if ($catering && !empty($catering['notes'])): ?>
+                                <br><strong>Special Requests:</strong> <?= h($catering['notes']) ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Pricing Summary Table -->
+                <div class="summary-box" style="border: 1.2px solid #000000; border-collapse: collapse;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="border-bottom: 1px solid #000000;">
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Sub Total</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['final_total']) ?></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #f8fafc;">
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Total</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right;"><?= format_price($invoice['final_total']) ?></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #000000;">
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Received</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['advance_received']) ?></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #fcf2f2;">
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Balance</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right;"><?= format_price($invoice['final_total'] - $invoice['advance_received']) ?></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
+                                Payment Method: <?= h($invoice['payment_method'] ?: 'PENDING / CASH') ?>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Terms & Conditions Section -->
+            <div style="background-color: #f1f5f9; padding: 0.5rem 0.75rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000; border-radius: 4px;">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.15rem;">Terms and Conditions</div>
+                <div style="font-size: 0.75rem; line-height: 1.3;">
+                    Thanks for choosing Aedan Gardens! Total Items: <?= count($table_items) ?>
+                </div>
+            </div>
+            
+            <!-- Bank Details and Signature -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; font-family: 'Inter', sans-serif; color: #000000;">
+                <!-- Bank Info -->
+                <div style="font-size: 0.8rem; line-height: 1.5;">
+                    <strong style="text-transform: uppercase;">Company's Bank Details:</strong><br>
+                    <strong>Bank:</strong> STATE BANK OF INDIA<br>
+                    <strong>Acc No:</strong> 40590127711<br>
+                    <strong>IFSC:</strong> SBIN0000007<br>
+                    <strong>Name:</strong> AEDAN GARDENS
+                </div>
+                
+                <!-- Signature Box -->
+                <div style="text-align: center; font-size: 0.8rem; min-width: 200px;">
+                    <div style="margin-bottom: 2.2rem; font-weight: bold;">For, Aedan Gardens</div>
+                    <div style="border-top: 1px solid #000000; padding-top: 0.4rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem;">Authorized Signatory</div>
+                </div>
+            </div>
         <?php endif; ?>
         
     </div>
@@ -635,6 +872,9 @@ $template = $invoice['template_name'];
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+// Apply template class to body for custom print styles
+document.body.classList.add('template-<?= h($template) ?>');
+
 document.getElementById('toggleTotalCheckbox').addEventListener('change', function(e) {
     const summaryBoxes = document.querySelectorAll('.summary-box');
     summaryBoxes.forEach(box => {

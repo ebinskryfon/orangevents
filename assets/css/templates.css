@@ -594,3 +594,37 @@
     color: #64ffda;
 }
 
+/* =========================================================================
+   TEMPLATE 4: AEDAN GARDENS (Landscape Tax Invoice)
+   ========================================================================= */
+.invoice-card.aedan_gardens {
+    width: 1050px !important;
+    min-height: 742px !important; /* A4 Landscape Ratio */
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    padding: 2.2rem !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15) !important;
+    border: 1.2px solid #000000 !important;
+    border-radius: 4px;
+}
+
+/* Print Landscape Styles specifically for Aedan Gardens */
+@media print {
+    body.template-aedan_gardens {
+        background-color: #ffffff !important;
+    }
+    body.template-aedan_gardens .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .invoice-card.aedan_gardens {
+        width: 100% !important;
+        min-height: auto !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+}
+
+
