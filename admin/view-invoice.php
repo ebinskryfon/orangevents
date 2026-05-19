@@ -709,7 +709,7 @@ $settings = get_settings();
                 <div>
                     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
                         <img src="../assets/images/logo.png" alt="Company Logo" style="height: 55px; width: auto;">
-                        <div style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #2e7d32; line-height: 1; letter-spacing: -0.02em; text-transform: lowercase;"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'orange decorations') ?></div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #f07c1b; line-height: 1; letter-spacing: -0.02em; text-transform: uppercase;"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'orange decorations') ?></div>
                     </div>
                     <div style="font-size: 0.85rem; line-height: 1.4; color: #1e293b;">
                         <strong>(<?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?>)</strong><br>
