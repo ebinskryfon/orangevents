@@ -175,3 +175,38 @@ function convert_number_to_words($number) {
 
     return $result;
 }
+
+/**
+ * Fetch all system settings from database
+ * 
+ * @return array
+ */
+function get_settings() {
+    static $settings = null;
+    if ($settings === null) {
+        $settings = [];
+        try {
+            $db = get_db_connection();
+            $stmt = $db->query("SELECT `key`, `value` FROM `settings`");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as $row) {
+                $settings[$row['key']] = $row['value'];
+            }
+        } catch (Exception $e) {
+            // Fallback
+        }
+    }
+    return $settings;
+}
+
+/**
+ * Fetch single setting by key
+ * 
+ * @param string $key
+ * @param string $default
+ * @return string
+ */
+function get_setting($key, $default = '') {
+    $settings = get_settings();
+    return isset($settings[$key]) ? $settings[$key] : $default;
+}

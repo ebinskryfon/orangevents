@@ -114,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $template = $invoice['template_name'];
+$settings = get_settings();
 ?>
 
 <?php if ($template === 'aedan_gardens'): ?>
@@ -220,11 +221,11 @@ $template = $invoice['template_name'];
                     <div class="logo-icon">
                         <img src="../assets/images/logo.png" alt="Orange Events Logo" class="header-logo-img">
                     </div>
-                    <div class="logo-title"><span class="text-orange">ORANGE</span> <span class="text-white">EVENTS</span></div>
-                    <div class="logo-subtitle">THUMPOLY, ALAPPUZHA</div>
+                    <div class="logo-title"><span class="text-orange"><?= h(isset($settings['company_name']) ? strtoupper($settings['company_name']) : 'ORANGE EVENTS') ?></span></div>
+                    <div class="logo-subtitle"><?= h(isset($settings['company_address']) ? strtoupper($settings['company_address']) : 'THUMPOLY, ALAPPUZHA') ?></div>
                     <div class="logo-contact">
-                        MOB : 9946731720 | 9847634728<br>
-                        990670059
+                        MOB : <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720 | 9847634728') ?><br>
+                        Email : <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?>
                     </div>
                 </div>
             </header>
@@ -707,15 +708,18 @@ $template = $invoice['template_name'];
             <div class="aedan-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif;">
                 <div>
                     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                        <img src="../assets/images/logo.png" alt="Aedan Gardens Logo" style="height: 55px; width: auto;">
-                        <div style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #2e7d32; line-height: 1; letter-spacing: -0.02em;">aedan gardens</div>
+                        <img src="../assets/images/logo.png" alt="Company Logo" style="height: 55px; width: auto;">
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #2e7d32; line-height: 1; letter-spacing: -0.02em; text-transform: lowercase;"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'orange decorations') ?></div>
                     </div>
                     <div style="font-size: 0.85rem; line-height: 1.4; color: #1e293b;">
-                        <strong>(Plant Nursery & Garden Center)</strong><br>
-                        Thumpoly P.O Alappuzha<br>
-                        Alappuzha<br>
-                        Email: aedangardens04@gmail.com<br>
-                        State: 32-Kerala
+                        <strong>(<?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?>)</strong><br>
+                        <?= h(isset($settings['company_address']) ? $settings['company_address'] : 'Thumpoly P.O, Alappuzha') ?><br>
+                        Email: <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?><br>
+                        Phone: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720 | 9847634728') ?><br>
+                        State: <?= h(isset($settings['company_state']) ? $settings['company_state'] : '32-Kerala') ?>
+                        <?php if (!empty($settings['company_gstin'])): ?>
+                            <br><strong>GSTIN:</strong> <?= h($settings['company_gstin']) ?>
+                        <?php endif; ?>
                     </div>
                 </div>
                 
@@ -842,7 +846,7 @@ $template = $invoice['template_name'];
             <div style="background-color: #f1f5f9; padding: 0.5rem 0.75rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000; border-radius: 4px;">
                 <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.15rem;">Terms and Conditions</div>
                 <div style="font-size: 0.75rem; line-height: 1.3;">
-                    Thanks for choosing Aedan Gardens! Total Items: <?= count($table_items) ?>
+                    Thanks for choosing <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'Orange Decorations') ?>! Total Items: <?= count($table_items) ?>
                 </div>
             </div>
             
@@ -851,15 +855,15 @@ $template = $invoice['template_name'];
                 <!-- Bank Info -->
                 <div style="font-size: 0.8rem; line-height: 1.5;">
                     <strong style="text-transform: uppercase;">Company's Bank Details:</strong><br>
-                    <strong>Bank:</strong> STATE BANK OF INDIA<br>
-                    <strong>Acc No:</strong> 40590127711<br>
-                    <strong>IFSC:</strong> SBIN0000007<br>
-                    <strong>Name:</strong> AEDAN GARDENS
+                    <strong>Bank:</strong> <?= h(isset($settings['company_bank_name']) ? $settings['company_bank_name'] : 'STATE BANK OF INDIA') ?><br>
+                    <strong>Acc No:</strong> <?= h(isset($settings['company_bank_acc']) ? $settings['company_bank_acc'] : '40590127711') ?><br>
+                    <strong>IFSC:</strong> <?= h(isset($settings['company_bank_ifsc']) ? $settings['company_bank_ifsc'] : 'SBIN0000007') ?><br>
+                    <strong>Name:</strong> <?= h(isset($settings['company_bank_holder']) ? $settings['company_bank_holder'] : 'ORANGE DECORATIONS') ?>
                 </div>
                 
                 <!-- Signature Box -->
                 <div style="text-align: center; font-size: 0.8rem; min-width: 200px;">
-                    <div style="margin-bottom: 2.2rem; font-weight: bold;">For, Aedan Gardens</div>
+                    <div style="margin-bottom: 2.2rem; font-weight: bold;">For, <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'Orange Decorations') ?></div>
                     <div style="border-top: 1px solid #000000; padding-top: 0.4rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem;">Authorized Signatory</div>
                 </div>
             </div>

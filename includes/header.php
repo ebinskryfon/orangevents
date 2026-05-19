@@ -62,6 +62,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>Invoices</span>
                         </a>
                     </li>
+                    <li class="nav-item <?= $current_page == 'settings.php' ? 'active' : '' ?>">
+                        <a href="settings.php">
+                            <i class="fa-solid fa-gears"></i>
+                            <span>Settings</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
             
