@@ -145,6 +145,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         }
+        
+        if ($action === 'delete_invoice') {
+            $input_num = isset($_POST['invoice_number']) ? trim($_POST['invoice_number']) : '';
+            if ($input_num === $invoice['invoice_number']) {
+                $db->beginTransaction();
+                $db->prepare("UPDATE `events` SET `status` = 'draft' WHERE `id` = :ev_id")->execute(['ev_id' => $event_id]);
+                $db->prepare("DELETE FROM `invoices` WHERE `id` = :id")->execute(['id' => $invoice['id']]);
+                $db->commit();
+                
+                header("Location: invoices.php?deleted=1");
+                exit;
+            }
+        }
     }
 }
 
@@ -286,6 +299,10 @@ $settings = get_settings();
         
         <button onclick="window.print()" class="btn btn-primary">
             <i class="fa-solid fa-print"></i> Print / Save PDF
+        </button>
+        
+        <button id="deleteInvoiceBtn" class="btn btn-danger" style="background-color: #dc2626; border-color: #dc2626;">
+            <i class="fa-solid fa-trash-can"></i> Delete Invoice
         </button>
     </div>
 </div>
@@ -1055,6 +1072,41 @@ document.getElementById('downloadImageBtn').addEventListener('click', function()
         });
     }
 <?php endif; ?>
+
+const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
+if (deleteInvoiceBtn) {
+    deleteInvoiceBtn.addEventListener('click', function() {
+        const expectedNum = '<?= h($invoice["invoice_number"]) ?>';
+        const userInput = prompt(`Are you absolutely sure you want to delete this invoice? This will reset the event booking back to Draft status.\n\nPlease type the invoice number "${expectedNum}" to confirm:`);
+        
+        if (userInput === null) {
+            return;
+        }
+        
+        if (userInput.trim() === expectedNum) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'delete_invoice';
+            form.appendChild(actionInput);
+            
+            const numInput = document.createElement('input');
+            numInput.type = 'hidden';
+            numInput.name = 'invoice_number';
+            numInput.value = userInput.trim();
+            form.appendChild(numInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        } else {
+            alert("The invoice number you entered did not match. Deletion cancelled.");
+        }
+    });
+}
 </script>
 
 <!-- Payment Modal -->

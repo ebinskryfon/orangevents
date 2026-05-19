@@ -22,6 +22,13 @@ $sql = "SELECT i.*, e.title, e.client_name, e.event_date, e.venue
 $invoices = $db->query($sql)->fetchAll();
 ?>
 
+<?php if (isset($_GET['deleted'])): ?>
+    <div style="background-color: #ef4444; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
+        <span><i class="fa-solid fa-circle-check"></i> Invoice deleted successfully. The event booking status has been reset to draft.</span>
+        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    </div>
+<?php endif; ?>
+
 <div class="content-header">
     <div class="header-title">
         <h1>Invoice Archives</h1>
