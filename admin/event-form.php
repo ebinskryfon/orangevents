@@ -529,6 +529,25 @@ foreach ($all_dishes as $dish) {
                         <a href="view-invoice.php?event_id=<?= $event_id ?>" class="btn btn-secondary" style="width: 100%;">
                             <i class="fa-solid fa-file-invoice-dollar"></i> View & Print Card
                         </a>
+                        
+                        <?php
+                        $stmt_inv_chk = $db->prepare("SELECT COUNT(*) FROM invoices WHERE event_id = :id");
+                        $stmt_inv_chk->execute(['id' => $event_id]);
+                        $has_invoice = (int)$stmt_inv_chk->fetchColumn() > 0;
+                        ?>
+                        
+                        <?php if ($has_invoice): ?>
+                            <button type="button" class="btn btn-danger" style="width: 100%; background-color: #ef4444; border-color: #ef4444; opacity: 0.65; margin-top: 0.5rem;" onclick="alert('Cannot delete booking. This event has an active invoice. Please delete the invoice first.');">
+                                <i class="fa-solid fa-trash-can"></i> Delete Booking
+                            </button>
+                        <?php else: ?>
+                            <form action="delete-event.php" method="POST" style="margin: 0; width: 100%; margin-top: 0.5rem;" onsubmit="return confirm('Are you sure you want to delete this event/booking? This action cannot be undone.');">
+                                <input type="hidden" name="event_id" value="<?= $event_id ?>">
+                                <button type="submit" class="btn btn-danger" style="width: 100%; background-color: #ef4444; border-color: #ef4444;">
+                                    <i class="fa-solid fa-trash-can"></i> Delete Booking
+                                </button>
+                            </form>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>

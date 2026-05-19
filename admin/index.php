@@ -51,7 +51,14 @@ foreach ($monthly_events as $ev) {
 }
 
 // 3. Fetch upcoming events (next 5) for the table
-$stmt_upcoming = $db->prepare("SELECT id, title, client_name, client_phone, event_date, venue, status FROM events WHERE event_date >= :today ORDER BY event_date ASC, event_time ASC LIMIT 5");
+$stmt_upcoming = $db->prepare("
+    SELECT e.id, e.title, e.client_name, e.client_phone, e.event_date, e.venue, e.status,
+           (SELECT COUNT(*) FROM invoices WHERE event_id = e.id) as has_invoice
+    FROM events e 
+    WHERE e.event_date >= :today 
+    ORDER BY e.event_date ASC, e.event_time ASC 
+    LIMIT 5
+");
 $stmt_upcoming->execute(['today' => date('Y-m-d')]);
 $upcoming_events = $stmt_upcoming->fetchAll();
 ?>
@@ -68,6 +75,27 @@ $upcoming_events = $stmt_upcoming->fetchAll();
         </a>
     </div>
 </div>
+
+<?php if (isset($_GET['success']) && $_GET['success'] === 'event_deleted'): ?>
+    <div style="background-color: #22c55e; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
+        <span><i class="fa-solid fa-circle-check"></i> Booking deleted successfully.</span>
+        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error']) && $_GET['error'] === 'has_invoice'): ?>
+    <div style="background-color: #ef4444; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
+        <span><i class="fa-solid fa-triangle-exclamation"></i> Cannot delete booking. This event has an active invoice. Please delete the invoice first.</span>
+        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error']) && $_GET['error'] === 'delete_failed'): ?>
+    <div style="background-color: #ef4444; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
+        <span><i class="fa-solid fa-triangle-exclamation"></i> Failed to delete booking due to a database error.</span>
+        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    </div>
+<?php endif; ?>
 
 <!-- Stats Counter Grid -->
 <div class="stats-grid">
@@ -190,13 +218,25 @@ $upcoming_events = $stmt_upcoming->fetchAll();
                         <p style="font-size: 0.8rem; color: var(--text-secondary);">
                             <i class="fa-solid fa-user" style="margin-right: 0.25rem;"></i> <?= h($event['client_name']) ?> (<?= h($event['client_phone']) ?>)
                         </p>
-                        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: center;">
                             <a href="event-form.php?id=<?= $event['id'] ?>" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
                                 <i class="fa-solid fa-pen-to-square"></i> Edit
                             </a>
                             <a href="view-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: var(--accent-gradient);">
                                 <i class="fa-solid fa-file-invoice-dollar"></i> Menu & Quote
                             </a>
+                            <?php if ($event['has_invoice'] > 0): ?>
+                                <button type="button" class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background-color: #ef4444; border-color: #ef4444; opacity: 0.6;" onclick="alert('Cannot delete booking. This event has an active invoice. Please delete the invoice first.');">
+                                    <i class="fa-solid fa-trash-can"></i> Delete
+                                </button>
+                            <?php else: ?>
+                                <form action="delete-event.php" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to delete this event/booking? This action cannot be undone.');">
+                                    <input type="hidden" name="event_id" value="<?= $event['id'] ?>">
+                                    <button type="submit" class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background-color: #ef4444; border-color: #ef4444;">
+                                        <i class="fa-solid fa-trash-can"></i> Delete
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
