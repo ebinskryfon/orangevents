@@ -1,0 +1,596 @@
+/**
+ * Menu & Invoice Card Layout Templates
+ */
+
+/* Template Card Base Container */
+.template-preview-container {
+    display: flex;
+    justify-content: center;
+    padding: 1.5rem 0;
+    background-color: #121824;
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+    overflow: auto;
+}
+
+.invoice-card {
+    width: 800px;
+    min-height: 1130px; /* A4 Ratio Approximate at 800px width */
+    background-color: #000000;
+    color: #ffffff;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    position: relative;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+/* =========================================================================
+   TEMPLATE 1: ORANGE CLASSIC (Fidelity representation of the reference image)
+   ========================================================================= */
+.invoice-card.orange_classic {
+    background-color: #000000;
+    color: #ffffff;
+}
+
+/* Header Logo Area */
+.orange_classic .template-header {
+    border-bottom: 2px solid #eb6b34;
+    padding: 0.5rem 1rem 0.3rem 1rem;
+    text-align: center;
+}
+
+.orange_classic .header-logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0;
+}
+
+.orange_classic .logo-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 0.1rem;
+}
+
+.orange_classic .header-logo-img {
+    display: block;
+    margin: 0 auto;
+    height: 40px;
+    width: auto;
+}
+
+.orange_classic .logo-title {
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    line-height: 1.1;
+    margin-top: 0.15rem;
+}
+
+.orange_classic .logo-title .text-orange {
+    color: #f07c1b;
+}
+
+.orange_classic .logo-title .text-white {
+    color: #ffffff;
+}
+
+.orange_classic .logo-subtitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.18em;
+    margin-top: 0.15rem;
+}
+
+.orange_classic .logo-contact {
+    font-size: 1.05rem;
+    color: #ffffff;
+    font-weight: 700;
+    margin-top: 0.2rem;
+    letter-spacing: 0.06em;
+    line-height: 1.25;
+}
+
+.orange_classic .header-date-bar {
+    background-color: #000000;
+    color: #ffffff;
+    padding: 0.6rem 2rem;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-bottom: 3px solid #eb6b34;
+}
+
+/* Body Content Area */
+.orange_classic .template-body {
+    display: flex;
+    flex: 1;
+}
+
+/* Left Column: Collage & Vertical Accent */
+.orange_classic .left-accent-col {
+    width: 320px;
+    display: flex;
+    background-color: #1a1a1a;
+}
+
+.orange_classic .image-collage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.orange_classic .collage-img {
+    flex: 1;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    border-bottom: 1px solid #000000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.orange_classic .collage-img-label {
+    background-color: rgba(0,0,0,0.6);
+    color: #ffffff;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+}
+
+/* Placeholder gradients when images are missing */
+.orange_classic .img-stage {
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/stage.jpg'), linear-gradient(135deg, #2c3e50, #000000);
+}
+.orange_classic .img-catering {
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/catering.jpg'), linear-gradient(135deg, #e67e22, #000000);
+}
+.orange_classic .img-drinks {
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/drinks.jpg'), linear-gradient(135deg, #27ae60, #000000);
+}
+.orange_classic .img-deserts {
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/deserts.jpg'), linear-gradient(135deg, #8e44ad, #000000);
+}
+
+.orange_classic .vertical-orange-band {
+    width: 65px;
+    background-color: #eb6b34;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 0;
+    position: relative;
+}
+
+.orange_classic .band-icon {
+    font-size: 1.5rem;
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    padding: 8px;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+}
+
+.orange_classic .band-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.orange_classic .band-text span {
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    margin-left: 8px;
+    opacity: 0.9;
+}
+
+/* Right Column: Menu Detail Content */
+.orange_classic .right-content-col {
+    flex: 1;
+    padding: 1.5rem 1.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    background-color: #0d0d0d;
+}
+
+.orange_classic .section-title-wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid #eb6b34;
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.45rem;
+}
+
+.orange_classic .section-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #ffffff;
+    letter-spacing: 0.08em;
+}
+
+.orange_classic .section-subtitle {
+    font-size: 0.8rem;
+    color: #a4b0be;
+    font-weight: 500;
+}
+
+.orange_classic .section-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.orange_classic .item-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: #f1f2f6;
+}
+
+.orange_classic .item-name {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.orange_classic .item-name::before {
+    content: "•";
+    color: #eb6b34;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.orange_classic .item-price {
+    font-weight: 500;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+/* Double column menu alignment */
+.orange_classic .multi-col-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem 1.5rem;
+}
+
+.orange_classic .footer-summary-bar {
+    margin-top: auto;
+    border-top: 1px dashed rgba(255,255,255,0.1);
+    padding-top: 1.0rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.orange_classic .summary-box {
+    text-align: right;
+}
+
+.orange_classic .summary-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #eb6b34;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.orange_classic .summary-val {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+
+/* =========================================================================
+   TEMPLATE 2: ROYAL GOLD (Elegant Cream-Gold Theme)
+   ========================================================================= */
+.invoice-card.royal_gold {
+    background-color: #fdfbf7;
+    color: #2c2520;
+    border: 8px double #d4af37;
+    padding: 2rem;
+}
+
+.royal_gold .template-header {
+    text-align: center;
+    border-bottom: 2px solid #d4af37;
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.royal_gold .logo-icon {
+    font-size: 2.2rem;
+    color: #d4af37;
+}
+
+.royal_gold .logo-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #2c2520;
+    letter-spacing: 0.05em;
+}
+
+.royal_gold .logo-subtitle {
+    font-size: 0.8rem;
+    color: #d4af37;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.royal_gold .header-date-bar {
+    text-align: center;
+    margin: -1rem 0 1.5rem 0;
+    font-size: 0.9rem;
+    color: #7f6a58;
+    font-weight: 600;
+}
+
+.royal_gold .template-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.royal_gold .section-title-wrap {
+    border-bottom: 1px solid #d4af37;
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.royal_gold .section-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #8c7223;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.royal_gold .item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    font-size: 0.95rem;
+    border-bottom: 1px dotted rgba(212, 175, 55, 0.15);
+}
+
+.royal_gold .item-name::before {
+    content: "❖ ";
+    color: #d4af37;
+}
+
+.royal_gold .multi-col-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 2rem;
+}
+
+.royal_gold .footer-summary-bar {
+    margin-top: 3rem;
+    border-top: 2px solid #d4af37;
+    padding-top: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.royal_gold .summary-label {
+    font-size: 0.85rem;
+    color: #7f6a58;
+    text-transform: uppercase;
+}
+
+.royal_gold .summary-val {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #8c7223;
+}
+
+
+/* =========================================================================
+   TEMPLATE 3: MIDNIGHT DARK (Sleek Borderless Dark Minimalist)
+   ========================================================================= */
+.invoice-card.midnight_dark {
+    background-color: #0b0f19;
+    color: #eceff4;
+    padding: 2.5rem;
+}
+
+.midnight_dark .template-header {
+    margin-bottom: 2.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 1.5rem;
+}
+
+.midnight_dark .logo-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #00d2ff, #00d2ff, #0066ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.midnight_dark .header-date-bar {
+    font-size: 0.85rem;
+    color: #8892b0;
+}
+
+.midnight_dark .template-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+}
+
+.midnight_dark .section-title-wrap {
+    margin-bottom: 1rem;
+}
+
+.midnight_dark .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #64ffda;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.midnight_dark .item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.midnight_dark .footer-summary-bar {
+    grid-column: span 2;
+    margin-top: auto;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.midnight_dark .summary-label {
+    font-size: 0.8rem;
+    color: #8892b0;
+    text-transform: uppercase;
+}
+
+.midnight_dark .summary-val {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #64ffda;
+}
+
+/* =========================================================================
+   PRINT STYLESHEET
+   ========================================================================= */
+@media print {
+    /* Hide all elements except the card itself */
+    body * {
+        visibility: hidden;
+    }
+    
+    .invoice-card, 
+    .invoice-card * {
+        visibility: visible;
+    }
+    
+    body {
+        background-color: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .template-preview-container {
+        padding: 0 !important;
+        background: none !important;
+        border: none !important;
+        margin: 0 !important;
+        overflow: visible !important;
+    }
+
+    .invoice-card {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 100% !important;
+        box-shadow: none !important;
+        border: none !important;
+        page-break-inside: avoid;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    /* Ensure backgrounds carry over */
+    .orange_classic {
+        background-color: #000000 !important;
+    }
+    .orange_classic .left-accent-col {
+        background-color: #1a1a1a !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .orange_classic .vertical-orange-band {
+        background-color: #eb6b34 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .orange_classic .right-content-col {
+        background-color: #0d0d0d !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .orange_classic .band-text, 
+    .orange_classic .band-icon,
+    .orange_classic .collage-img-label {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
+
+/* Dish Highlighting Styles (when plates > 0) */
+.orange_classic .item-row.highlighted-dish {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+.orange_classic .item-row.highlighted-dish .item-name::before {
+    color: #f07c1b;
+}
+
+.royal_gold .item-row.highlighted-dish {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #8c7223;
+}
+
+.midnight_dark .item-row.highlighted-dish {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #64ffda;
+}
+

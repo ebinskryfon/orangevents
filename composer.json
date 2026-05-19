@@ -1,0 +1,11 @@
+{
+    "name": "orange/events",
+    "description": "Orange Events & Catering Management System",
+    "type": "project",
+    "require": {
+        "php": ">=8.0"
+    },
+    "scripts": {
+        "migrate": "php bin/migrate.php"
+    }
+}
