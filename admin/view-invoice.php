@@ -341,7 +341,7 @@ $settings = get_settings();
         <a href="edit-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-secondary" style="background-color: var(--bg-body); border-color: var(--border-color); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
             <i class="fa-solid fa-pen-to-square"></i> Edit Details
         </a>
-<!-- Admin Action Controls -->
+    </div>
 </div>
 
 <!-- Screen Only: Payment Audit and Metadata Bar -->
