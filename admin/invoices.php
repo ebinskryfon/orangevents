@@ -10,7 +10,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     $act = $_GET['action'];
     
     if ($act === 'pay') {
-        $db->prepare("UPDATE invoices SET status = 'paid', advance_received = final_total, payment_method = COALESCE(payment_method, 'CASH') WHERE id = :id")->execute(['id' => $inv_id]);
+        $db->prepare("UPDATE invoices SET status = 'paid', balance_received = final_total - advance_received, balance_paid_at = NOW(), balance_payment_method = COALESCE(payment_method, 'CASH'), payment_method = COALESCE(payment_method, 'CASH') WHERE id = :id")->execute(['id' => $inv_id]);
     }
 }
 
@@ -80,8 +80,8 @@ $invoices = $db->query($sql)->fetchAll();
                             <td>
                                 <div style="font-weight: 600; color: var(--accent-color);"><?= format_price($inv['final_total']) ?></div>
                                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">
-                                    Paid: <span style="color: #16a34a; font-weight: 500;"><?= format_price($inv['advance_received']) ?></span><br>
-                                    Rest: <span style="color: #dc2626; font-weight: 500;"><?= format_price($inv['final_total'] - $inv['advance_received']) ?></span>
+                                    Paid: <span style="color: #16a34a; font-weight: 500;"><?= format_price($inv['advance_received'] + $inv['balance_received']) ?></span><br>
+                                    Rest: <span style="color: #dc2626; font-weight: 500;"><?= format_price($inv['final_total'] - ($inv['advance_received'] + $inv['balance_received'])) ?></span>
                                 </div>
                             </td>
                             <td>

@@ -102,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $discount = (float)$_POST['discount'];
     $tax_rate = (float)$_POST['tax_rate'];
     $advance_received = (float)$_POST['advance_received'];
+    $balance_received = (float)($_POST['balance_received'] ?? 0.0);
     $payment_method = trim($_POST['payment_method']);
     if ($payment_method === '') {
         $payment_method = null;
@@ -208,10 +209,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Manage balance payment metadata
+            if ($status === 'paid' && $balance_received == 0.0) {
+                $balance_received = max(0.0, $final_total - $advance_received);
+            }
+
             $new_bal_paid_at = $invoice['balance_paid_at'];
             $new_bal_method = $invoice['balance_payment_method'];
-            if ($status === 'paid') {
-                if ($invoice['status'] === 'paid' && $invoice['balance_paid_at'] !== null) {
+            if ($balance_received > 0) {
+                if ((float)$invoice['balance_received'] == $balance_received && $invoice['balance_paid_at'] !== null) {
                     if ($payment_method !== '') {
                         $new_bal_method = $payment_method;
                     }
@@ -233,6 +238,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             tax_amount = :tax_amount,
                                             final_total = :final_total,
                                             advance_received = :advance,
+                                            balance_received = :balance,
                                             payment_method = :method,
                                             status = :status,
                                             template_name = :temp,
@@ -241,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             advance_payment_method = :adv_method,
                                             balance_paid_at = :bal_paid_at,
                                             balance_payment_method = :bal_method
-                                         WHERE id = :id");
+                                          WHERE id = :id");
             $stmt_update->execute([
                 'num' => $invoice_number,
                 'subtotal' => $subtotal,
@@ -250,6 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'tax_amount' => $tax_amount,
                 'final_total' => $final_total,
                 'advance' => $advance_received,
+                'balance' => $balance_received,
                 'method' => $payment_method,
                 'status' => $status,
                 'temp' => $template_name,
@@ -397,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem;">
                                     <?php foreach ($dishes_by_category[$cat['id']] as $dish): ?>
                                         <?php 
-                                        $is_checked = isset($selected_dishes[$dish['id']]);
+                                        $is_checked = array_key_exists($dish['id'], $selected_dishes);
                                         $p_val = $is_checked ? $selected_dishes[$dish['id']] : '';
                                         ?>
                                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
@@ -465,11 +472,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="number" step="0.01" id="tax_rate" name="tax_rate" class="form-control" value="<?= (float)$invoice['tax_rate'] ?>" min="0" max="100">
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
                     <div class="form-group">
                         <label for="advance_received" class="form-label" style="font-weight: 600;">Advance Paid (Rs.)</label>
                         <input type="number" step="0.01" id="advance_received" name="advance_received" class="form-control" value="<?= (float)$invoice['advance_received'] ?>" min="0">
                     </div>
+                    <div class="form-group">
+                        <label for="balance_received" class="form-label" style="font-weight: 600;">Balance Paid (Rs.)</label>
+                        <input type="number" step="0.01" id="balance_received" name="balance_received" class="form-control" value="<?= (float)$invoice['balance_received'] ?>" min="0">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
                     <div class="form-group">
                         <label for="payment_method" class="form-label" style="font-weight: 600;">Payment Method</label>
                         <select name="payment_method" id="payment_method" class="form-control">

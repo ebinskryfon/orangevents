@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS `invoices` (
     `tax_amount` DECIMAL(10,2) DEFAULT 0.00,
     `final_total` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `advance_received` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `balance_received` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `payment_method` VARCHAR(50) DEFAULT NULL,
     `status` ENUM('draft', 'finalized', 'paid') DEFAULT 'draft',
     `template_name` VARCHAR(50) DEFAULT 'orange_classic',

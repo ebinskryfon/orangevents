@@ -461,7 +461,7 @@ foreach ($all_dishes as $dish) {
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem;">
                                     <?php foreach ($dishes_by_category[$cat['id']] as $dish): ?>
                                         <?php 
-                                        $is_checked = isset($selected_dishes[$dish['id']]);
+                                        $is_checked = array_key_exists($dish['id'], $selected_dishes);
                                         $p_val = $is_checked ? $selected_dishes[$dish['id']] : '';
                                         ?>
                                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
