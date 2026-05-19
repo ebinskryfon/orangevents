@@ -163,6 +163,21 @@ $settings = get_settings();
         padding: 0 !important;
     }
 }
+
+/* Table Sl No CSS counter */
+.aedan-table {
+    counter-reset: rowNumber;
+}
+.aedan-table tbody tr.countable-row {
+    counter-increment: rowNumber;
+}
+.aedan-table tbody tr.countable-row td.serial-col::before {
+    content: counter(rowNumber);
+}
+.invoice-card.hide-dishes .dish-row,
+.invoice-card.hide-dishes .menu-category-section {
+    display: none !important;
+}
 </style>
 
 <!-- Admin Action Controls -->
@@ -184,6 +199,11 @@ $settings = get_settings();
         <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
             <input type="checkbox" id="toggleTotalCheckbox" checked style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
             Show Estimated Total
+        </label>
+        
+        <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="toggleDishesCheckbox" checked style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
+            Show Dishes & Services
         </label>
     </div>
     
@@ -280,7 +300,7 @@ $settings = get_settings();
                     
                     <!-- 2. WELCOME DRINK SECTION -->
                     <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                        <div>
+                        <div class="menu-category-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">WELCOME DRINK</h3>
                                 <?php if ($catering): ?>
@@ -290,7 +310,7 @@ $settings = get_settings();
                             <ul class="section-list">
                                 <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
                                         <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
                                     </li>
                                 <?php endforeach; ?>
@@ -300,14 +320,14 @@ $settings = get_settings();
                     
                     <!-- 3. STARTERS SECTION -->
                     <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                        <div>
+                        <div class="menu-category-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">STARTERS</h3>
                             </div>
                             <ul class="section-list">
                                 <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
                                         <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
                                     </li>
                                 <?php endforeach; ?>
@@ -317,14 +337,14 @@ $settings = get_settings();
                     
                     <!-- 4. MAIN COURSE SECTION -->
                     <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                        <div>
+                        <div class="menu-category-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">MAIN COURSE</h3>
                             </div>
                             <ul class="section-list multi-col-list">
                                 <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
                                         <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
                                     </li>
                                 <?php endforeach; ?>
@@ -334,14 +354,14 @@ $settings = get_settings();
                     
                     <!-- 5. DESERTS SECTION -->
                     <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                        <div>
+                        <div class="menu-category-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">DESERTS</h3>
                             </div>
                             <ul class="section-list">
                                 <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
                                         <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
                                     </li>
                                 <?php endforeach; ?>
@@ -351,14 +371,14 @@ $settings = get_settings();
                     
                     <!-- 6. SERVICE & WASTE MANAGEMENT SECTION -->
                     <?php if (isset($dishes_by_category['SERVICE & WASTE MANAGEMENT'])): ?>
-                        <div>
+                        <div class="menu-category-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">SERVICE & WASTE MANAGEMENT</h3>
                             </div>
                             <ul class="section-list">
                                 <?php foreach ($dishes_by_category['SERVICE & WASTE MANAGEMENT'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
                                         <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
                                     </li>
                                 <?php endforeach; ?>
@@ -766,8 +786,8 @@ $settings = get_settings();
                     foreach ($table_items as $item): 
                         $is_dish = !empty($item['is_dish']);
                     ?>
-                        <tr style="border-bottom: 1px solid #000000; background-color: #ffffff; color: #000000;">
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= $sl++ ?></td>
+                        <tr class="countable-row <?= $is_dish ? 'dish-row' : '' ?>" style="border-bottom: 1px solid #000000; background-color: #ffffff; color: #000000;">
+                            <td class="serial-col" style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"></td>
                             <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: <?= $is_dish ? 'normal' : '700' ?>;"><?= h($item['name']) ?></td>
                             <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;"><?= h($item['category']) ?></td>
                             <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;"><?= h($item['size']) ?></td>
@@ -888,6 +908,16 @@ document.getElementById('toggleTotalCheckbox').addEventListener('change', functi
             box.style.setProperty('display', 'none', 'important');
         }
     });
+});
+
+document.getElementById('toggleDishesCheckbox').addEventListener('change', function(e) {
+    const invoiceCard = document.querySelector('.invoice-card');
+    if (!invoiceCard) return;
+    if (e.target.checked) {
+        invoiceCard.classList.remove('hide-dishes');
+    } else {
+        invoiceCard.classList.add('hide-dishes');
+    }
 });
 
 document.getElementById('downloadImageBtn').addEventListener('click', function() {
