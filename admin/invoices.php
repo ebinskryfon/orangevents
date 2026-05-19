@@ -85,11 +85,10 @@ $invoices = $db->query($sql)->fetchAll();
                                 <a href="view-invoice.php?event_id=<?= $inv['event_id'] ?>" class="btn btn-primary" style="padding: 0.35rem 0.6rem; font-size: 0.75rem; background: var(--accent-gradient);">
                                     <i class="fa-solid fa-eye"></i> View Menu & Quote
                                 </a>
-                                <?php if ($inv['status'] === 'draft'): ?>
-                                    <a href="event-form.php?id=<?= $inv['event_id'] ?>" class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
-                                        <i class="fa-solid fa-pen-to-square"></i> Edit
-                                    </a>
-                                <?php elseif ($inv['status'] === 'finalized'): ?>
+                                <a href="edit-invoice.php?event_id=<?= $inv['event_id'] ?>" class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </a>
+                                <?php if ($inv['status'] === 'finalized'): ?>
                                     <a href="?action=pay&id=<?= $inv['id'] ?>" class="btn btn-success" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
                                         <i class="fa-solid fa-hand-holding-dollar"></i> Mark Paid
                                     </a>

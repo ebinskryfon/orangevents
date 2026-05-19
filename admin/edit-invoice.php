@@ -138,9 +138,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="content-header" style="margin-bottom: 2rem;">
     <div>
-        <div style="margin-bottom: 0.5rem;">
+        <div style="margin-bottom: 0.5rem; display: flex; gap: 1.5rem; align-items: center;">
             <a href="view-invoice.php?event_id=<?= $event_id ?>" style="color: var(--accent-color); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
                 <i class="fa-solid fa-arrow-left"></i> Back to Invoice View
+            </a>
+            <span style="color: var(--border-color);">|</span>
+            <a href="event-form.php?id=<?= $event_id ?>" style="color: var(--text-secondary); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <i class="fa-solid fa-calendar-days"></i> Edit Event Items & Menu
             </a>
         </div>
         <h1 style="font-size: 2.2rem; font-weight: 800; color: var(--text-primary);">Edit Invoice Details</h1>
