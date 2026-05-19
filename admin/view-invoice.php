@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../includes/auth.php';
+check_admin_auth();
 
 $db = get_db_connection();
 $event_id = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
 
 if ($event_id <= 0) {
+    require_once __DIR__ . '/../includes/header.php';
     echo "<h3>Error: Event ID is required.</h3>";
     require_once __DIR__ . '/../includes/footer.php';
     exit;
@@ -17,6 +19,7 @@ $stmt->execute(['id' => $event_id]);
 $event = $stmt->fetch();
 
 if (!$event) {
+    require_once __DIR__ . '/../includes/header.php';
     echo "<h3>Error: Booking not found.</h3>";
     require_once __DIR__ . '/../includes/footer.php';
     exit;
@@ -89,7 +92,7 @@ if ($invoice['status'] === 'draft' && $invoice['subtotal'] != $grand_total) {
     $invoice['final_total'] = $grand_total;
 }
 
-// Handle Template Selection Update & Finalization POST triggers
+// Handle Template Selection Update, Finalization, Payments, and Deletion POST triggers
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
@@ -187,6 +190,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Now include header, because no more redirects will happen
+require_once __DIR__ . '/../includes/header.php';
 
 $template = $invoice['template_name'];
 $settings = get_settings();
