@@ -482,11 +482,27 @@ $settings = get_settings();
                         </div>
                         <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
-                                <span>Estimated Total:</span>
+                                <span>Sub Total:</span>
+                                <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['subtotal']) ?></span>
+                            </div>
+                            <?php if ($invoice['discount'] > 0): ?>
+                                <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #ff6b6b;">
+                                    <span>Discount:</span>
+                                    <span>-<?= format_price($invoice['discount']) ?></span>
+                                </div>
+                            <?php endif; ?>
+                            <?php if ($invoice['tax_rate'] > 0): ?>
+                                <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
+                                    <span>GST (<?= (float)$invoice['tax_rate'] ?>%):</span>
+                                    <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['tax_amount']) ?></span>
+                                </div>
+                            <?php endif; ?>
+                            <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
+                                <span>Grand Total:</span>
                                 <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['final_total']) ?></span>
                             </div>
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
-                                <span>Advance Paid:</span>
+                                <span>Amount Paid:</span>
                                 <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['advance_received']) ?></span>
                             </div>
                             <div style="display: flex; gap: 1rem; font-size: 1rem; color: #ffffff; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 0.25rem; font-weight: bold;">
@@ -624,11 +640,27 @@ $settings = get_settings();
                     </div>
                     <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
+                            <span>Sub Total:</span>
+                            <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['subtotal']) ?></span>
+                        </div>
+                        <?php if ($invoice['discount'] > 0): ?>
+                            <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #aa2222;">
+                                <span>Discount:</span>
+                                <span>-<?= format_price($invoice['discount']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($invoice['tax_rate'] > 0): ?>
+                            <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
+                                <span>GST (<?= (float)$invoice['tax_rate'] ?>%):</span>
+                                <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['tax_amount']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
                             <span>Grand Total:</span>
                             <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['final_total']) ?></span>
                         </div>
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
-                            <span>Advance Paid:</span>
+                            <span>Amount Paid:</span>
                             <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['advance_received']) ?></span>
                         </div>
                         <div style="display: flex; gap: 1rem; font-size: 1rem; color: #8c7223; border-top: 1px dashed rgba(140,114,35,0.3); padding-top: 0.25rem; font-weight: bold;">
@@ -738,11 +770,27 @@ $settings = get_settings();
                     </div>
                     <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
-                            <span>Total Statement:</span>
+                            <span>Sub Total:</span>
+                            <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['subtotal']) ?></span>
+                        </div>
+                        <?php if ($invoice['discount'] > 0): ?>
+                            <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #ff6b6b;">
+                                <span>Discount:</span>
+                                <span>-<?= format_price($invoice['discount']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($invoice['tax_rate'] > 0): ?>
+                            <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
+                                <span>GST (<?= (float)$invoice['tax_rate'] ?>%):</span>
+                                <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['tax_amount']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
+                            <span>Grand Total:</span>
                             <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['final_total']) ?></span>
                         </div>
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
-                            <span>Advance Paid:</span>
+                            <span>Amount Paid:</span>
                             <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['advance_received']) ?></span>
                         </div>
                         <div style="display: flex; gap: 1rem; font-size: 1rem; color: #64ffda; border-top: 1px dashed rgba(100,255,218,0.2); padding-top: 0.25rem; font-weight: bold;">
@@ -923,19 +971,35 @@ $settings = get_settings();
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr style="border-bottom: 1px solid #000000;">
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Sub Total</td>
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['final_total']) ?></td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['subtotal']) ?></td>
                         </tr>
+                        <?php if ($invoice['discount'] > 0): ?>
+                            <tr style="border-bottom: 1px solid #000000;">
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600; color: #aa2222;">Discount</td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; color: #aa2222;">-<?= format_price($invoice['discount']) ?></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #000000;">
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Taxable Value</td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price(max(0, $invoice['subtotal'] - $invoice['discount'])) ?></td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php if ($invoice['tax_rate'] > 0): ?>
+                            <tr style="border-bottom: 1px solid #000000;">
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">GST (<?= (float)$invoice['tax_rate'] ?>%)</td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['tax_amount']) ?></td>
+                            </tr>
+                        <?php endif; ?>
                         <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #f8fafc;">
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Total</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Grand Total</td>
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right;"><?= format_price($invoice['final_total']) ?></td>
                         </tr>
                         <tr style="border-bottom: 1px solid #000000;">
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Received</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Amount Paid</td>
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['advance_received']) ?></td>
                         </tr>
                         <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #fcf2f2;">
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Balance</td>
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right;"><?= format_price($invoice['final_total'] - $invoice['advance_received']) ?></td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; color: #dc2626;">Rest to Pay</td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right; color: #dc2626;"><?= format_price($invoice['final_total'] - $invoice['advance_received']) ?></td>
                         </tr>
                         <tr>
                             <td colspan="2" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
@@ -1044,7 +1108,36 @@ document.getElementById('downloadImageBtn').addEventListener('click', function()
 
     if (openBtn && modal) {
         openBtn.addEventListener('click', function() {
-            modal.style.display = 'flex';
+            const rest = <?= (float)$rest_to_give ?>;
+            const confirmMsg = `Record full payment of Rs. ${rest.toLocaleString('en-IN')} now?\n\n- Click OK to save instantly.\n- Click Cancel to enter custom payment details (partial payment or bank methods).`;
+            if (confirm(confirmMsg)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '';
+                
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'mark_paid';
+                form.appendChild(actionInput);
+                
+                const amountInput = document.createElement('input');
+                amountInput.type = 'hidden';
+                amountInput.name = 'amount_paid';
+                amountInput.value = rest;
+                form.appendChild(amountInput);
+                
+                const methodInput = document.createElement('input');
+                methodInput.type = 'hidden';
+                methodInput.name = 'payment_method';
+                methodInput.value = 'CASH';
+                form.appendChild(methodInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            } else {
+                modal.style.display = 'flex';
+            }
         });
     }
 

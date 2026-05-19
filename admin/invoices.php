@@ -10,7 +10,7 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     $act = $_GET['action'];
     
     if ($act === 'pay') {
-        $db->prepare("UPDATE invoices SET status = 'paid' WHERE id = :id")->execute(['id' => $inv_id]);
+        $db->prepare("UPDATE invoices SET status = 'paid', advance_received = final_total, payment_method = COALESCE(payment_method, 'CASH') WHERE id = :id")->execute(['id' => $inv_id]);
     }
 }
 
