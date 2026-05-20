@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/auth.php';
 check_admin_auth();
 
 $db = get_db_connection();
-$event_id = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
+$event_id = isset($_GET['event_id']) ? (int) $_GET['event_id'] : 0;
 
 if ($event_id <= 0) {
     require_once __DIR__ . '/../includes/header.php';
@@ -34,7 +34,7 @@ if (!$invoice) {
     // Auto-create invoice if missing
     $inv_num = "INV-" . date('Y') . "-" . str_pad($event_id, 4, '0', STR_PAD_LEFT);
     $db->prepare("INSERT INTO invoices (event_id, invoice_number, subtotal, final_total, status) VALUES (:id, :num, 0, 0, 'draft')")->execute(['id' => $event_id, 'num' => $inv_num]);
-    
+
     $stmt_inv->execute(['id' => $event_id]);
     $invoice = $stmt_inv->fetch();
 }
@@ -63,7 +63,7 @@ $dishes_by_category = [];
 
 if ($catering) {
     $catering_total = $catering['per_plate_price'] * $catering['total_plates'];
-    
+
     // 5. Fetch selected dishes grouped by category name
     $stmt_dishes = $db->prepare("SELECT d.dish_name, mc.category_name, ecd.plate_count 
                                  FROM event_catering_dishes ecd 
@@ -73,7 +73,7 @@ if ($catering) {
                                  ORDER BY mc.display_order ASC, d.dish_name ASC");
     $stmt_dishes->execute(['cat_id' => $catering['id']]);
     $selected_dishes = $stmt_dishes->fetchAll();
-    
+
     foreach ($selected_dishes as $sd) {
         $dishes_by_category[$sd['category_name']][] = [
             'name' => $sd['dish_name'],
@@ -87,7 +87,7 @@ $grand_total = $stage_total + $catering_total;
 
 if ($invoice['status'] === 'draft' && $invoice['subtotal'] != $grand_total) {
     $db->prepare("UPDATE invoices SET subtotal = :sub, final_total = :final WHERE id = :inv_id")
-       ->execute(['sub' => $grand_total, 'final' => $grand_total, 'inv_id' => $invoice['id']]);
+        ->execute(['sub' => $grand_total, 'final' => $grand_total, 'inv_id' => $invoice['id']]);
     $invoice['subtotal'] = $grand_total;
     $invoice['final_total'] = $grand_total;
 }
@@ -98,37 +98,37 @@ $rest_to_give = $invoice['final_total'] - ($invoice['advance_received'] + $invoi
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
-        
+
         if ($action === 'update_template') {
             $new_template = $_POST['template_name'] ?? 'orange_classic';
             $db->prepare("UPDATE invoices SET template_name = :temp WHERE id = :id")->execute(['temp' => $new_template, 'id' => $invoice['id']]);
             $invoice['template_name'] = $new_template;
         }
-        
+
         if ($action === 'finalize') {
             // Lock invoice to finalized, and set event status to confirmed
             $db->beginTransaction();
             $db->prepare("UPDATE invoices SET status = 'finalized' WHERE id = :id")->execute(['id' => $invoice['id']]);
             $db->prepare("UPDATE events SET status = 'confirmed' WHERE id = :ev_id")->execute(['ev_id' => $event_id]);
             $db->commit();
-            
+
             $invoice['status'] = 'finalized';
             $event['status'] = 'confirmed';
         }
-        
+
         if ($action === 'mark_paid') {
-            $amount_paid = isset($_POST['amount_paid']) ? (float)$_POST['amount_paid'] : 0.0;
+            $amount_paid = isset($_POST['amount_paid']) ? (float) $_POST['amount_paid'] : 0.0;
             $payment_method = isset($_POST['payment_method']) ? trim($_POST['payment_method']) : 'CASH';
             $payment_treatment = isset($_POST['payment_treatment']) ? trim($_POST['payment_treatment']) : 'partial';
-            
+
             $rest_to_give = $invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received']);
-            
+
             if ($amount_paid > 0) {
                 $db->beginTransaction();
-                
-                $current_advance = (float)$invoice['advance_received'];
-                $current_balance = (float)$invoice['balance_received'];
-                
+
+                $current_advance = (float) $invoice['advance_received'];
+                $current_balance = (float) $invoice['balance_received'];
+
                 if ($current_advance == 0.0) {
                     if ($amount_paid >= $rest_to_give || $payment_treatment === 'write_off') {
                         $new_advance = $invoice['final_total'];
@@ -149,22 +149,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $status = 'finalized';
                     }
                 }
-                
+
                 $new_adv_paid_at = $invoice['advance_paid_at'];
                 $new_adv_method = $invoice['advance_payment_method'];
                 $new_bal_paid_at = $invoice['balance_paid_at'];
                 $new_bal_method = $invoice['balance_payment_method'];
-                
+
                 if ($current_advance == 0.0 && $new_advance > 0) {
                     $new_adv_paid_at = date('Y-m-d H:i:s');
                     $new_adv_method = $payment_method;
                 }
-                
+
                 if ($status === 'paid' && $new_balance > 0) {
                     $new_bal_paid_at = date('Y-m-d H:i:s');
                     $new_bal_method = $payment_method;
                 }
-                
+
                 $stmt = $db->prepare("UPDATE `invoices` SET 
                                         `advance_received` = :advance, 
                                         `balance_received` = :balance,
@@ -186,14 +186,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'bal_method' => $new_bal_method,
                     'id' => $invoice['id']
                 ]);
-                
+
                 $db->commit();
-                
+
                 header("Location: view-invoice.php?event_id=" . $event['id'] . "&payment_success=1");
                 exit;
             }
         }
-        
+
         if ($action === 'delete_invoice') {
             $input_num = isset($_POST['invoice_number']) ? trim($_POST['invoice_number']) : '';
             if ($input_num === $invoice['invoice_number']) {
@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->prepare("UPDATE `events` SET `status` = 'draft' WHERE `id` = :ev_id")->execute(['ev_id' => $event_id]);
                 $db->prepare("DELETE FROM `invoices` WHERE `id` = :id")->execute(['id' => $invoice['id']]);
                 $db->commit();
-                
+
                 header("Location: invoices.php?deleted=1");
                 exit;
             }
@@ -217,87 +217,98 @@ $settings = get_settings();
 ?>
 
 <?php if ($template === 'aedan_gardens'): ?>
-<style>
-@media print {
-    @page {
-        size: landscape;
-        margin: 0.6cm;
-    }
-}
-</style>
+    <style>
+        @media print {
+            @page {
+                size: landscape;
+                margin: 0.6cm;
+            }
+        }
+    </style>
 <?php else: ?>
-<style>
-@media print {
-    @page {
-        size: portrait;
-        margin: 0.8cm;
-    }
-}
-</style>
+    <style>
+        @media print {
+            @page {
+                size: portrait;
+                margin: 0.8cm;
+            }
+        }
+    </style>
 <?php endif; ?>
 
 <style>
-/* Controls bar visible only on screen */
-.print-control-bar {
-    background-color: var(--bg-card);
-    border: 1px solid var(--border-color);
-    padding: 1.25rem 2rem;
-    border-radius: var(--border-radius-lg);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    gap: 1rem;
-}
-
-@media print {
+    /* Controls bar visible only on screen */
     .print-control-bar {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        padding: 1.25rem 2rem;
+        border-radius: var(--border-radius-lg);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        gap: 1rem;
+    }
+
+    @media print {
+        .print-control-bar {
+            display: none !important;
+        }
+
+        .sidebar {
+            display: none !important;
+        }
+
+        .main-content {
+            margin-left: 0 !important;
+            padding: 0 !important;
+        }
+    }
+
+    /* Table Sl No CSS counter */
+    .aedan-table {
+        counter-reset: rowNumber;
+    }
+
+    .aedan-table tbody tr.countable-row {
+        counter-increment: rowNumber;
+    }
+
+    .aedan-table tbody tr.countable-row td.serial-col::before {
+        content: counter(rowNumber);
+    }
+
+    .invoice-card.hide-dishes .dish-row,
+    .invoice-card.hide-dishes .menu-category-section {
         display: none !important;
     }
-    .sidebar {
+
+    .invoice-card.hide-payments .payment-history {
         display: none !important;
     }
-    .main-content {
-        margin-left: 0 !important;
-        padding: 0 !important;
+
+    /* Premium modal styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
     }
-}
-
-/* Table Sl No CSS counter */
-.aedan-table {
-    counter-reset: rowNumber;
-}
-.aedan-table tbody tr.countable-row {
-    counter-increment: rowNumber;
-}
-.aedan-table tbody tr.countable-row td.serial-col::before {
-    content: counter(rowNumber);
-}
-.invoice-card.hide-dishes .dish-row,
-.invoice-card.hide-dishes .menu-category-section {
-    display: none !important;
-}
-
-/* Premium modal styles */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(4px);
-    z-index: 10000;
-    align-items: center;
-    justify-content: center;
-}
 </style>
 
 <?php if (isset($_GET['payment_success'])): ?>
-    <div style="background-color: #22c55e; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;" class="print-control-bar">
+    <div style="background-color: #22c55e; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;"
+        class="print-control-bar">
         <span><i class="fa-solid fa-circle-check"></i> Payment recorded successfully!</span>
-        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+        <button onclick="this.parentElement.style.display='none'"
+            style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
     </div>
 <?php endif; ?>
 
@@ -305,142 +316,194 @@ $settings = get_settings();
 <div class="print-control-bar">
     <div style="display: flex; gap: 0.75rem; align-items: center;">
         <span style="font-weight: 600; color: var(--text-secondary);">Select Template Layout:</span>
-        <form action="" method="POST" id="templateForm" style="margin: 0; display: inline-flex; align-items: center; gap: 0.5rem;">
+        <form action="" method="POST" id="templateForm"
+            style="margin: 0; display: inline-flex; align-items: center; gap: 0.5rem;">
             <input type="hidden" name="action" value="update_template">
-            <select name="template_name" class="form-control" style="width: 200px; padding: 0.4rem 0.8rem;" onchange="document.getElementById('templateForm').submit()">
-                <option value="orange_classic" <?= $template == 'orange_classic' ? 'selected' : '' ?>>Orange Classic (Image representation)</option>
+            <select name="template_name" class="form-control" style="width: 200px; padding: 0.4rem 0.8rem;"
+                onchange="document.getElementById('templateForm').submit()">
+                <option value="orange_classic" <?= $template == 'orange_classic' ? 'selected' : '' ?>>Orange Classic (Image
+                    representation)</option>
                 <option value="royal_gold" <?= $template == 'royal_gold' ? 'selected' : '' ?>>Royal Gold</option>
                 <option value="midnight_dark" <?= $template == 'midnight_dark' ? 'selected' : '' ?>>Midnight Dark</option>
-                <option value="aedan_gardens" <?= $template == 'aedan_gardens' ? 'selected' : '' ?>>Aedan Gardens (Tax Invoice)</option>
-                <option value="modern_minimalist" <?= $template == 'modern_minimalist' ? 'selected' : '' ?>>Modern Minimalist</option>
-                <option value="emerald_luxury" <?= $template == 'emerald_luxury' ? 'selected' : '' ?>>Emerald Luxury</option>
+                <option value="aedan_gardens" <?= $template == 'aedan_gardens' ? 'selected' : '' ?>>Aedan Gardens (Tax
+                    Invoice)</option>
+                <option value="modern_minimalist" <?= $template == 'modern_minimalist' ? 'selected' : '' ?>>Modern
+                    Minimalist</option>
+                <option value="emerald_luxury" <?= $template == 'emerald_luxury' ? 'selected' : '' ?>>Emerald Luxury
+                </option>
                 <option value="blossom_chic" <?= $template == 'blossom_chic' ? 'selected' : '' ?>>Blossom Chic</option>
             </select>
         </form>
     </div>
 
     <div style="display: flex; gap: 1.5rem; align-items: center; margin-left: 1.5rem; margin-right: auto;">
-        <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
-            <input type="checkbox" id="toggleTotalCheckbox" checked style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
+        <label
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="toggleTotalCheckbox" checked
+                style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
             Show Estimated Total
         </label>
-        
-        <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
-            <input type="checkbox" id="toggleDishesCheckbox" checked style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
+
+        <label
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="toggleDishesCheckbox" checked
+                style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
             Show Dishes & Services
         </label>
+
+        <label
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="togglePaymentCheckbox" checked
+                style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
+            Show Payment History
+        </label>
     </div>
-    
+
     <div style="display: flex; gap: 0.5rem;">
         <?php if ($invoice['status'] === 'draft'): ?>
-            <form action="" method="POST" style="margin: 0;" onsubmit="return confirm('Finalizing will lock details and mark the event Confirmed. Proceed?');">
+            <form action="" method="POST" style="margin: 0;"
+                onsubmit="return confirm('Finalizing will lock details and mark the event Confirmed. Proceed?');">
                 <input type="hidden" name="action" value="finalize">
                 <button type="submit" class="btn btn-success">
                     <i class="fa-solid fa-lock"></i> Finalize Package
                 </button>
             </form>
         <?php endif; ?>
-        
+
         <?php if ($invoice['status'] === 'finalized'): ?>
             <button id="openPaymentModalBtn" class="btn btn-success">
                 <i class="fa-solid fa-circle-check"></i> Mark as Paid
             </button>
         <?php endif; ?>
-        
+
         <button id="downloadImageBtn" class="btn btn-secondary">
             <i class="fa-solid fa-image"></i> Save as Image
         </button>
-        
+
         <button onclick="window.print()" class="btn btn-primary">
             <i class="fa-solid fa-print"></i> Print / Save PDF
         </button>
-        
+
         <button id="deleteInvoiceBtn" class="btn btn-danger" style="background-color: #dc2626; border-color: #dc2626;">
             <i class="fa-solid fa-trash-can"></i> Delete Invoice
         </button>
-        
-        <a href="edit-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-secondary" style="background-color: var(--bg-body); border-color: var(--border-color); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+
+        <a href="edit-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-secondary"
+            style="background-color: var(--bg-body); border-color: var(--border-color); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
             <i class="fa-solid fa-pen-to-square"></i> Edit Details
         </a>
     </div>
 </div>
 
 <!-- Screen Only: Payment Audit and Metadata Bar -->
-<div class="print-control-bar" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+<div class="print-control-bar"
+    style="margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
     <!-- Box 1: Status & Payment Progress -->
-    <div class="card" style="padding: 1rem 1.25rem; display: flex; flex-direction: column; justify-content: center; border-left: 4px solid <?= $invoice['status'] === 'paid' ? '#16a34a' : ($invoice['status'] === 'finalized' ? '#eab308' : '#64748b') ?>; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
-        <h4 style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">Payment Progress & Status</h4>
+    <div class="card"
+        style="padding: 1rem 1.25rem; display: flex; flex-direction: column; justify-content: center; border-left: 4px solid <?= $invoice['status'] === 'paid' ? '#16a34a' : ($invoice['status'] === 'finalized' ? '#eab308' : '#64748b') ?>; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+        <h4
+            style="margin: 0 0 0.5rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">
+            Payment Progress & Status</h4>
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">
                 <?= $invoice['status'] === 'paid' ? 'Full Payment Completed' : ($invoice['status'] === 'finalized' ? 'Partially Settled' : 'Draft Estimate') ?>
             </span>
             <span class="badge badge-<?= h($invoice['status']) ?>"><?= h($invoice['status']) ?></span>
         </div>
-        <div style="margin-top: 0.5rem; background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden;">
-            <?php 
+        <div
+            style="margin-top: 0.5rem; background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden;">
+            <?php
             $progress = $invoice['final_total'] > 0 ? min(100, (($invoice['advance_received'] + $invoice['balance_received']) / $invoice['final_total']) * 100) : 0;
             ?>
-            <div style="background: <?= $invoice['status'] === 'paid' ? '#16a34a' : 'var(--accent-color)' ?>; width: <?= $progress ?>%; height: 100%;"></div>
+            <div
+                style="background: <?= $invoice['status'] === 'paid' ? '#16a34a' : 'var(--accent-color)' ?>; width: <?= $progress ?>%; height: 100%;">
+            </div>
         </div>
-        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600;"><?= number_format($progress, 1) ?>% Paid</span>
+        <span
+            style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; font-weight: 600;"><?= number_format($progress, 1) ?>%
+            Paid</span>
     </div>
 
     <!-- Box 2: Advance Payment Info -->
-    <div class="card" style="padding: 1rem 1.25rem; border-left: 4px solid #3b82f6; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
-        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">Advance Payment Details</h4>
+    <div class="card"
+        style="padding: 1rem 1.25rem; border-left: 4px solid #3b82f6; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+        <h4
+            style="margin: 0 0 0.25rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">
+            Advance Payment Details</h4>
         <?php if ($invoice['advance_received'] > 0): ?>
-            <div style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);"><?= format_price($invoice['advance_received']) ?></div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary);">
+                <?= format_price($invoice['advance_received']) ?>
+            </div>
             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.35rem; line-height: 1.4;">
-                <i class="fa-solid fa-credit-card" style="color: var(--accent-color); width: 14px;"></i> Method: <strong><?= h($invoice['advance_payment_method'] ?: 'CASH') ?></strong><br>
-                <i class="fa-solid fa-calendar-day" style="color: var(--accent-color); width: 14px;"></i> Date: <strong><?= !empty($invoice['advance_paid_at']) ? date('d-M-Y h:i A', strtotime($invoice['advance_paid_at'])) : 'Unknown / Imported' ?></strong>
+                <i class="fa-solid fa-credit-card" style="color: var(--accent-color); width: 14px;"></i> Method:
+                <strong><?= h($invoice['advance_payment_method'] ?: 'CASH') ?></strong><br>
+                <i class="fa-solid fa-calendar-day" style="color: var(--accent-color); width: 14px;"></i> Date:
+                <strong><?= !empty($invoice['advance_paid_at']) ? date('d-M-Y h:i A', strtotime($invoice['advance_paid_at'])) : 'Unknown / Imported' ?></strong>
             </div>
         <?php else: ?>
-            <div style="color: var(--text-muted); font-size: 0.85rem; font-style: italic; margin-top: 0.5rem;">No advance payment recorded.</div>
+            <div style="color: var(--text-muted); font-size: 0.85rem; font-style: italic; margin-top: 0.5rem;">No advance
+                payment recorded.</div>
         <?php endif; ?>
     </div>
 
     <!-- Box 3: Balance / Rest Payment Info -->
-    <div class="card" style="padding: 1rem 1.25rem; border-left: 4px solid #ef4444; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
-        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">Balance / Rest Details</h4>
+    <div class="card"
+        style="padding: 1rem 1.25rem; border-left: 4px solid #ef4444; background: var(--card-bg); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm);">
+        <h4
+            style="margin: 0 0 0.25rem 0; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; font-weight: 700;">
+            Balance / Rest Details</h4>
         <?php if ($invoice['status'] === 'paid'): ?>
-            <div style="font-size: 1.15rem; font-weight: 800; color: #16a34a;"><i class="fa-solid fa-circle-check"></i> Paid Fully</div>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #16a34a;"><i class="fa-solid fa-circle-check"></i> Paid
+                Fully</div>
             <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.35rem; line-height: 1.4;">
-                <i class="fa-solid fa-credit-card" style="color: #16a34a; width: 14px;"></i> Method: <strong><?= h($invoice['balance_payment_method'] ?: 'CASH') ?></strong><br>
-                <i class="fa-solid fa-calendar-day" style="color: #16a34a; width: 14px;"></i> Date: <strong><?= !empty($invoice['balance_paid_at']) ? date('d-M-Y h:i A', strtotime($invoice['balance_paid_at'])) : 'Unknown / Imported' ?></strong>
+                <i class="fa-solid fa-credit-card" style="color: #16a34a; width: 14px;"></i> Method:
+                <strong><?= h($invoice['balance_payment_method'] ?: 'CASH') ?></strong><br>
+                <i class="fa-solid fa-calendar-day" style="color: #16a34a; width: 14px;"></i> Date:
+                <strong><?= !empty($invoice['balance_paid_at']) ? date('d-M-Y h:i A', strtotime($invoice['balance_paid_at'])) : 'Unknown / Imported' ?></strong>
             </div>
         <?php else: ?>
-            <div style="font-size: 1.15rem; font-weight: 800; color: #ef4444;"><?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?></div>
-            <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; display: inline-block;">Remaining balance outstanding.</span>
+            <div style="font-size: 1.15rem; font-weight: 800; color: #ef4444;">
+                <?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?>
+            </div>
+            <span
+                style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; display: inline-block;">Remaining
+                balance outstanding.</span>
         <?php endif; ?>
     </div>
 </div>
 
 <div class="template-preview-container">
-    
+
     <!-- INVOICE CARD START -->
     <div class="invoice-card <?= h($template) ?>">
-        
+
         <?php if ($template === 'orange_classic'): ?>
             <!-- ORANGE CLASSIC LAYOUT -->
-            
+
             <header class="template-header">
                 <div class="header-logo-container">
                     <div class="logo-icon">
                         <img src="../assets/images/logo.png" alt="Orange Events Logo" class="header-logo-img">
                     </div>
-                    <div class="logo-title"><span class="text-orange"><?= h(isset($settings['company_name']) ? strtoupper($settings['company_name']) : 'ORANGE EVENTS') ?></span></div>
-                    <div class="logo-subtitle"><?= h(isset($settings['company_address']) ? strtoupper($settings['company_address']) : 'THUMPOLY, ALAPPUZHA') ?></div>
+                    <div class="logo-title"><span
+                            class="text-orange"><?= h(isset($settings['company_name']) ? strtoupper($settings['company_name']) : 'ORANGE EVENTS') ?></span>
+                    </div>
+                    <div class="logo-subtitle">
+                        <?= h(isset($settings['company_address']) ? strtoupper($settings['company_address']) : 'THUMPOLY, ALAPPUZHA') ?>
+                    </div>
                     <div class="logo-contact">
-                        MOB : <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720 | 9847634728') ?><br>
-                        Email : <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?>
+                        MOB :
+                        <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720 | 9847634728') ?><br>
+                        Email :
+                        <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?>
                     </div>
                 </div>
             </header>
-            
+
             <div class="header-date-bar">
                 DATE: <?= format_date($event['event_date']) ?>
             </div>
-            
+
             <div class="template-body">
                 <!-- Left Accent Sidebar (Collage & Orange Vertical Band) -->
                 <div class="left-accent-col">
@@ -456,10 +519,10 @@ $settings = get_settings();
                         <div class="band-icon"><i class="fa-solid fa-utensils"></i></div>
                     </div>
                 </div>
-                
+
                 <!-- Right Content Area (Menus & Services breakdown) -->
                 <div class="right-content-col">
-                    
+
                     <!-- 1. STAGE WORK SECTION -->
                     <?php if (!empty($stage_work_items)): ?>
                         <div>
@@ -476,14 +539,16 @@ $settings = get_settings();
                             </ul>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- 2. WELCOME DRINK SECTION -->
                     <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
                         <div class="menu-category-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">WELCOME DRINK</h3>
                                 <?php if ($catering): ?>
-                                    <span class="section-subtitle">Per Plate-Rs.<?= number_format($catering['per_plate_price'], 0) ?> (Nos:<?= $catering['total_plates'] ?>)</span>
+                                    <span class="section-subtitle">Per
+                                        Plate-Rs.<?= number_format($catering['per_plate_price'], 0) ?>
+                                        (Nos:<?= $catering['total_plates'] ?>)</span>
                                 <?php endif; ?>
                             </div>
                             <ul class="section-list">
@@ -496,7 +561,7 @@ $settings = get_settings();
                             </ul>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- 3. STARTERS SECTION -->
                     <?php if (isset($dishes_by_category['STARTERS'])): ?>
                         <div class="menu-category-section">
@@ -513,7 +578,7 @@ $settings = get_settings();
                             </ul>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- 4. MAIN COURSE SECTION -->
                     <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
                         <div class="menu-category-section">
@@ -530,7 +595,7 @@ $settings = get_settings();
                             </ul>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- 5. DESERTS SECTION -->
                     <?php if (isset($dishes_by_category['DESERTS'])): ?>
                         <div class="menu-category-section">
@@ -547,7 +612,7 @@ $settings = get_settings();
                             </ul>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- 6. SERVICE & WASTE MANAGEMENT SECTION -->
                     <?php if (isset($dishes_by_category['SERVICE & WASTE MANAGEMENT'])): ?>
                         <div class="menu-category-section">
@@ -564,24 +629,30 @@ $settings = get_settings();
                             </ul>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- Bottom Invoice Balance Summary -->
                     <div class="footer-summary-bar">
-                        <div style="font-size: 0.8rem; color: #a4b0be; line-height: 1.4;">
+                        <div class="payment-history" style="font-size: 0.8rem; color: #a4b0be; line-height: 1.4;">
                             Client: <strong><?= h($event['client_name']) ?></strong><br>
                             Venue: <?= h($event['venue']) ?><br>
                             Inv Status: <?= strtoupper($invoice['status']) ?>
                             <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
-                                <br>Advance Paid: <?= format_price($invoice['advance_received']) ?> (<?= h($invoice['advance_payment_method'] ?: 'CASH') ?>) on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                                <br>Advance Paid: <?= format_price($invoice['advance_received']) ?>
+                                (<?= h($invoice['advance_payment_method'] ?: 'CASH') ?>) on
+                                <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
                             <?php endif; ?>
                             <?php if ($invoice['balance_received'] > 0 && !empty($invoice['balance_paid_at'])): ?>
-                                <br>Balance Paid: <?= format_price($invoice['balance_received']) ?> (<?= h($invoice['balance_payment_method'] ?: 'CASH') ?>) on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
+                                <br>Balance Paid: <?= format_price($invoice['balance_received']) ?>
+                                (<?= h($invoice['balance_payment_method'] ?: 'CASH') ?>) on
+                                <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                             <?php endif; ?>
                         </div>
-                        <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
+                        <div class="summary-box"
+                            style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
                                 <span>Sub Total:</span>
-                                <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['subtotal']) ?></span>
+                                <span
+                                    style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['subtotal']) ?></span>
                             </div>
                             <?php if ($invoice['discount'] > 0): ?>
                                 <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #ff6b6b;">
@@ -591,44 +662,50 @@ $settings = get_settings();
                             <?php endif; ?>
                             <?php if ($invoice['tax_rate'] > 0): ?>
                                 <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
-                                    <span>GST (<?= (float)$invoice['tax_rate'] ?>%):</span>
-                                    <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['tax_amount']) ?></span>
+                                    <span>GST (<?= (float) $invoice['tax_rate'] ?>%):</span>
+                                    <span
+                                        style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['tax_amount']) ?></span>
                                 </div>
                             <?php endif; ?>
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
                                 <span>Grand Total:</span>
-                                <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['final_total']) ?></span>
+                                <span
+                                    style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['final_total']) ?></span>
                             </div>
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">
                                 <span>Amount Paid:</span>
-                                <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></span>
+                                <span
+                                    style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></span>
                             </div>
-                            <div style="display: flex; gap: 1rem; font-size: 1rem; color: #ffffff; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 0.25rem; font-weight: bold;">
+                            <div
+                                style="display: flex; gap: 1rem; font-size: 1rem; color: #ffffff; border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 0.25rem; font-weight: bold;">
                                 <span style="color: #eb6b34;">Rest to Get:</span>
-                                <span style="color: #eb6b34;"><?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?></span>
+                                <span
+                                    style="color: #eb6b34;"><?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?></span>
                             </div>
                         </div>
                     </div>
-                    
+
                 </div>
             </div>
-            
+
         <?php elseif ($template === 'royal_gold'): ?>
             <!-- ROYAL GOLD TEMPLATE -->
             <header class="template-header">
                 <div class="logo-icon"><i class="fa-solid fa-leaf"></i></div>
                 <div class="logo-title">ORANGE EVENTS</div>
                 <div class="logo-subtitle">Premium Catering & Stage Decors</div>
-                <div style="font-size: 0.85rem; color: #7f6a58; margin-top: 0.5rem;">Thumpoly, Alappuzha | Mob: 9946731720</div>
+                <div style="font-size: 0.85rem; color: #7f6a58; margin-top: 0.5rem;">Thumpoly, Alappuzha | Mob: 9946731720
+                </div>
             </header>
-            
+
             <div class="header-date-bar">
                 Event Booking Date: <?= format_date($event['event_date']) ?>
             </div>
-            
+
             <div class="template-body">
                 <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 2rem;">
-                    
+
                     <!-- Column 1: Food details -->
                     <div>
                         <!-- Welcome Drinks -->
@@ -639,11 +716,12 @@ $settings = get_settings();
                                 </div>
                                 <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                            class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
-                        
+
                         <!-- Starters -->
                         <?php if (isset($dishes_by_category['STARTERS'])): ?>
                             <div style="margin-bottom: 1.5rem;">
@@ -652,11 +730,12 @@ $settings = get_settings();
                                 </div>
                                 <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                            class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
-                        
+
                         <!-- Main Course -->
                         <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
                             <div style="margin-bottom: 1.5rem;">
@@ -666,12 +745,13 @@ $settings = get_settings();
                                 <div class="multi-col-list">
                                     <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
                                         <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                        <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                        <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                                class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
                         <?php endif; ?>
-                        
+
                         <!-- Desserts -->
                         <?php if (isset($dishes_by_category['DESERTS'])): ?>
                             <div style="margin-bottom: 1.5rem;">
@@ -680,12 +760,13 @@ $settings = get_settings();
                                 </div>
                                 <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                            class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
                     </div>
-                    
+
                     <!-- Column 2: Stage decoration services and catering invoice specs -->
                     <div>
                         <!-- Stage work -->
@@ -702,7 +783,7 @@ $settings = get_settings();
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
-                        
+
                         <!-- Catering Details -->
                         <?php if ($catering): ?>
                             <div style="margin-bottom: 1.5rem;">
@@ -724,22 +805,27 @@ $settings = get_settings();
                             </div>
                         <?php endif; ?>
                     </div>
-                    
+
                 </div>
-                
+
                 <!-- Bottom Invoice Summary -->
                 <div class="footer-summary-bar">
-                    <div style="line-height: 1.4;">
+                    <div class="payment-history" style="line-height: 1.4;">
                         Client Name: <strong><?= h($event['client_name']) ?></strong><br>
                         Venue Location: <?= h($event['venue']) ?>
                         <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
-                            <br>Advance Paid: <?= format_price($invoice['advance_received']) ?> via <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                            <br>Advance Paid: <?= format_price($invoice['advance_received']) ?> via
+                            <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on
+                            <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
                         <?php endif; ?>
                         <?php if ($invoice['balance_received'] > 0 && !empty($invoice['balance_paid_at'])): ?>
-                            <br>Balance Paid: <?= format_price($invoice['balance_received']) ?> via <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
+                            <br>Balance Paid: <?= format_price($invoice['balance_received']) ?> via
+                            <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on
+                            <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                         <?php endif; ?>
                     </div>
-                    <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
+                    <div class="summary-box"
+                        style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
                             <span>Sub Total:</span>
                             <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['subtotal']) ?></span>
@@ -752,86 +838,105 @@ $settings = get_settings();
                         <?php endif; ?>
                         <?php if ($invoice['tax_rate'] > 0): ?>
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
-                                <span>GST (<?= (float)$invoice['tax_rate'] ?>%):</span>
-                                <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['tax_amount']) ?></span>
+                                <span>GST (<?= (float) $invoice['tax_rate'] ?>%):</span>
+                                <span
+                                    style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['tax_amount']) ?></span>
                             </div>
                         <?php endif; ?>
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
                             <span>Grand Total:</span>
-                            <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['final_total']) ?></span>
+                            <span
+                                style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['final_total']) ?></span>
                         </div>
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #7f6a58;">
                             <span>Amount Paid:</span>
-                            <span style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></span>
+                            <span
+                                style="font-weight: 600; color: #3a2e2b;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></span>
                         </div>
-                        <div style="display: flex; gap: 1rem; font-size: 1rem; color: #8c7223; border-top: 1px dashed rgba(140,114,35,0.3); padding-top: 0.25rem; font-weight: bold;">
+                        <div
+                            style="display: flex; gap: 1rem; font-size: 1rem; color: #8c7223; border-top: 1px dashed rgba(140,114,35,0.3); padding-top: 0.25rem; font-weight: bold;">
                             <span>Rest to Get:</span>
                             <span><?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?></span>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
         <?php elseif ($template === 'midnight_dark'): ?>
             <!-- MIDNIGHT DARK TEMPLATE -->
             <header class="template-header">
                 <div>
                     <div class="logo-title">ORANGE EVENTS</div>
-                    <div style="font-size: 0.8rem; color: #8892b0; margin-top: 0.25rem;">Modern Catering & Decor Architects</div>
+                    <div style="font-size: 0.8rem; color: #8892b0; margin-top: 0.25rem;">Modern Catering & Decor Architects
+                    </div>
                 </div>
                 <div class="header-date-bar">
                     DATE: <?= format_date($event['event_date']) ?>
                 </div>
             </header>
-            
+
             <div class="template-body">
                 <!-- Main courses list -->
                 <div>
-                    <h4 style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">EVENT DETAILS</h4>
-                    <div style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                    <h4
+                        style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">
+                        EVENT DETAILS</h4>
+                    <div
+                        style="font-size: 0.9rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
                         <div>Client: <strong><?= h($event['client_name']) ?></strong></div>
                         <div>Phone: <?= h($event['client_phone']) ?></div>
                         <div>Venue: <?= h($event['venue']) ?></div>
                         <div>Time: <?= format_time($event['event_time']) ?></div>
                     </div>
-                    
+
                     <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
                         <div style="margin-bottom: 1.25rem;">
-                            <div class="section-title-wrap"><h3 class="section-title">Welcome Drinks</h3></div>
+                            <div class="section-title-wrap">
+                                <h3 class="section-title">Welcome Drinks</h3>
+                            </div>
                             <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
                                 <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                        class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    
+
                     <?php if (isset($dishes_by_category['STARTERS'])): ?>
                         <div style="margin-bottom: 1.25rem;">
-                            <div class="section-title-wrap"><h3 class="section-title">Starters</h3></div>
+                            <div class="section-title-wrap">
+                                <h3 class="section-title">Starters</h3>
+                            </div>
                             <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
                                 <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                        class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    
+
                     <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
                         <div style="margin-bottom: 1.25rem;">
-                            <div class="section-title-wrap"><h3 class="section-title">Main Courses</h3></div>
+                            <div class="section-title-wrap">
+                                <h3 class="section-title">Main Courses</h3>
+                            </div>
                             <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
                                 <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
+                                        class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
                 </div>
-                
+
                 <!-- Financial details column -->
                 <div>
                     <!-- Stage decor services -->
                     <?php if (!empty($stage_work_items)): ?>
                         <div style="margin-bottom: 2rem;">
-                            <h4 style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">STAGE & SERVICES</h4>
+                            <h4
+                                style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">
+                                STAGE & SERVICES</h4>
                             <?php foreach ($stage_work_items as $sw): ?>
                                 <div class="item-row">
                                     <span><?= h($sw['item_name']) ?></span>
@@ -840,11 +945,13 @@ $settings = get_settings();
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- Catering quote -->
                     <?php if ($catering): ?>
                         <div style="margin-bottom: 2rem;">
-                            <h4 style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">CATERING STATEMENT</h4>
+                            <h4
+                                style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">
+                                CATERING STATEMENT</h4>
                             <div class="item-row">
                                 <span>Plate rate:</span>
                                 <span><?= format_price($catering['per_plate_price']) ?></span>
@@ -853,26 +960,33 @@ $settings = get_settings();
                                 <span>Count:</span>
                                 <span><?= $catering['total_plates'] ?> plates</span>
                             </div>
-                            <div class="item-row" style="border-top: 1px dashed rgba(255,255,255,0.1); font-weight: bold; color: #64ffda;">
+                            <div class="item-row"
+                                style="border-top: 1px dashed rgba(255,255,255,0.1); font-weight: bold; color: #64ffda;">
                                 <span>Catering Total:</span>
                                 <span><?= format_price($catering_total) ?></span>
                             </div>
                         </div>
                     <?php endif; ?>
                 </div>
-                
+
                 <!-- Footer stats -->
-                <div class="footer-summary-bar" style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
-                    <div style="font-size: 0.8rem; color: #8892b0; line-height: 1.4;">
+                <div class="footer-summary-bar"
+                    style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+                    <div class="payment-history" style="font-size: 0.8rem; color: #8892b0; line-height: 1.4;">
                         Status: <?= strtoupper($invoice['status']) ?>
                         <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
-                            <br>Advance: <?= format_price($invoice['advance_received']) ?> via <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                            <br>Advance: <?= format_price($invoice['advance_received']) ?> via
+                            <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on
+                            <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
                         <?php endif; ?>
                         <?php if ($invoice['balance_received'] > 0 && !empty($invoice['balance_paid_at'])): ?>
-                            <br>Balance: <?= format_price($invoice['balance_received']) ?> via <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
+                            <br>Balance: <?= format_price($invoice['balance_received']) ?> via
+                            <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on
+                            <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                         <?php endif; ?>
                     </div>
-                    <div class="summary-box" style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
+                    <div class="summary-box"
+                        style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
                             <span>Sub Total:</span>
                             <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['subtotal']) ?></span>
@@ -885,19 +999,23 @@ $settings = get_settings();
                         <?php endif; ?>
                         <?php if ($invoice['tax_rate'] > 0): ?>
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
-                                <span>GST (<?= (float)$invoice['tax_rate'] ?>%):</span>
-                                <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['tax_amount']) ?></span>
+                                <span>GST (<?= (float) $invoice['tax_rate'] ?>%):</span>
+                                <span
+                                    style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['tax_amount']) ?></span>
                             </div>
                         <?php endif; ?>
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
                             <span>Grand Total:</span>
-                            <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['final_total']) ?></span>
+                            <span
+                                style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['final_total']) ?></span>
                         </div>
                         <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #8892b0;">
                             <span>Amount Paid:</span>
-                            <span style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></span>
+                            <span
+                                style="font-weight: 600; color: #ffffff;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></span>
                         </div>
-                        <div style="display: flex; gap: 1rem; font-size: 1rem; color: #64ffda; border-top: 1px dashed rgba(100,255,218,0.2); padding-top: 0.25rem; font-weight: bold;">
+                        <div
+                            style="display: flex; gap: 1rem; font-size: 1rem; color: #64ffda; border-top: 1px dashed rgba(100,255,218,0.2); padding-top: 0.25rem; font-weight: bold;">
                             <span>Rest to Get:</span>
                             <span><?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?></span>
                         </div>
@@ -909,7 +1027,7 @@ $settings = get_settings();
             <?php
             // Prepare table items list
             $table_items = [];
-            
+
             // 1. Add Stage setup items
             foreach ($stage_work_items as $sw) {
                 $table_items[] = [
@@ -918,32 +1036,32 @@ $settings = get_settings();
                     'size' => 'Standard',
                     'qty' => 1,
                     'unit' => 'Setup',
-                    'price' => (float)$sw['custom_price'],
+                    'price' => (float) $sw['custom_price'],
                     'discount' => '0.00%',
-                    'amount' => (float)$sw['custom_price']
+                    'amount' => (float) $sw['custom_price']
                 ];
             }
-            
+
             // 2. Add Catering Package
             if ($catering) {
                 $table_items[] = [
                     'name' => 'Catering Package (' . format_price($catering['per_plate_price']) . ' per plate)',
                     'category' => 'Catering Services',
                     'size' => 'Standard',
-                    'qty' => (int)$catering['total_plates'],
+                    'qty' => (int) $catering['total_plates'],
                     'unit' => 'Plates',
-                    'price' => (float)$catering['per_plate_price'],
+                    'price' => (float) $catering['per_plate_price'],
                     'discount' => '0.00%',
-                    'amount' => (float)$catering_total
+                    'amount' => (float) $catering_total
                 ];
-                
+
                 // 3. Add Selected Dishes (zero cost, marked as "INCLUDED")
                 foreach ($dishes_by_category as $cat_name => $dishes) {
                     foreach ($dishes as $dish) {
-                        $qty = ($dish['plates'] > 0) ? (int)$dish['plates'] : 1;
+                        $qty = ($dish['plates'] > 0) ? (int) $dish['plates'] : 1;
                         $unit = ($dish['plates'] > 0) ? 'Plates' : 'Nos';
                         $size = ($dish['plates'] > 0) ? 'Custom' : 'Standard';
-                        
+
                         $table_items[] = [
                             'name' => $dish['name'],
                             'category' => $cat_name,
@@ -959,28 +1077,36 @@ $settings = get_settings();
                 }
             }
             ?>
-            
+
             <!-- Header layout matching image -->
-            <div class="aedan-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif;">
+            <div class="aedan-header"
+                style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif;">
                 <div>
                     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
                         <img src="../assets/images/logo.png" alt="Company Logo" style="height: 55px; width: auto;">
-                        <div style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #f07c1b; line-height: 1; letter-spacing: -0.02em; text-transform: uppercase;"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'orange decorations') ?></div>
+                        <div
+                            style="font-family: 'Outfit', sans-serif; font-size: 2.2rem; font-weight: 800; color: #f07c1b; line-height: 1; letter-spacing: -0.02em; text-transform: uppercase;">
+                            <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'orange decorations') ?>
+                        </div>
                     </div>
                     <div style="font-size: 0.85rem; line-height: 1.4; color: #1e293b;">
                         <strong>(<?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?>)</strong><br>
                         <?= h(isset($settings['company_address']) ? $settings['company_address'] : 'Thumpoly P.O, Alappuzha') ?><br>
-                        Email: <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?><br>
-                        Phone: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720 | 9847634728') ?><br>
+                        Email:
+                        <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?><br>
+                        Phone:
+                        <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720 | 9847634728') ?><br>
                         State: <?= h(isset($settings['company_state']) ? $settings['company_state'] : '32-Kerala') ?>
                         <?php if (!empty($settings['company_gstin'])): ?>
                             <br><strong>GSTIN:</strong> <?= h($settings['company_gstin']) ?>
                         <?php endif; ?>
                     </div>
                 </div>
-                
+
                 <div style="text-align: right;">
-                    <h1 style="font-size: 2.2rem; font-weight: 800; color: #1e293b; margin: 0 0 0.75rem 0; letter-spacing: 0.05em; text-transform: uppercase;">Tax Invoice</h1>
+                    <h1
+                        style="font-size: 2.2rem; font-weight: 800; color: #1e293b; margin: 0 0 0.75rem 0; letter-spacing: 0.05em; text-transform: uppercase;">
+                        Tax Invoice</h1>
                     <div style="font-size: 0.9rem; line-height: 1.5; color: #1e293b;">
                         <strong>Invoice No:</strong> <?= h($invoice['invoice_number']) ?><br>
                         <strong>Date:</strong> <?= format_date($event['event_date']) ?><br>
@@ -988,724 +1114,881 @@ $settings = get_settings();
                     </div>
                 </div>
             </div>
-            
+
             <!-- Bill To Section -->
-            <div style="margin-bottom: 1.5rem; border-top: 1px solid #000000; padding-top: 0.75rem; font-family: 'Inter', sans-serif;">
+            <div
+                style="margin-bottom: 1.5rem; border-top: 1px solid #000000; padding-top: 0.75rem; font-family: 'Inter', sans-serif;">
                 <div style="font-size: 0.85rem; line-height: 1.4; color: #1e293b;">
                     <strong style="font-size: 0.9rem; color: #000000; text-transform: uppercase;">Bill To:</strong><br>
-                    <span style="font-weight: 700; font-size: 0.95rem; color: #000000;"><?= h($event['client_name']) ?></span><br>
+                    <span
+                        style="font-weight: 700; font-size: 0.95rem; color: #000000;"><?= h($event['client_name']) ?></span><br>
                     <?= h($event['venue']) ?><br>
                     Contact No: <?= h($event['client_phone']) ?><br>
                     Email: <?= h($event['client_email']) ?><br>
                     State: 32-Kerala
                 </div>
             </div>
-            
+
             <!-- Items Table -->
-            <table class="aedan-table" style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1.2px solid #000000; font-family: 'Inter', sans-serif;">
+            <table class="aedan-table"
+                style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1.2px solid #000000; font-family: 'Inter', sans-serif;">
                 <thead>
                     <tr style="background-color: #f8fafc; border-bottom: 1.2px solid #000000;">
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; width: 50px; text-align: center; color: #000000;">Sl No</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; color: #000000;">Item Name</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; width: 150px; color: #000000;">Category</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; width: 90px; color: #000000;">Size</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 80px; color: #000000;">Quantity</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 70px; color: #000000;">Unit</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; width: 110px; color: #000000;">Price/Unit</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 90px; color: #000000;">Discount</th>
-                        <th style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; width: 120px; color: #000000;">Amount</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; width: 50px; text-align: center; color: #000000;">
+                            Sl No</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; color: #000000;">
+                            Item Name</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; width: 150px; color: #000000;">
+                            Category</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: left; width: 90px; color: #000000;">
+                            Size</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 80px; color: #000000;">
+                            Quantity</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 70px; color: #000000;">
+                            Unit</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; width: 110px; color: #000000;">
+                            Price/Unit</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: center; width: 90px; color: #000000;">
+                            Discount</th>
+                        <th
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; width: 120px; color: #000000;">
+                            Amount</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php 
+                    <?php
                     $sl = 1;
-                    foreach ($table_items as $item): 
+                    foreach ($table_items as $item):
                         $is_dish = !empty($item['is_dish']);
-                    ?>
-                        <tr class="countable-row <?= $is_dish ? 'dish-row' : '' ?>" style="border-bottom: 1px solid #000000; background-color: #ffffff; color: #000000;">
-                            <td class="serial-col" style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: <?= $is_dish ? 'normal' : '700' ?>;"><?= h($item['name']) ?></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;"><?= h($item['category']) ?></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;"><?= h($item['size']) ?></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= $item['qty'] ?></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= h($item['unit']) ?></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right;">
+                        ?>
+                        <tr class="countable-row <?= $is_dish ? 'dish-row' : '' ?>"
+                            style="border-bottom: 1px solid #000000; background-color: #ffffff; color: #000000;">
+                            <td class="serial-col"
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;">
+                            </td>
+                            <td
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: <?= $is_dish ? 'normal' : '700' ?>;">
+                                <?= h($item['name']) ?>
+                            </td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                                <?= h($item['category']) ?>
+                            </td>
+                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem;">
+                                <?= h($item['size']) ?>
+                            </td>
+                            <td
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;">
+                                <?= $item['qty'] ?>
+                            </td>
+                            <td
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;">
+                                <?= h($item['unit']) ?>
+                            </td>
+                            <td
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right;">
                                 <?= $item['price'] > 0 ? format_price($item['price']) : 'Included' ?>
                             </td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;"><?= h($item['discount']) ?></td>
-                            <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; font-weight: bold;">
+                            <td
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: center;">
+                                <?= h($item['discount']) ?>
+                            </td>
+                            <td
+                                style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; font-weight: bold;">
                                 <?= $item['amount'] > 0 ? format_price($item['amount']) : 'Included' ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                     <!-- Total Row -->
-                    <tr style="border-top: 1.2px solid #000000; font-weight: bold; background-color: #f8fafc; color: #000000;">
-                        <td colspan="8" style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; text-transform: uppercase;">Total</td>
-                        <td style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; font-weight: 800;">
+                    <tr
+                        style="border-top: 1.2px solid #000000; font-weight: bold; background-color: #f8fafc; color: #000000;">
+                        <td colspan="8"
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; text-transform: uppercase;">
+                            Total</td>
+                        <td
+                            style="border: 1px solid #000000; padding: 0.4rem 0.6rem; font-size: 0.8rem; text-align: right; font-weight: 800;">
                             <?= format_price($invoice['final_total']) ?>
                         </td>
                     </tr>
                 </tbody>
             </table>
-            
+
             <!-- Bottom Boxes Layout (Side by Side) -->
-            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000;">
+            <div
+                style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000;">
                 <!-- Left Details Box -->
                 <div style="border: 1.2px solid #000000; display: flex; flex-direction: column;">
                     <div style="border-bottom: 1.2px solid #000000; padding: 0.5rem 0.75rem;">
-                        <span style="font-size: 0.75rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.03em;">Invoice Amount in Words</span>
+                        <span
+                            style="font-size: 0.75rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.03em;">Invoice
+                            Amount in Words</span>
                         <div style="font-size: 0.8rem; font-weight: 700; margin-top: 0.15rem; color: #000000;">
                             <?= convert_number_to_words($invoice['final_total']) ?> Only
                         </div>
                     </div>
                     <div style="padding: 0.5rem 0.75rem; flex-grow: 1;">
-                        <span style="font-size: 0.75rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.03em;">Description</span>
+                        <span
+                            style="font-size: 0.75rem; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.03em;">Description</span>
                         <div style="font-size: 0.8rem; margin-top: 0.15rem; color: #000000; line-height: 1.4;">
-                            Event package setup: "<?= h($event['title']) ?>" at <?= h($event['venue']) ?>. 
-                            Includes all standard catering management, curated stage decors, guest reception coordination, and venue cleanup.
+                            Event package setup: "<?= h($event['title']) ?>" at <?= h($event['venue']) ?>.
+                            Includes all standard catering management, curated stage decors, guest reception coordination,
+                            and venue cleanup.
                             <?php if ($catering && !empty($catering['notes'])): ?>
                                 <br><strong>Special Requests:</strong> <?= h($catering['notes']) ?>
                             <?php endif; ?>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Right Pricing Summary Table -->
                 <div class="summary-box" style="border: 1.2px solid #000000; border-collapse: collapse;">
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr style="border-bottom: 1px solid #000000;">
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Sub Total</td>
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['subtotal']) ?></td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;">
+                                <?= format_price($invoice['subtotal']) ?>
+                            </td>
                         </tr>
                         <?php if ($invoice['discount'] > 0): ?>
                             <tr style="border-bottom: 1px solid #000000;">
-                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600; color: #aa2222;">Discount</td>
-                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; color: #aa2222;">-<?= format_price($invoice['discount']) ?></td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600; color: #aa2222;">
+                                    Discount</td>
+                                <td
+                                    style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right; color: #aa2222;">
+                                    -<?= format_price($invoice['discount']) ?></td>
                             </tr>
                             <tr style="border-bottom: 1px solid #000000;">
                                 <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Taxable Value</td>
-                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price(max(0, $invoice['subtotal'] - $invoice['discount'])) ?></td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;">
+                                    <?= format_price(max(0, $invoice['subtotal'] - $invoice['discount'])) ?>
+                                </td>
                             </tr>
                         <?php endif; ?>
                         <?php if ($invoice['tax_rate'] > 0): ?>
                             <tr style="border-bottom: 1px solid #000000;">
-                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">GST (<?= (float)$invoice['tax_rate'] ?>%)</td>
-                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['tax_amount']) ?></td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">GST
+                                    (<?= (float) $invoice['tax_rate'] ?>%)</td>
+                                <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;">
+                                    <?= format_price($invoice['tax_amount']) ?>
+                                </td>
                             </tr>
                         <?php endif; ?>
                         <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #f8fafc;">
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700;">Grand Total</td>
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right;"><?= format_price($invoice['final_total']) ?></td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right;">
+                                <?= format_price($invoice['final_total']) ?>
+                            </td>
                         </tr>
                         <tr style="border-bottom: 1px solid #000000;">
                             <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 600;">Amount Paid</td>
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-align: right;">
+                                <?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?>
+                            </td>
                         </tr>
                         <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
-                            <tr style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
+                            <tr class="payment-history" style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
                                 <td colspan="2" style="padding: 0.25rem 0.6rem; font-style: italic;">
-                                    ↳ Adv Paid: <?= format_price($invoice['advance_received']) ?> via <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
+                                    ↳ Adv Paid: <?= format_price($invoice['advance_received']) ?> via
+                                    <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on
+                                    <?= date('d-M-Y', strtotime($invoice['advance_paid_at'])) ?>
                                 </td>
                             </tr>
                         <?php endif; ?>
                         <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #fcf2f2;">
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; color: #dc2626;">Rest to Pay</td>
-                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right; color: #dc2626;"><?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?></td>
+                            <td style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; color: #dc2626;">Rest to
+                                Pay</td>
+                            <td
+                                style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 800; text-align: right; color: #dc2626;">
+                                <?= format_price($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received'])) ?>
+                            </td>
                         </tr>
                         <?php if ($invoice['balance_received'] > 0 && !empty($invoice['balance_paid_at'])): ?>
-                            <tr style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
+                            <tr class="payment-history" style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
                                 <td colspan="2" style="padding: 0.25rem 0.6rem; font-style: italic;">
-                                    ↳ Bal Paid: <?= format_price($invoice['balance_received']) ?> via <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
+                                    ↳ Bal Paid: <?= format_price($invoice['balance_received']) ?> via
+                                    <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on
+                                    <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                                 </td>
                             </tr>
                         <?php endif; ?>
                         <?php if ($invoice['status'] === 'paid'): ?>
                             <tr style="border-bottom: 1px solid #000000; font-weight: bold; background-color: #e2f0d9;">
-                                <td colspan="2" style="padding: 0.35rem 0.6rem; font-size: 0.75rem; font-weight: 700; color: #15803d; text-align: center; text-transform: uppercase;">
+                                <td colspan="2"
+                                    style="padding: 0.35rem 0.6rem; font-size: 0.75rem; font-weight: 700; color: #15803d; text-align: center; text-transform: uppercase;">
                                     <i class="fa-solid fa-circle-check"></i> Full Payment Completed
                                 </td>
                             </tr>
                         <?php endif; ?>
                         <tr>
-                            <td colspan="2" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
+                            <td colspan="2"
+                                style="padding: 0.4rem 0.6rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase;">
                                 Primary Method: <?= h($invoice['payment_method'] ?: 'PENDING / CASH') ?>
                             </td>
                         </tr>
                     </table>
                 </div>
             </div>
-            
+
             <!-- Terms & Conditions Section -->
-            <div style="background-color: #f1f5f9; padding: 0.5rem 0.75rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000; border-radius: 4px;">
-                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.15rem;">Terms and Conditions</div>
+            <div
+                style="background-color: #f1f5f9; padding: 0.5rem 0.75rem; margin-bottom: 1.5rem; font-family: 'Inter', sans-serif; color: #000000; border-radius: 4px;">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.15rem;">Terms
+                    and Conditions</div>
                 <div style="font-size: 0.75rem; line-height: 1.3;">
-                    Thanks for choosing <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'Orange Decorations') ?>! Total Items: <?= count($table_items) ?>
+                    Thanks for choosing
+                    <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'Orange Decorations') ?>! Total
+                    Items: <?= count($table_items) ?>
                 </div>
-            </div>
-            
             </div>
 
-        <?php elseif ($template === 'modern_minimalist'): ?>
-            <!-- MODERN MINIMALIST TEMPLATE -->
-            <header class="template-header">
-                <div class="header-logo-container">
-                    <img src="../assets/images/logo.png" alt="Company Logo" class="header-logo-img">
-                    <div>
-                        <div class="logo-title"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'ORANGE EVENTS') ?></div>
-                        <div class="logo-subtitle"><?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?></div>
+        </div>
+
+    <?php elseif ($template === 'modern_minimalist'): ?>
+        <!-- MODERN MINIMALIST TEMPLATE -->
+        <header class="template-header">
+            <div class="header-logo-container">
+                <img src="../assets/images/logo.png" alt="Company Logo" class="header-logo-img">
+                <div>
+                    <div class="logo-title">
+                        <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'ORANGE EVENTS') ?>
+                    </div>
+                    <div class="logo-subtitle">
+                        <?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?>
                     </div>
                 </div>
-                <div class="logo-contact">
-                    <strong>Proposal No:</strong> <?= h($invoice['invoice_number']) ?><br>
-                    <strong>Date:</strong> <?= format_date($event['event_date']) ?><br>
-                    MOB: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?>
-                </div>
-            </header>
-            
-            <div class="header-date-bar">
-                <div>Prepared For: <strong><?= h($event['client_name']) ?></strong> (<?= h($event['client_phone']) ?>)</div>
-                <div>Venue: <strong><?= h($event['venue']) ?></strong></div>
             </div>
-            
-            <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
-                <!-- Column 1: Food Details & Services -->
-                <div>
-                    <!-- Catering Package & Dishes -->
-                    <div style="margin-bottom: 2rem;">
-                        <div class="section-title-wrap">
-                            <h3 class="section-title">Menu Curation</h3>
-                            <span class="section-subtitle">Exquisite food selection for your event</span>
-                        </div>
-                        
-                        <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome Drinks</strong>
-                                <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Starters</strong>
-                                <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Main Course</strong>
-                                <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Desserts</strong>
-                                <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
+            <div class="logo-contact">
+                <strong>Proposal No:</strong> <?= h($invoice['invoice_number']) ?><br>
+                <strong>Date:</strong> <?= format_date($event['event_date']) ?><br>
+                MOB: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?>
+            </div>
+        </header>
+
+        <div class="header-date-bar">
+            <div>Prepared For: <strong><?= h($event['client_name']) ?></strong> (<?= h($event['client_phone']) ?>)</div>
+            <div>Venue: <strong><?= h($event['venue']) ?></strong></div>
+        </div>
+
+        <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
+            <!-- Column 1: Food Details & Services -->
+            <div>
+                <!-- Catering Package & Dishes -->
+                <div style="margin-bottom: 2rem;">
+                    <div class="section-title-wrap">
+                        <h3 class="section-title">Menu Curation</h3>
+                        <span class="section-subtitle">Exquisite food selection for your event</span>
                     </div>
-                </div>
-                
-                <!-- Column 2: Stage & Services -->
-                <div>
-                    <!-- Stage work -->
-                    <?php if (!empty($stage_work_items)): ?>
-                        <div style="margin-bottom: 2rem;">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">Stage & Decor Plan</h3>
-                                <span class="section-subtitle">Visual & ambiance arrangements</span>
-                            </div>
-                            <?php foreach ($stage_work_items as $sw): ?>
+
+                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome
+                                Drinks</strong>
+                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
                                 <div class="item-row">
-                                    <span class="item-name"><?= h($sw['item_name']) ?></span>
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    
-                    <div style="background-color: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 2rem;">
-                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; text-transform: uppercase; color: #0f172a; font-weight: 700; letter-spacing: 0.05em;">Proposal Notice</h4>
-                        <p style="font-size: 0.8rem; line-height: 1.6; color: #475569; margin: 0;">
-                            This is a curated menu and decoration proposal created specifically for your upcoming event. Items can be customized or scaled as per your guest count and preference.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="border-top: 2px solid #f1f5f9; padding-top: 1.5rem; margin-top: 3rem; text-align: center; font-size: 0.8rem; color: #64748b; font-family: 'Inter', sans-serif;">
-                Thank you for considering <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'Orange Events') ?>. We look forward to making your event memorable!
-            </div>
 
-        <?php elseif ($template === 'emerald_luxury'): ?>
-            <!-- EMERALD LUXURY TEMPLATE -->
-            <header class="template-header">
-                <div class="header-logo-container">
-                    <img src="../assets/images/logo.png" alt="Company Logo" class="header-logo-img">
-                </div>
-                <div class="logo-title"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'ORANGE EVENTS') ?></div>
-                <div class="logo-subtitle"><?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?></div>
-                <div class="logo-contact">
-                    Mob: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?> | Address: <?= h(isset($settings['company_address']) ? $settings['company_address'] : 'Thumpoly, Alappuzha') ?>
-                </div>
-            </header>
-            
-            <div class="header-date-bar">
-                ROYAL EVENT PROPOSAL • <?= h(strtoupper($event['client_name'])) ?> • DATE: <?= format_date($event['event_date']) ?>
-            </div>
-            
-            <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
-                <!-- Column 1: Food Details & Services -->
-                <div>
-                    <div style="margin-bottom: 2rem;">
-                        <div class="section-title-wrap">
-                            <h3 class="section-title">Royal Menu</h3>
-                            <span class="section-subtitle">Exquisite Catering Selections</span>
-                        </div>
-                        
-                        <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome Drinks</strong>
-                                <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Royal Appetizers</strong>
-                                <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Grand Buffet Main Course</strong>
-                                <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <strong style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet Confiserie & Desserts</strong>
-                                <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                
-                <!-- Column 2: Event Details & Stage Services -->
-                <div>
-                    <?php if (!empty($stage_work_items)): ?>
-                        <div style="margin-bottom: 2rem;">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">Decors & Artistry</h3>
-                                <span class="section-subtitle">Stage designs & custom requirements</span>
-                            </div>
-                            <?php foreach ($stage_work_items as $sw): ?>
+                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Starters</strong>
+                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
                                 <div class="item-row">
-                                    <span class="item-name"><?= h($sw['item_name']) ?></span>
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    
-                    <div style="background-color: #03110d; padding: 1.5rem; border: 1px solid rgba(212, 175, 55, 0.2); margin-top: 2rem;">
-                        <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; text-transform: uppercase; color: #d4af37; font-weight: 700; letter-spacing: 0.1em; text-align: center;">Royal Venue</h4>
-                        <div style="font-size: 0.85rem; line-height: 1.8; color: #f1f2f6; font-family: 'Inter', sans-serif;">
-                            <strong>Proposed Venue:</strong> <?= h($event['venue']) ?><br>
-                            <strong>Proposed Time:</strong> <?= format_time($event['event_time']) ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="border-top: 1px solid rgba(212, 175, 55, 0.2); padding-top: 1.5rem; margin-top: 3rem; text-align: center; font-size: 0.85rem; color: #a4b0be; font-family: 'Inter', sans-serif;">
-                We are dedicated to crafting an extraordinary experience for you.
-            </div>
 
-        <?php elseif ($template === 'blossom_chic'): ?>
-            <!-- BLOSSOM CHIC TEMPLATE -->
-            <header class="template-header">
-                <div class="header-logo-container">
-                    <img src="../assets/images/logo.png" alt="Company Logo" class="header-logo-img">
-                    <div>
-                        <div class="logo-title"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'ORANGE EVENTS') ?></div>
-                        <div class="logo-subtitle"><?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?></div>
-                    </div>
-                </div>
-                <div class="logo-contact">
-                    Mob: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?><br>
-                    Email: <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?>
-                </div>
-            </header>
-            
-            <div class="header-date-bar">
-                Celebration Details for <?= h($event['client_name']) ?> • Event Date: <?= format_date($event['event_date']) ?>
-            </div>
-            
-            <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
-                <!-- Column 1: Food Details & Services -->
-                <div>
-                    <div style="margin-bottom: 2rem;">
-                        <div class="section-title-wrap">
-                            <h3 class="section-title">Curated Menu</h3>
-                            <span class="section-subtitle">Chic Food & Refreshments selections</span>
-                        </div>
-                        
-                        <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                            <div style="margin-bottom: 1.25rem;">
-                                <strong style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome Drinks</strong>
-                                <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                            <div style="margin-bottom: 1.25rem;">
-                                <strong style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet & Savory Starters</strong>
-                                <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                            <div style="margin-bottom: 1.25rem;">
-                                <strong style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Grand Main Course</strong>
-                                <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                            <div style="margin-bottom: 1.25rem;">
-                                <strong style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet Confiseur & Desserts</strong>
-                                <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                    <div class="item-row">
-                                        <span class="item-name"><?= h($dish['name']) ?></span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                
-                <!-- Column 2: Event Details & Stage Services -->
-                <div>
-                    <?php if (!empty($stage_work_items)): ?>
-                        <div style="margin-bottom: 2rem;">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">Decorations</h3>
-                                <span class="section-subtitle">Chic stage styling & accessories</span>
-                            </div>
-                            <?php foreach ($stage_work_items as $sw): ?>
+                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Main
+                                Course</strong>
+                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
                                 <div class="item-row">
-                                    <span class="item-name"><?= h($sw['item_name']) ?></span>
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
-                    
-                    <div style="background-color: #fff0f0; padding: 1.25rem; border-radius: 8px; border: 1px solid #ffd2d2; margin-top: 2rem;">
-                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; text-transform: uppercase; color: #b25068; font-weight: 700; letter-spacing: 0.05em;">Ambiance & Plan</h4>
-                        <div style="font-size: 0.8rem; line-height: 1.6; color: #7c5c64; font-family: 'Inter', sans-serif;">
-                            <strong>Venue:</strong> <?= h($event['venue']) ?><br>
-                            <strong>Time:</strong> <?= format_time($event['event_time']) ?>
+
+                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Desserts</strong>
+                            <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Column 2: Stage & Services -->
+            <div>
+                <!-- Stage work -->
+                <?php if (!empty($stage_work_items)): ?>
+                    <div style="margin-bottom: 2rem;">
+                        <div class="section-title-wrap">
+                            <h3 class="section-title">Stage & Decor Plan</h3>
+                            <span class="section-subtitle">Visual & ambiance arrangements</span>
+                        </div>
+                        <?php foreach ($stage_work_items as $sw): ?>
+                            <div class="item-row">
+                                <span class="item-name"><?= h($sw['item_name']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div
+                    style="background-color: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 2rem;">
+                    <h4
+                        style="margin: 0 0 0.75rem 0; font-size: 0.9rem; text-transform: uppercase; color: #0f172a; font-weight: 700; letter-spacing: 0.05em;">
+                        Proposal Notice</h4>
+                    <p style="font-size: 0.8rem; line-height: 1.6; color: #475569; margin: 0;">
+                        This is a curated menu and decoration proposal created specifically for your upcoming event. Items
+                        can be customized or scaled as per your guest count and preference.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div
+            style="border-top: 2px solid #f1f5f9; padding-top: 1.5rem; margin-top: 3rem; text-align: center; font-size: 0.8rem; color: #64748b; font-family: 'Inter', sans-serif;">
+            Thank you for considering
+            <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'Orange Events') ?>. We look forward to
+            making your event memorable!
+        </div>
+
+    <?php elseif ($template === 'emerald_luxury'): ?>
+        <!-- EMERALD LUXURY TEMPLATE -->
+        <header class="template-header">
+            <div class="header-logo-container">
+                <img src="../assets/images/logo.png" alt="Company Logo" class="header-logo-img">
+            </div>
+            <div class="logo-title"><?= h(isset($settings['company_name']) ? $settings['company_name'] : 'ORANGE EVENTS') ?>
+            </div>
+            <div class="logo-subtitle">
+                <?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?>
+            </div>
+            <div class="logo-contact">
+                Mob: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?> | Address:
+                <?= h(isset($settings['company_address']) ? $settings['company_address'] : 'Thumpoly, Alappuzha') ?>
+            </div>
+        </header>
+
+        <div class="header-date-bar">
+            ROYAL EVENT PROPOSAL • <?= h(strtoupper($event['client_name'])) ?> • DATE:
+            <?= format_date($event['event_date']) ?>
+        </div>
+
+        <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
+            <!-- Column 1: Food Details & Services -->
+            <div>
+                <div style="margin-bottom: 2rem;">
+                    <div class="section-title-wrap">
+                        <h3 class="section-title">Royal Menu</h3>
+                        <span class="section-subtitle">Exquisite Catering Selections</span>
+                    </div>
+
+                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome
+                                Drinks</strong>
+                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Royal
+                                Appetizers</strong>
+                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Grand
+                                Buffet Main Course</strong>
+                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
+                        <div style="margin-bottom: 1.5rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet
+                                Confiserie & Desserts</strong>
+                            <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Column 2: Event Details & Stage Services -->
+            <div>
+                <?php if (!empty($stage_work_items)): ?>
+                    <div style="margin-bottom: 2rem;">
+                        <div class="section-title-wrap">
+                            <h3 class="section-title">Decors & Artistry</h3>
+                            <span class="section-subtitle">Stage designs & custom requirements</span>
+                        </div>
+                        <?php foreach ($stage_work_items as $sw): ?>
+                            <div class="item-row">
+                                <span class="item-name"><?= h($sw['item_name']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div
+                    style="background-color: #03110d; padding: 1.5rem; border: 1px solid rgba(212, 175, 55, 0.2); margin-top: 2rem;">
+                    <h4
+                        style="margin: 0 0 1rem 0; font-size: 0.95rem; text-transform: uppercase; color: #d4af37; font-weight: 700; letter-spacing: 0.1em; text-align: center;">
+                        Royal Venue</h4>
+                    <div style="font-size: 0.85rem; line-height: 1.8; color: #f1f2f6; font-family: 'Inter', sans-serif;">
+                        <strong>Proposed Venue:</strong> <?= h($event['venue']) ?><br>
+                        <strong>Proposed Time:</strong> <?= format_time($event['event_time']) ?>
                     </div>
                 </div>
             </div>
-            
-            <div style="border-top: 2px dashed #ffd2d2; padding-top: 1.5rem; margin-top: 3rem; text-align: center; font-size: 0.85rem; color: #7c5c64; font-family: 'Inter', sans-serif;">
-                We are honored to be a part of your celebrations!
+        </div>
+
+        <div
+            style="border-top: 1px solid rgba(212, 175, 55, 0.2); padding-top: 1.5rem; margin-top: 3rem; text-align: center; font-size: 0.85rem; color: #a4b0be; font-family: 'Inter', sans-serif;">
+            We are dedicated to crafting an extraordinary experience for you.
+        </div>
+
+    <?php elseif ($template === 'blossom_chic'): ?>
+        <!-- BLOSSOM CHIC TEMPLATE -->
+        <header class="template-header">
+            <div class="header-logo-container">
+                <img src="../assets/images/logo.png" alt="Company Logo" class="header-logo-img">
+                <div>
+                    <div class="logo-title">
+                        <?= h(isset($settings['company_name']) ? $settings['company_name'] : 'ORANGE EVENTS') ?>
+                    </div>
+                    <div class="logo-subtitle">
+                        <?= h(isset($settings['company_subtitle']) ? $settings['company_subtitle'] : 'Premium Catering & Stage Decors') ?>
+                    </div>
+                </div>
             </div>
-        <?php endif; ?>
-        
-    </div>
-    <!-- INVOICE CARD END -->
-    
+            <div class="logo-contact">
+                Mob: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?><br>
+                Email:
+                <?= h(isset($settings['company_email']) ? $settings['company_email'] : 'orangedecorations@gmail.com') ?>
+            </div>
+        </header>
+
+        <div class="header-date-bar">
+            Celebration Details for <?= h($event['client_name']) ?> • Event Date: <?= format_date($event['event_date']) ?>
+        </div>
+
+        <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
+            <!-- Column 1: Food Details & Services -->
+            <div>
+                <div style="margin-bottom: 2rem;">
+                    <div class="section-title-wrap">
+                        <h3 class="section-title">Curated Menu</h3>
+                        <span class="section-subtitle">Chic Food & Refreshments selections</span>
+                    </div>
+
+                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
+                        <div style="margin-bottom: 1.25rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome
+                                Drinks</strong>
+                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
+                        <div style="margin-bottom: 1.25rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet
+                                & Savory Starters</strong>
+                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
+                        <div style="margin-bottom: 1.25rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Grand
+                                Main Course</strong>
+                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
+                        <div style="margin-bottom: 1.25rem;">
+                            <strong
+                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet
+                                Confiseur & Desserts</strong>
+                            <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
+                                <div class="item-row">
+                                    <span class="item-name"><?= h($dish['name']) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Column 2: Event Details & Stage Services -->
+            <div>
+                <?php if (!empty($stage_work_items)): ?>
+                    <div style="margin-bottom: 2rem;">
+                        <div class="section-title-wrap">
+                            <h3 class="section-title">Decorations</h3>
+                            <span class="section-subtitle">Chic stage styling & accessories</span>
+                        </div>
+                        <?php foreach ($stage_work_items as $sw): ?>
+                            <div class="item-row">
+                                <span class="item-name"><?= h($sw['item_name']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div
+                    style="background-color: #fff0f0; padding: 1.25rem; border-radius: 8px; border: 1px solid #ffd2d2; margin-top: 2rem;">
+                    <h4
+                        style="margin: 0 0 0.75rem 0; font-size: 0.9rem; text-transform: uppercase; color: #b25068; font-weight: 700; letter-spacing: 0.05em;">
+                        Ambiance & Plan</h4>
+                    <div style="font-size: 0.8rem; line-height: 1.6; color: #7c5c64; font-family: 'Inter', sans-serif;">
+                        <strong>Venue:</strong> <?= h($event['venue']) ?><br>
+                        <strong>Time:</strong> <?= format_time($event['event_time']) ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            style="border-top: 2px dashed #ffd2d2; padding-top: 1.5rem; margin-top: 3rem; text-align: center; font-size: 0.85rem; color: #7c5c64; font-family: 'Inter', sans-serif;">
+            We are honored to be a part of your celebrations!
+        </div>
+    <?php endif; ?>
+
+</div>
+<!-- INVOICE CARD END -->
+
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-// Apply template class to body for custom print styles
-document.body.classList.add('template-<?= h($template) ?>');
+    // Apply template class to body for custom print styles
+    document.body.classList.add('template-<?= h($template) ?>');
 
-document.getElementById('toggleTotalCheckbox').addEventListener('change', function(e) {
-    const summaryBoxes = document.querySelectorAll('.summary-box');
-    summaryBoxes.forEach(box => {
+    document.getElementById('toggleTotalCheckbox').addEventListener('change', function (e) {
+        const summaryBoxes = document.querySelectorAll('.summary-box');
+        summaryBoxes.forEach(box => {
+            if (e.target.checked) {
+                box.style.setProperty('display', 'block', 'important');
+            } else {
+                box.style.setProperty('display', 'none', 'important');
+            }
+        });
+    });
+
+    document.getElementById('toggleDishesCheckbox').addEventListener('change', function (e) {
+        const invoiceCard = document.querySelector('.invoice-card');
+        if (!invoiceCard) return;
         if (e.target.checked) {
-            box.style.setProperty('display', 'block', 'important');
+            invoiceCard.classList.remove('hide-dishes');
         } else {
-            box.style.setProperty('display', 'none', 'important');
+            invoiceCard.classList.add('hide-dishes');
         }
     });
-});
 
-document.getElementById('toggleDishesCheckbox').addEventListener('change', function(e) {
-    const invoiceCard = document.querySelector('.invoice-card');
-    if (!invoiceCard) return;
-    if (e.target.checked) {
-        invoiceCard.classList.remove('hide-dishes');
-    } else {
-        invoiceCard.classList.add('hide-dishes');
-    }
-});
-
-document.getElementById('downloadImageBtn').addEventListener('click', function() {
-    const invoiceCard = document.querySelector('.invoice-card');
-    if (!invoiceCard) return;
-
-    const originalBtnContent = this.innerHTML;
-    this.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
-    this.disabled = true;
-
-    html2canvas(invoiceCard, {
-        useCORS: true,
-        scale: 2, // High resolution scale
-        backgroundColor: null
-    }).then(canvas => {
-        const link = document.createElement('a');
-        link.download = '<?= h($invoice["invoice_number"]) ?>.png';
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-
-        this.innerHTML = originalBtnContent;
-        this.disabled = false;
-    }).catch(err => {
-        console.error('Error generating image:', err);
-        alert('Failed to generate image. Please try again.');
-        this.innerHTML = originalBtnContent;
-        this.disabled = false;
+    document.getElementById('togglePaymentCheckbox').addEventListener('change', function (e) {
+        const invoiceCard = document.querySelector('.invoice-card');
+        if (!invoiceCard) return;
+        if (e.target.checked) {
+            invoiceCard.classList.remove('hide-payments');
+        } else {
+            invoiceCard.classList.add('hide-payments');
+        }
     });
-});
 
-<?php if ($invoice['status'] === 'finalized'): ?>
-    const openBtn = document.getElementById('openPaymentModalBtn');
-    const closeBtn = document.getElementById('closePaymentModalBtn');
-    const modal = document.getElementById('paymentModal');
-    const amountInput = document.getElementById('amount_paid');
-    const partialOptions = document.getElementById('partialPaymentOptions');
-    const remSpan = document.getElementById('remainingBalance');
-    const writeOffSpan = document.getElementById('writeOffBalance');
-    const restToGive = <?= (float)$rest_to_give ?>;
+    document.getElementById('downloadImageBtn').addEventListener('click', function () {
+        const invoiceCard = document.querySelector('.invoice-card');
+        if (!invoiceCard) return;
 
-    if (openBtn && modal) {
-        openBtn.addEventListener('click', function() {
-            const rest = <?= (float)$rest_to_give ?>;
-            const confirmMsg = `Record full payment of Rs. ${rest.toLocaleString('en-IN')} now?\n\n- Click OK to save instantly.\n- Click Cancel to enter custom payment details (partial payment or bank methods).`;
-            if (confirm(confirmMsg)) {
+        const originalBtnContent = this.innerHTML;
+        this.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+        this.disabled = true;
+
+        html2canvas(invoiceCard, {
+            useCORS: true,
+            scale: 2, // High resolution scale
+            backgroundColor: null
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = '<?= h($invoice["invoice_number"]) ?>.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            this.innerHTML = originalBtnContent;
+            this.disabled = false;
+        }).catch(err => {
+            console.error('Error generating image:', err);
+            alert('Failed to generate image. Please try again.');
+            this.innerHTML = originalBtnContent;
+            this.disabled = false;
+        });
+    });
+
+    <?php if ($invoice['status'] === 'finalized'): ?>
+            const openBtn = document.getElementById('openPaymentModalBtn');
+            const closeBtn = document.getElementById('closePaymentModalBtn');
+            const modal = document.getElementById('paymentModal');
+            const amountInput = document.getElementById('amount_paid');
+            const partialOptions = document.getElementById('partialPaymentOptions');
+            const remSpan = document.getElementById('remainingBalance');
+            const writeOffSpan = document.getElementById('writeOffBalance');
+            const restToGive = <?= (float) $rest_to_give ?>;
+
+            if (openBtn && modal) {
+                openBtn.addEventListener('click', function () {
+                    const rest = <?= (float) $rest_to_give ?>;
+                    const confirmMsg = `Record full payment of Rs. ${rest.toLocaleString('en-IN')} now?\n\n- Click OK to save instantly.\n- Click Cancel to enter custom payment details (partial payment or bank methods).`;
+                    if (confirm(confirmMsg)) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '';
+
+                        const actionInput = document.createElement('input');
+                        actionInput.type = 'hidden';
+                        actionInput.name = 'action';
+                        actionInput.value = 'mark_paid';
+                        form.appendChild(actionInput);
+
+                        const amountInput = document.createElement('input');
+                        amountInput.type = 'hidden';
+                        amountInput.name = 'amount_paid';
+                        amountInput.value = rest;
+                        form.appendChild(amountInput);
+
+                        const methodInput = document.createElement('input');
+                        methodInput.type = 'hidden';
+                        methodInput.name = 'payment_method';
+                        methodInput.value = 'CASH';
+                        form.appendChild(methodInput);
+
+                        document.body.appendChild(form);
+                        form.submit();
+                    } else {
+                        modal.style.display = 'flex';
+                    }
+                });
+            }
+
+            if (closeBtn && modal) {
+                closeBtn.addEventListener('click', function () {
+                    modal.style.display = 'none';
+                });
+            }
+
+            if (modal) {
+                modal.addEventListener('click', function (e) {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+
+            if (amountInput) {
+                amountInput.addEventListener('input', function () {
+                    const val = parseFloat(amountInput.value) || 0;
+                    if (val < restToGive) {
+                        partialOptions.style.display = 'block';
+                        const diff = (restToGive - val).toFixed(2);
+                        remSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
+                        writeOffSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
+                    } else {
+                        partialOptions.style.display = 'none';
+                    }
+                });
+            }
+    <?php endif; ?>
+
+    const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
+    if (deleteInvoiceBtn) {
+        deleteInvoiceBtn.addEventListener('click', function () {
+            const expectedNum = '<?= h($invoice["invoice_number"]) ?>';
+            const userInput = prompt(`Are you absolutely sure you want to delete this invoice? This will reset the event booking back to Draft status.\n\nPlease type the invoice number "${expectedNum}" to confirm:`);
+
+            if (userInput === null) {
+                return;
+            }
+
+            if (userInput.trim() === expectedNum) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = '';
-                
+
                 const actionInput = document.createElement('input');
                 actionInput.type = 'hidden';
                 actionInput.name = 'action';
-                actionInput.value = 'mark_paid';
+                actionInput.value = 'delete_invoice';
                 form.appendChild(actionInput);
-                
-                const amountInput = document.createElement('input');
-                amountInput.type = 'hidden';
-                amountInput.name = 'amount_paid';
-                amountInput.value = rest;
-                form.appendChild(amountInput);
-                
-                const methodInput = document.createElement('input');
-                methodInput.type = 'hidden';
-                methodInput.name = 'payment_method';
-                methodInput.value = 'CASH';
-                form.appendChild(methodInput);
-                
+
+                const numInput = document.createElement('input');
+                numInput.type = 'hidden';
+                numInput.name = 'invoice_number';
+                numInput.value = userInput.trim();
+                form.appendChild(numInput);
+
                 document.body.appendChild(form);
                 form.submit();
             } else {
-                modal.style.display = 'flex';
+                alert("The invoice number you entered did not match. Deletion cancelled.");
             }
         });
     }
-
-    if (closeBtn && modal) {
-        closeBtn.addEventListener('click', function() {
-            modal.style.display = 'none';
-        });
-    }
-
-    if (modal) {
-        modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
-    }
-
-    if (amountInput) {
-        amountInput.addEventListener('input', function() {
-            const val = parseFloat(amountInput.value) || 0;
-            if (val < restToGive) {
-                partialOptions.style.display = 'block';
-                const diff = (restToGive - val).toFixed(2);
-                remSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
-                writeOffSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
-            } else {
-                partialOptions.style.display = 'none';
-            }
-        });
-    }
-<?php endif; ?>
-
-const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
-if (deleteInvoiceBtn) {
-    deleteInvoiceBtn.addEventListener('click', function() {
-        const expectedNum = '<?= h($invoice["invoice_number"]) ?>';
-        const userInput = prompt(`Are you absolutely sure you want to delete this invoice? This will reset the event booking back to Draft status.\n\nPlease type the invoice number "${expectedNum}" to confirm:`);
-        
-        if (userInput === null) {
-            return;
-        }
-        
-        if (userInput.trim() === expectedNum) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '';
-            
-            const actionInput = document.createElement('input');
-            actionInput.type = 'hidden';
-            actionInput.name = 'action';
-            actionInput.value = 'delete_invoice';
-            form.appendChild(actionInput);
-            
-            const numInput = document.createElement('input');
-            numInput.type = 'hidden';
-            numInput.name = 'invoice_number';
-            numInput.value = userInput.trim();
-            form.appendChild(numInput);
-            
-            document.body.appendChild(form);
-            form.submit();
-        } else {
-            alert("The invoice number you entered did not match. Deletion cancelled.");
-        }
-    });
-}
 </script>
 
 <!-- Payment Modal -->
 <?php if ($invoice['status'] === 'finalized'): ?>
-    <div id="paymentModal" class="modal-overlay">
-        <div class="card" style="width: 450px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0 0 1.5rem 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
-                <i class="fa-solid fa-money-bill-wave" style="color: var(--accent-color);"></i>
-                Record Final Payment
-            </h3>
-            
-            <form action="" method="POST" id="paymentForm">
-                <input type="hidden" name="action" value="mark_paid">
-                
-                <div style="margin-bottom: 1.25rem;">
-                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Invoice Amount</div>
-                    <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);"><?= format_price($invoice['final_total']) ?></div>
-                </div>
-                
-                <div style="margin-bottom: 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div>
-                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Already Received</span>
-                        <div style="font-size: 1rem; font-weight: 600; color: var(--text-primary);"><?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></div>
-                    </div>
-                    <div>
-                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Rest to Give</span>
-                        <div style="font-size: 1rem; font-weight: 700; color: #dc2626;"><?= format_price($rest_to_give) ?></div>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 1.25rem;">
-                    <label for="amount_paid" class="form-label" style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Amount Received Today (Rs.)</label>
-                    <input type="number" step="0.01" id="amount_paid" name="amount_paid" class="form-control" 
-                           value="<?= $rest_to_give ?>" 
-                           max="<?= $rest_to_give ?>" 
-                           min="0.01" required style="font-size: 1.1rem; font-weight: 700; width: 100%; box-sizing: border-box;">
-                </div>
+        <div id="paymentModal" class="modal-overlay">
+            <div class="card"
+                style="width: 450px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
+                <h3
+                    style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0 0 1.5rem 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                    <i class="fa-solid fa-money-bill-wave" style="color: var(--accent-color);"></i>
+                    Record Final Payment
+                </h3>
 
-                <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label for="payment_method" class="form-label" style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Payment Method</label>
-                    <select name="payment_method" id="payment_method" class="form-control" style="width: 100%; box-sizing: border-box;">
-                        <option value="CASH">Cash</option>
-                        <option value="BANK TRANSFER">Bank Transfer</option>
-                        <option value="UPI">UPI (GPay/PhonePe)</option>
-                        <option value="CARD">Debit/Credit Card</option>
-                        <option value="CHEQUE">Cheque</option>
-                    </select>
-                </div>
-                
-                <!-- Partial Payment options -->
-                <div id="partialPaymentOptions" style="display: none; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.2); padding: 0.75rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem;">
-                    <div style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.25rem;">Partial Payment Option</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
-                        The amount is less than the rest to give. Please choose how to handle the rest:
+                <form action="" method="POST" id="paymentForm">
+                    <input type="hidden" name="action" value="mark_paid">
+
+                    <div style="margin-bottom: 1.25rem;">
+                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Invoice
+                            Amount</div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">
+                            <?= format_price($invoice['final_total']) ?></div>
                     </div>
-                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; margin-bottom: 0.5rem;">
-                        <input type="radio" name="payment_treatment" value="partial" checked style="margin-top: 2px;">
+
+                    <div style="margin-bottom: 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div>
-                            <strong>Add to received</strong><br>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary);">Leaves a remaining balance of Rs. <span id="remainingBalance">0</span></span>
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">Already Received</span>
+                            <div style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">
+                                <?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></div>
                         </div>
-                    </label>
-                    <label style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer;">
-                        <input type="radio" name="payment_treatment" value="write_off" style="margin-top: 2px;">
                         <div>
-                            <strong>Mark as fully Paid anyway</strong><br>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary);">Write off the remaining Rs. <span id="writeOffBalance">0</span></span>
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">Rest to Give</span>
+                            <div style="font-size: 1rem; font-weight: 700; color: #dc2626;"><?= format_price($rest_to_give) ?>
+                            </div>
                         </div>
-                    </label>
-                </div>
-                
-                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                    <button type="button" id="closePaymentModalBtn" class="btn btn-secondary">Cancel</button>
-                    <button type="submit" class="btn btn-success">Confirm Payment</button>
-                </div>
-            </form>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label for="amount_paid" class="form-label"
+                            style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Amount
+                            Received Today (Rs.)</label>
+                        <input type="number" step="0.01" id="amount_paid" name="amount_paid" class="form-control"
+                            value="<?= $rest_to_give ?>" max="<?= $rest_to_give ?>" min="0.01" required
+                            style="font-size: 1.1rem; font-weight: 700; width: 100%; box-sizing: border-box;">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label for="payment_method" class="form-label"
+                            style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Payment
+                            Method</label>
+                        <select name="payment_method" id="payment_method" class="form-control"
+                            style="width: 100%; box-sizing: border-box;">
+                            <option value="CASH">Cash</option>
+                            <option value="BANK TRANSFER">Bank Transfer</option>
+                            <option value="UPI">UPI (GPay/PhonePe)</option>
+                            <option value="CARD">Debit/Credit Card</option>
+                            <option value="CHEQUE">Cheque</option>
+                        </select>
+                    </div>
+
+                    <!-- Partial Payment options -->
+                    <div id="partialPaymentOptions"
+                        style="display: none; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.2); padding: 0.75rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem;">
+                        <div style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.25rem;">Partial
+                            Payment Option</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
+                            The amount is less than the rest to give. Please choose how to handle the rest:
+                        </div>
+                        <label
+                            style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; margin-bottom: 0.5rem;">
+                            <input type="radio" name="payment_treatment" value="partial" checked style="margin-top: 2px;">
+                            <div>
+                                <strong>Add to received</strong><br>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Leaves a remaining balance of
+                                    Rs. <span id="remainingBalance">0</span></span>
+                            </div>
+                        </label>
+                        <label
+                            style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer;">
+                            <input type="radio" name="payment_treatment" value="write_off" style="margin-top: 2px;">
+                            <div>
+                                <strong>Mark as fully Paid anyway</strong><br>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Write off the remaining Rs.
+                                    <span id="writeOffBalance">0</span></span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div
+                        style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                        <button type="button" id="closePaymentModalBtn" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-success">Confirm Payment</button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
 <?php endif; ?>
 
 <?php

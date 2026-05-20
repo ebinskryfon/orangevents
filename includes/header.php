@@ -26,7 +26,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <div class="brand">
                 <div class="brand-logo" style="display: flex; align-items: center; gap: 0.5rem;">
                     <img src="../assets/images/logo.png" alt="Orange Events Logo" style="height: 36px; width: auto;">
-                    <span style="color: #f07c1b; font-weight: 800;">oe</span><span style="color: var(--text-primary); font-weight: 800;">Events</span>
+                    <span style="color: var(--text-primary); font-weight: 800; font-size: 1.5rem; letter-spacing: 0.05em;">Events</span>
                 </div>
             </div>
             

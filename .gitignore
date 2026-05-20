@@ -17,3 +17,6 @@ db.db
 *.log
 tmp/
 temp/
+
+# Configuration
+config/
