@@ -61,6 +61,18 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>Stage Work</span>
                         </a>
                     </li>
+                    <li class="nav-item <?= in_array($current_page, ['rentals.php','rental-form.php','view-rental.php']) ? 'active' : '' ?>">
+                        <a href="rentals.php">
+                            <i class="fa-solid fa-hand-holding-box"></i>
+                            <span>Rental Orders</span>
+                        </a>
+                    </li>
+                    <li class="nav-item <?= $current_page == 'rental-items.php' ? 'active' : '' ?>">
+                        <a href="rental-items.php">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span>Rental Catalog</span>
+                        </a>
+                    </li>
                     <li class="nav-item <?= in_array($current_page, ['invoices.php', 'view-invoice.php', 'edit-invoice.php']) ? 'active' : '' ?>">
                         <a href="invoices.php">
                             <i class="fa-solid fa-file-invoice-dollar"></i>
