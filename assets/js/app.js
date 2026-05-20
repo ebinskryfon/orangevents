@@ -41,4 +41,36 @@ document.addEventListener('DOMContentLoaded', () => {
             card.style.transform = 'translateY(0)';
         }, 100 * index);
     });
+
+    // Theme Switcher Logic
+    const themeSwitch = document.getElementById('themeSwitch');
+    if (themeSwitch) {
+        const options = themeSwitch.querySelectorAll('.theme-switch-option');
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        
+        // Match active class with loaded theme
+        options.forEach(opt => {
+            if (opt.getAttribute('data-theme') === currentTheme) {
+                opt.classList.add('active');
+            } else {
+                opt.classList.remove('active');
+            }
+        });
+
+        // Add event listeners to toggle options
+        options.forEach(button => {
+            button.addEventListener('click', () => {
+                const targetTheme = button.getAttribute('data-theme');
+                
+                // Toggle theme on HTML
+                document.documentElement.setAttribute('data-theme', targetTheme);
+                // Save to localStorage
+                localStorage.setItem('theme', targetTheme);
+                
+                // Toggle active class on option buttons
+                options.forEach(opt => opt.classList.remove('active'));
+                button.classList.add('active');
+            });
+        });
+    }
 });

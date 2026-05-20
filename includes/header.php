@@ -18,6 +18,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <link rel="stylesheet" href="../assets/css/style.css">
     <!-- Template Stylesheet (For previews) -->
     <link rel="stylesheet" href="../assets/css/templates.css">
+    <script>
+        // Check for saved theme preference or use default (dark)
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -72,6 +77,21 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </nav>
             
             <div class="sidebar-footer">
+                <!-- Theme Switcher -->
+                <div class="theme-switch-wrapper">
+                    <div class="theme-switch" id="themeSwitch">
+                        <div class="theme-switch-indicator"></div>
+                        <button type="button" class="theme-switch-option active" data-theme="dark" title="Dark Theme">
+                            <i class="fa-solid fa-moon"></i>
+                            <span>Dark</span>
+                        </button>
+                        <button type="button" class="theme-switch-option" data-theme="light" title="Light Theme">
+                            <i class="fa-solid fa-sun"></i>
+                            <span>Light</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="user-info">
                     <div class="user-avatar">
                         <?= strtoupper(substr($_SESSION['admin_username'], 0, 1)) ?>
