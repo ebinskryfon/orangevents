@@ -2,6 +2,7 @@
     "name": "orange/events",
     "description": "Orange Events & Catering Management System",
     "type": "project",
+    "license": "proprietary",
     "require": {
         "php": ">=8.0"
     },
