@@ -38,7 +38,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>Dashboard</span>
                         </a>
                     </li>
-                    <li class="nav-item <?= ($current_page == 'event-form.php' || strpos($_SERVER['PHP_SELF'], 'event') !== false) && $current_page != 'index.php' ? 'active' : '' ?>">
+                    <li class="nav-item <?= $current_page == 'event-form.php' ? 'active' : '' ?>">
                         <a href="event-form.php">
                             <i class="fa-solid fa-calendar-check"></i>
                             <span>New Booking</span>
@@ -56,10 +56,16 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <span>Stage Work</span>
                         </a>
                     </li>
-                    <li class="nav-item <?= $current_page == 'invoices.php' || $current_page == 'view-invoice.php' ? 'active' : '' ?>">
+                    <li class="nav-item <?= in_array($current_page, ['invoices.php', 'view-invoice.php', 'edit-invoice.php']) ? 'active' : '' ?>">
                         <a href="invoices.php">
                             <i class="fa-solid fa-file-invoice-dollar"></i>
                             <span>Invoices</span>
+                        </a>
+                    </li>
+                    <li class="nav-item <?= $current_page == 'settings.php' ? 'active' : '' ?>">
+                        <a href="settings.php">
+                            <i class="fa-solid fa-gears"></i>
+                            <span>Settings</span>
                         </a>
                     </li>
                 </ul>

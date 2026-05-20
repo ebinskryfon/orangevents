@@ -152,16 +152,16 @@
 
 /* Placeholder gradients when images are missing */
 .orange_classic .img-stage {
-    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/stage.jpg'), linear-gradient(135deg, #2c3e50, #000000);
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/stage.png'), linear-gradient(135deg, #2c3e50, #000000);
 }
 .orange_classic .img-catering {
-    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/catering.jpg'), linear-gradient(135deg, #e67e22, #000000);
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/catering.png'), linear-gradient(135deg, #e67e22, #000000);
 }
 .orange_classic .img-drinks {
-    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/drinks.jpg'), linear-gradient(135deg, #27ae60, #000000);
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/drinks.png'), linear-gradient(135deg, #27ae60, #000000);
 }
 .orange_classic .img-deserts {
-    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/deserts.jpg'), linear-gradient(135deg, #8e44ad, #000000);
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%), url('../images/collage/deserts.png'), linear-gradient(135deg, #8e44ad, #000000);
 }
 
 .orange_classic .vertical-orange-band {
@@ -593,4 +593,572 @@
     font-weight: 700;
     color: #64ffda;
 }
+
+/* =========================================================================
+   TEMPLATE 4: AEDAN GARDENS (Landscape Tax Invoice)
+   ========================================================================= */
+.invoice-card.aedan_gardens {
+    width: 1050px !important;
+    min-height: 742px !important; /* A4 Landscape Ratio */
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    padding: 2.2rem !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15) !important;
+    border: 1.2px solid #000000 !important;
+    border-radius: 4px;
+}
+
+/* Print Landscape Styles specifically for Aedan Gardens */
+@media print {
+    body.template-aedan_gardens {
+        background-color: #ffffff !important;
+    }
+    body.template-aedan_gardens .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .invoice-card.aedan_gardens {
+        width: 100% !important;
+        min-height: auto !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .modern_minimalist {
+        background-color: #ffffff !important;
+    }
+    .emerald_luxury {
+        background-color: #051a14 !important;
+    }
+    .blossom_chic {
+        background-color: #fff9f9 !important;
+    }
+}
+
+/* =========================================================================
+   TEMPLATE 5: MODERN MINIMALIST (Light Modern layout)
+   ========================================================================= */
+.invoice-card.modern_minimalist {
+    background-color: #ffffff;
+    color: #1e293b;
+    padding: 2.5rem;
+    font-family: 'Inter', sans-serif;
+    border: 1px solid #e2e8f0;
+}
+
+.modern_minimalist .template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.modern_minimalist .header-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.modern_minimalist .header-logo-img {
+    height: 50px;
+    width: auto;
+}
+
+.modern_minimalist .logo-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #f07c1b;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+}
+
+.modern_minimalist .logo-subtitle {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.modern_minimalist .logo-contact {
+    font-size: 0.8rem;
+    text-align: right;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.modern_minimalist .header-date-bar {
+    background-color: #f8fafc;
+    border-radius: var(--border-radius-md);
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modern_minimalist .template-body {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 2.5rem;
+}
+
+.modern_minimalist .section-title-wrap {
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.modern_minimalist .section-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.modern_minimalist .section-subtitle {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+    margin-top: 0.2rem;
+    display: block;
+}
+
+.modern_minimalist .item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #f8fafc;
+    font-size: 0.85rem;
+    color: #334155;
+}
+
+.modern_minimalist .item-row.highlighted-dish {
+    font-weight: 700;
+    color: #f07c1b;
+}
+
+.modern_minimalist .item-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modern_minimalist .item-name::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    background-color: #cbd5e1;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.modern_minimalist .item-row.highlighted-dish .item-name::before {
+    background-color: #f07c1b;
+}
+
+.modern_minimalist .item-price {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.modern_minimalist .footer-summary-bar {
+    margin-top: 3rem;
+    border-top: 2px solid #f1f5f9;
+    padding-top: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.modern_minimalist .summary-box {
+    width: 280px;
+}
+
+.modern_minimalist .summary-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #64748b;
+    padding: 0.35rem 0;
+}
+
+.modern_minimalist .summary-row.grand-total {
+    border-top: 1px solid #e2e8f0;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.modern_minimalist .summary-row.rest-to-get {
+    color: #ef4444;
+    font-weight: 700;
+}
+
+.modern_minimalist .bank-details-box {
+    background-color: #f8fafc;
+    border-radius: var(--border-radius-md);
+    padding: 1.25rem;
+    font-size: 0.8rem;
+    color: #475569;
+    line-height: 1.5;
+    margin-top: 2rem;
+}
+
+/* =========================================================================
+   TEMPLATE 6: EMERALD LUXURY (Premium Dark Emerald/Gold Theme)
+   ========================================================================= */
+.invoice-card.emerald_luxury {
+    background-color: #051a14;
+    color: #f1f2f6;
+    padding: 3rem;
+    font-family: 'Playfair Display', 'Cinzel', serif;
+    border: 4px double #d4af37;
+    position: relative;
+}
+
+.emerald_luxury .template-header {
+    text-align: center;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+    padding-bottom: 2rem;
+    margin-bottom: 2rem;
+}
+
+.emerald_luxury .header-logo-container {
+    display: inline-block;
+    padding: 0.5rem;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    margin-bottom: 1rem;
+    background-color: #03110d;
+}
+
+.emerald_luxury .header-logo-img {
+    height: 60px;
+    width: auto;
+    filter: brightness(1.2);
+}
+
+.emerald_luxury .logo-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #d4af37;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.emerald_luxury .logo-subtitle {
+    font-size: 0.9rem;
+    color: #a4b0be;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.emerald_luxury .logo-contact {
+    font-size: 0.8rem;
+    color: #a4b0be;
+    margin-top: 0.5rem;
+    font-family: 'Inter', sans-serif;
+    opacity: 0.8;
+}
+
+.emerald_luxury .header-date-bar {
+    border-top: 1px solid rgba(212, 175, 55, 0.2);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    padding: 0.6rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #d4af37;
+    text-align: center;
+    letter-spacing: 0.05em;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+}
+
+.emerald_luxury .template-body {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 2.5rem;
+}
+
+.emerald_luxury .section-title-wrap {
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    padding-bottom: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+.emerald_luxury .section-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #d4af37;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.emerald_luxury .section-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    color: #a4b0be;
+    font-style: italic;
+}
+
+.emerald_luxury .item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.emerald_luxury .item-row.highlighted-dish {
+    font-weight: bold;
+    color: #d4af37;
+}
+
+.emerald_luxury .item-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.emerald_luxury .item-name::before {
+    content: "✦";
+    color: #d4af37;
+    font-size: 0.75rem;
+}
+
+.emerald_luxury .item-price {
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.emerald_luxury .footer-summary-bar {
+    margin-top: 3rem;
+    border-top: 1px solid rgba(212, 175, 55, 0.2);
+    padding-top: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.emerald_luxury .summary-box {
+    width: 280px;
+    font-family: 'Inter', sans-serif;
+}
+
+.emerald_luxury .summary-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #a4b0be;
+    padding: 0.35rem 0;
+}
+
+.emerald_luxury .summary-row.grand-total {
+    border-top: 1px solid rgba(212, 175, 55, 0.3);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #d4af37;
+    font-family: 'Playfair Display', serif;
+}
+
+.emerald_luxury .summary-row.rest-to-get {
+    color: #ff7675;
+}
+
+.emerald_luxury .bank-details-box {
+    background-color: #03110d;
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    padding: 1.25rem;
+    font-size: 0.8rem;
+    color: #a4b0be;
+    line-height: 1.5;
+    margin-top: 2rem;
+    font-family: 'Inter', sans-serif;
+}
+
+/* =========================================================================
+   TEMPLATE 7: BLOSSOM CHIC (Pastel Rose / Elegant Script Theme)
+   ========================================================================= */
+.invoice-card.blossom_chic {
+    background-color: #fff9f9;
+    color: #3d3535;
+    padding: 2.5rem;
+    font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+    border: 1px solid #ffd2d2;
+    border-radius: var(--border-radius-lg);
+}
+
+.blossom_chic .template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px dashed #ffd2d2;
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.blossom_chic .header-logo-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.blossom_chic .header-logo-img {
+    height: 45px;
+    width: auto;
+}
+
+.blossom_chic .logo-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #b25068;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.blossom_chic .logo-subtitle {
+    font-size: 0.8rem;
+    color: #7c5c64;
+    letter-spacing: 0.1em;
+}
+
+.blossom_chic .logo-contact {
+    font-size: 0.8rem;
+    text-align: right;
+    color: #7c5c64;
+    line-height: 1.4;
+    font-family: 'Inter', sans-serif;
+}
+
+.blossom_chic .header-date-bar {
+    background-color: #fff0f0;
+    border-radius: 8px;
+    padding: 0.6rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #b25068;
+    margin-bottom: 2rem;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.blossom_chic .template-body {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 2.2rem;
+}
+
+.blossom_chic .section-title-wrap {
+    border-bottom: 1px solid #ffd2d2;
+    padding-bottom: 0.35rem;
+    margin-bottom: 0.85rem;
+}
+
+.blossom_chic .section-title {
+    font-size: 1.15rem;
+    font-weight: bold;
+    color: #b25068;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.blossom_chic .section-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    color: #7c5c64;
+}
+
+.blossom_chic .item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px dotted #ffd2d2;
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.blossom_chic .item-row.highlighted-dish {
+    font-weight: bold;
+    color: #b25068;
+}
+
+.blossom_chic .item-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.blossom_chic .item-name::before {
+    content: "✿";
+    color: #ff8b94;
+    font-size: 0.75rem;
+}
+
+.blossom_chic .item-price {
+    font-weight: bold;
+    color: #3d3535;
+}
+
+.blossom_chic .footer-summary-bar {
+    margin-top: 2.5rem;
+    border-top: 2px dashed #ffd2d2;
+    padding-top: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.blossom_chic .summary-box {
+    width: 280px;
+    font-family: 'Inter', sans-serif;
+}
+
+.blossom_chic .summary-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #7c5c64;
+    padding: 0.35rem 0;
+}
+
+.blossom_chic .summary-row.grand-total {
+    border-top: 1px solid #ffd2d2;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    font-size: 1.15rem;
+    font-weight: bold;
+    color: #b25068;
+    font-family: 'Cormorant Garamond', serif;
+}
+
+.blossom_chic .summary-row.rest-to-get {
+    color: #ef4444;
+}
+
+.blossom_chic .bank-details-box {
+    background-color: #fff0f0;
+    border-radius: 8px;
+    padding: 1.1rem;
+    font-size: 0.8rem;
+    color: #7c5c64;
+    line-height: 1.5;
+    margin-top: 2rem;
+    font-family: 'Inter', sans-serif;
+}
+
 
