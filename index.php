@@ -2,7 +2,7 @@
 require_once __DIR__ . '/includes/auth.php';
 
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
-    header('Location: admin/index.php');
+    header('Location: select-module.php');
     exit;
 }
 
@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please enter both username and password.';
     } else {
         if (authenticate_user($username, $password)) {
-            header('Location: admin/index.php');
+            header('Location: select-module.php');
             exit;
         } else {
             $error = 'Invalid username or password.';

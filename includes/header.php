@@ -5,6 +5,20 @@ check_admin_auth();
 
 // Determine current page for active menu highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
+
+// Determine active module
+$event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
+$rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
+
+if (isset($_GET['module'])) {
+    $_SESSION['current_module'] = $_GET['module'];
+} elseif (in_array($current_page, $event_pages)) {
+    $_SESSION['current_module'] = 'event';
+} elseif (in_array($current_page, $rental_pages)) {
+    $_SESSION['current_module'] = 'rental';
+}
+
+$current_module = $_SESSION['current_module'] ?? 'event';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -29,56 +43,63 @@ $current_page = basename($_SERVER['PHP_SELF']);
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="brand">
-                <div class="brand-logo" style="display: flex; align-items: center; gap: 0.5rem;">
-                    <img src="../assets/images/logo.png" alt="Orange Events Logo" style="height: 36px; width: auto;">
-                    <span style="color: var(--text-primary); font-weight: 800; font-size: 1.5rem; letter-spacing: 0.05em;">Events</span>
-                </div>
+                <a href="../select-module.php" style="text-decoration: none;">
+                    <div class="brand-logo" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <img src="../assets/images/logo.png" alt="Orange Events Logo" style="height: 36px; width: auto;">
+                        <span style="color: var(--text-primary); font-weight: 800; font-size: 1.5rem; letter-spacing: 0.05em;">Events</span>
+                    </div>
+                </a>
             </div>
             
             <nav class="nav-container">
                 <ul class="nav-links">
-                    <li class="nav-item <?= $current_page == 'index.php' ? 'active' : '' ?>">
-                        <a href="index.php">
-                            <i class="fa-solid fa-chart-pie"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?= $current_page == 'event-form.php' ? 'active' : '' ?>">
-                        <a href="event-form.php">
-                            <i class="fa-solid fa-calendar-check"></i>
-                            <span>New Booking</span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?= $current_page == 'catering-items.php' ? 'active' : '' ?>">
-                        <a href="catering-items.php">
-                            <i class="fa-solid fa-utensils"></i>
-                            <span>Catering Dishes</span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?= $current_page == 'stage-items.php' ? 'active' : '' ?>">
-                        <a href="stage-items.php">
-                            <i class="fa-solid fa-holly-berry"></i>
-                            <span>Stage Work</span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?= in_array($current_page, ['rentals.php','rental-form.php','view-rental.php']) ? 'active' : '' ?>">
-                        <a href="rentals.php">
-                            <i class="fa-solid fa-hand-holding-box"></i>
-                            <span>Rental Orders</span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?= $current_page == 'rental-items.php' ? 'active' : '' ?>">
-                        <a href="rental-items.php">
-                            <i class="fa-solid fa-boxes-stacked"></i>
-                            <span>Rental Catalog</span>
-                        </a>
-                    </li>
-                    <li class="nav-item <?= in_array($current_page, ['invoices.php', 'view-invoice.php', 'edit-invoice.php']) ? 'active' : '' ?>">
-                        <a href="invoices.php">
-                            <i class="fa-solid fa-file-invoice-dollar"></i>
-                            <span>Invoices</span>
-                        </a>
-                    </li>
+                    <?php if ($current_module === 'event'): ?>
+                        <li class="nav-item <?= $current_page == 'index.php' ? 'active' : '' ?>">
+                            <a href="index.php">
+                                <i class="fa-solid fa-chart-pie"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'event-form.php' ? 'active' : '' ?>">
+                            <a href="event-form.php">
+                                <i class="fa-solid fa-calendar-check"></i>
+                                <span>New Booking</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'catering-items.php' ? 'active' : '' ?>">
+                            <a href="catering-items.php">
+                                <i class="fa-solid fa-utensils"></i>
+                                <span>Catering Dishes</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'stage-items.php' ? 'active' : '' ?>">
+                            <a href="stage-items.php">
+                                <i class="fa-solid fa-holly-berry"></i>
+                                <span>Stage Work</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= in_array($current_page, ['invoices.php', 'view-invoice.php', 'edit-invoice.php']) ? 'active' : '' ?>">
+                            <a href="invoices.php">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
+                                <span>Invoices</span>
+                            </a>
+                        </li>
+                    <?php endif; ?>
+                    
+                    <?php if ($current_module === 'rental'): ?>
+                        <li class="nav-item <?= in_array($current_page, ['rentals.php','rental-form.php','view-rental.php']) ? 'active' : '' ?>">
+                            <a href="rentals.php">
+                                <i class="fa-solid fa-hand-holding-box"></i>
+                                <span>Rental Orders</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'rental-items.php' ? 'active' : '' ?>">
+                            <a href="rental-items.php">
+                                <i class="fa-solid fa-boxes-stacked"></i>
+                                <span>Rental Catalog</span>
+                            </a>
+                        </li>
+                    <?php endif; ?>
                     <li class="nav-item <?= $current_page == 'settings.php' ? 'active' : '' ?>">
                         <a href="settings.php">
                             <i class="fa-solid fa-gears"></i>
@@ -113,12 +134,18 @@ $current_page = basename($_SERVER['PHP_SELF']);
                         <p><?= h(ucfirst($_SESSION['admin_role'])) ?></p>
                     </div>
                 </div>
-                <form action="../logout.php" method="POST">
-                    <button type="submit" class="btn-logout">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                        <span>Logout</span>
-                    </button>
-                </form>
+                <div style="display: flex; gap: 0.5rem;">
+                    <a href="../select-module.php" class="btn-logout" style="flex: 1; text-align: center; justify-content: center; background-color: rgba(56, 182, 255, 0.1); color: #38b6ff; border: 1px solid rgba(56, 182, 255, 0.2); text-decoration: none;">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <span>Modules</span>
+                    </a>
+                    <form action="../logout.php" method="POST" style="flex: 1; margin: 0;">
+                        <button type="submit" class="btn-logout" style="width: 100%; justify-content: center;">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>Logout</span>
+                        </button>
+                    </form>
+                </div>
             </div>
         </aside>
         

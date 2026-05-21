@@ -97,7 +97,7 @@ $db->prepare("UPDATE rental_orders SET status='overdue'
    ->execute(['id'=>$id]);
 
 // ── Fetch order + items + payments ────────────────────────────────────────────
-$order = $db->prepare("SELECT * FROM rental_orders WHERE id=:id");
+$order = $db->prepare("SELECT ro.*, e.title as linked_event_title FROM rental_orders ro LEFT JOIN events e ON ro.event_id = e.id WHERE ro.id=:id");
 $order->execute(['id'=>$id]);
 $order = $order->fetch();
 if (!$order) { header('Location: rentals.php'); exit; }
@@ -215,7 +215,12 @@ if ($flash) $message = $flash;
                 <?php endif; ?>
                 <div>
                     <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.2rem;">Event / Occasion</p>
-                    <p style="font-weight:600;"><?= h($order['event_name'] ?: '—') ?></p>
+                    <p style="font-weight:600;">
+                        <?= h($order['event_name'] ?: '—') ?>
+                        <?php if ($order['event_id']): ?>
+                            <br><a href="event-form.php?id=<?= $order['event_id'] ?>&module=event" style="font-size: 0.8rem; color: var(--accent-color);"><i class="fa-solid fa-link"></i> Linked: <?= h($order['linked_event_title']) ?></a>
+                        <?php endif; ?>
+                    </p>
                 </div>
                 <div>
                     <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.2rem;">Rental Period</p>

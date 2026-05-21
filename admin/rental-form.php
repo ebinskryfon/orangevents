@@ -24,6 +24,10 @@ if ($edit_id > 0) {
     $order_items = $oi->fetchAll();
 }
 
+// Fetch events for dropdown
+$events_list = $db->query("SELECT id, title, client_name, client_phone, venue, event_date FROM events ORDER BY event_date DESC")->fetchAll();
+$events_list_json = json_encode($events_list);
+
 // ── POST: Save order ──────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $client_name  = trim($_POST['client_name']  ?? '');
@@ -43,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $adv_method = $_POST['adv_method'] ?? 'cash';
     $adv_date   = $_POST['adv_date']   ?? date('Y-m-d');
     $adv_ref    = trim($_POST['adv_ref'] ?? '');
+    $event_id   = !empty($_POST['event_id']) ? (int)$_POST['event_id'] : null;
 
     if (empty($client_name) || empty($client_phone) || empty($start_date) || empty($end_date)) {
         $error = 'Client name, phone, and rental dates are required.';
@@ -59,13 +64,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $balance  = max(0, $total - $adv_paid);
 
             $db->prepare("UPDATE rental_orders SET
-                client_name=:cn, client_phone=:cp, client_email=:ce, client_address=:ca,
+                event_id=:eid, client_name=:cn, client_phone=:cp, client_email=:ce, client_address=:ca,
                 event_name=:en, rental_start_date=:sd, rental_end_date=:ed, num_days=:nd,
                 subtotal=:sub, discount=:disc, total_amount=:tot,
                 advance_paid=:adv, balance_due=:bal, notes=:notes
                 WHERE id=:id")
             ->execute([
-                'cn'=>$client_name,'cp'=>$client_phone,'ce'=>$client_email,'ca'=>$client_addr,
+                'eid'=>$event_id, 'cn'=>$client_name,'cp'=>$client_phone,'ce'=>$client_email,'ca'=>$client_addr,
                 'en'=>$event_name,'sd'=>$start_date,'ed'=>$end_date,'nd'=>$num_days,
                 'sub'=>$subtotal,'disc'=>$discount,'tot'=>$total,
                 'adv'=>$adv_paid,'bal'=>$balance,'notes'=>$notes,'id'=>$edit_id,
@@ -91,13 +96,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $balance      = max(0, $total - $adv_amount);
 
             $db->prepare("INSERT INTO rental_orders
-                (order_number, client_name, client_phone, client_email, client_address,
+                (event_id, order_number, client_name, client_phone, client_email, client_address,
                  event_name, rental_start_date, rental_end_date, num_days,
                  subtotal, discount, total_amount, advance_paid, balance_due, status, notes)
                 VALUES
-                (:on,:cn,:cp,:ce,:ca,:en,:sd,:ed,:nd,:sub,:disc,:tot,:adv,:bal,'draft',:notes)")
+                (:eid,:on,:cn,:cp,:ce,:ca,:en,:sd,:ed,:nd,:sub,:disc,:tot,:adv,:bal,'draft',:notes)")
             ->execute([
-                'on'=>$order_number,'cn'=>$client_name,'cp'=>$client_phone,
+                'eid'=>$event_id, 'on'=>$order_number,'cn'=>$client_name,'cp'=>$client_phone,
                 'ce'=>$client_email,'ca'=>$client_addr,'en'=>$event_name,
                 'sd'=>$start_date,'ed'=>$end_date,'nd'=>$num_days,
                 'sub'=>$subtotal,'disc'=>$discount,'tot'=>$total,
@@ -195,6 +200,19 @@ $existing_items_json = json_encode(array_map(fn($i) => [
             <h3 style="margin-bottom:1.25rem;font-size:1rem;display:flex;align-items:center;gap:0.5rem;">
                 <i class="fa-solid fa-user" style="color:var(--accent-color);"></i> Client Details
             </h3>
+            
+            <div class="form-group" style="background: rgba(56, 182, 255, 0.05); padding: 1rem; border-radius: var(--border-radius-sm); border: 1px dashed rgba(56, 182, 255, 0.3);">
+                <label class="form-label">Link to Event Booking (Optional)</label>
+                <select name="event_id" id="eventSelect" class="form-control">
+                    <option value="">-- Standalone Rental (No Event) --</option>
+                    <?php foreach ($events_list as $ev): ?>
+                        <option value="<?= $ev['id'] ?>" <?= ($order['event_id'] ?? '') == $ev['id'] ? 'selected' : '' ?>>
+                            <?= h($ev['title']) ?> - <?= h($ev['client_name']) ?> (<?= format_date($ev['event_date']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <small style="color: var(--text-muted); display: block; margin-top: 0.5rem;">Selecting an event will automatically link this rental order.</small>
+            </div>
             <div class="form-group">
                 <label class="form-label">Client Name *</label>
                 <input type="text" name="client_name" class="form-control" required value="<?= h($order['client_name'] ?? '') ?>" placeholder="Full name">
@@ -383,6 +401,25 @@ function calcDays() {
 }
 document.getElementById('startDate').addEventListener('change', calcDays);
 document.getElementById('endDate').addEventListener('change',   calcDays);
+
+const EVENTS_LIST = <?= $events_list_json ?: '[]' ?>;
+document.getElementById('eventSelect').addEventListener('change', function() {
+    const eid = this.value;
+    if (eid) {
+        const ev = EVENTS_LIST.find(e => e.id == eid);
+        if (ev) {
+            if (!document.querySelector('[name="client_name"]').value) {
+                document.querySelector('[name="client_name"]').value = ev.client_name || '';
+            }
+            if (!document.querySelector('[name="client_phone"]').value) {
+                document.querySelector('[name="client_phone"]').value = ev.client_phone || '';
+            }
+            if (!document.querySelector('[name="event_name"]').value) {
+                document.querySelector('[name="event_name"]').value = ev.title || '';
+            }
+        }
+    }
+});
 
 // ── Item rendering ────────────────────────────────────────────────────────────
 function renderItems() {

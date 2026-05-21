@@ -37,10 +37,11 @@ FROM rental_orders")->fetch();
 
 // ── Orders list ───────────────────────────────────────────────────────────────
 $stmt = $db->prepare("
-    SELECT ro.*,
+    SELECT ro.*, e.title as linked_event_title,
            COUNT(roi.id) AS item_count
       FROM rental_orders ro
       LEFT JOIN rental_order_items roi ON roi.order_id = ro.id
+      LEFT JOIN events e ON ro.event_id = e.id
       $sql_where
      GROUP BY ro.id
      ORDER BY ro.created_at DESC
@@ -158,7 +159,12 @@ $status_meta = [
                             <div style="font-weight:600;color:var(--text-primary);"><?= h($o['client_name']) ?></div>
                             <div style="font-size:0.8rem;color:var(--text-muted);"><?= h($o['client_phone']) ?></div>
                         </td>
-                        <td style="color:var(--text-secondary);font-size:0.875rem;"><?= h($o['event_name'] ?: '—') ?></td>
+                        <td style="color:var(--text-secondary);font-size:0.875rem;">
+                            <?= h($o['event_name'] ?: '—') ?>
+                            <?php if ($o['event_id']): ?>
+                                <br><a href="event-form.php?id=<?= $o['event_id'] ?>&module=event" style="font-size: 0.75rem; color: var(--accent-color);"><i class="fa-solid fa-link"></i> Linked Event</a>
+                            <?php endif; ?>
+                        </td>
                         <td style="text-align:center;">
                             <div style="font-size:0.8rem;white-space:nowrap;">
                                 <?= format_date($o['rental_start_date']) ?>
