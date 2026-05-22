@@ -287,6 +287,68 @@ $settings = get_settings();
         display: none !important;
     }
 
+    /* Page break helper indicators (only visible on screen when split controls checkbox is active) */
+    .page-break-indicator {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        margin: 0.5rem 0 1rem 0;
+        border: 1.5px dashed var(--accent-color, #f07c1b);
+        border-radius: var(--border-radius-sm, 6px);
+        color: var(--accent-color, #f07c1b);
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        background-color: rgba(240, 124, 27, 0.04);
+        transition: all 0.2s ease;
+        user-select: none;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .page-break-indicator:hover {
+        background-color: rgba(240, 124, 27, 0.12);
+        border-style: solid;
+    }
+    .invoice-card.enable-split-controls .page-break-indicator {
+        display: flex;
+    }
+    .menu-category-section.has-page-break .page-break-indicator {
+        border-color: #2ed573;
+        color: #2ed573;
+        background-color: rgba(46, 213, 115, 0.06);
+    }
+    .menu-category-section.has-page-break .page-break-indicator:hover {
+        background-color: rgba(46, 213, 115, 0.15);
+    }
+
+
+    @media print {
+        .page-break-indicator {
+            display: none !important;
+        }
+        .menu-category-section.has-page-break {
+            page-break-before: always !important;
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        .menu-category-section.has-page-break::before {
+            display: none !important;
+        }
+    }
+
+    /* -----------------------------------------------------------------------
+       CAPTURE MODE: applied during html2canvas image export.
+    ----------------------------------------------------------------------- */
+    /* Always hide the page-break indicators in captured image */
+    .invoice-card.capture-mode .page-break-indicator {
+        display: none !important;
+    }
+    .invoice-card.capture-mode.enable-split-controls .page-break-indicator {
+        display: none !important;
+    }
+
     /* Premium modal styles */
     .modal-overlay {
         display: none;
@@ -356,6 +418,13 @@ $settings = get_settings();
             <input type="checkbox" id="togglePaymentCheckbox" checked
                 style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
             Show Payment History
+        </label>
+
+        <label
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="toggleSplitCheckbox"
+                style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
+            Page Split Controls
         </label>
     </div>
 
@@ -472,10 +541,13 @@ $settings = get_settings();
     </div>
 </div>
 
-<div class="template-preview-container">
+<div class="template-preview-container" style="flex-direction: column; align-items: center; gap: 2rem;">
 
-    <!-- INVOICE CARD START -->
-    <div class="invoice-card <?= h($template) ?>">
+    <!-- Rendered paginated pages will go here -->
+    <div id="paginatedPagesContainer" style="display: flex; flex-direction: column; gap: 2rem; align-items: center; width: 100%;"></div>
+
+    <!-- INVOICE CARD START (Hidden Data Source) -->
+    <div class="invoice-card <?= h($template) ?>" id="originalInvoiceCard" style="display: none;">
 
         <?php if ($template === 'orange_classic'): ?>
             <!-- ORANGE CLASSIC LAYOUT -->
@@ -525,7 +597,7 @@ $settings = get_settings();
 
                     <!-- 1. STAGE WORK SECTION -->
                     <?php if (!empty($stage_work_items)): ?>
-                        <div>
+                        <div class="stage-work-section">
                             <div class="section-title-wrap">
                                 <h3 class="section-title">STAGE WORK</h3>
                             </div>
@@ -540,19 +612,23 @@ $settings = get_settings();
                         </div>
                     <?php endif; ?>
 
-                    <!-- 2. WELCOME DRINK SECTION -->
-                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                        <div class="menu-category-section">
+                    <!-- Catering Categories dynamically -->
+                    <?php foreach ($dishes_by_category as $category_name => $dishes): ?>
+                        <div class="menu-category-section" data-category-name="<?= h($category_name) ?>">
+                            <div class="page-break-indicator" onclick="togglePageBreak(this)">
+                                <i class="fa-solid fa-scissors"></i> Insert Page Break Here
+                            </div>
                             <div class="section-title-wrap">
-                                <h3 class="section-title">WELCOME DRINK</h3>
-                                <?php if ($catering): ?>
+                                <h3 class="section-title"><?= h(strtoupper($category_name)) ?></h3>
+                                <?php if (strtoupper($category_name) === 'WELCOME DRINK' && $catering): ?>
                                     <span class="section-subtitle">Per
                                         Plate-Rs.<?= number_format($catering['per_plate_price'], 0) ?>
                                         (Nos:<?= $catering['total_plates'] ?>)</span>
                                 <?php endif; ?>
                             </div>
-                            <ul class="section-list">
-                                <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                            <ul
+                                class="section-list<?= (strtoupper($category_name) === 'MAIN COURSE') ? ' multi-col-list' : '' ?>">
+                                <?php foreach ($dishes as $dish): ?>
                                     <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
                                     <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
                                         <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
@@ -560,75 +636,7 @@ $settings = get_settings();
                                 <?php endforeach; ?>
                             </ul>
                         </div>
-                    <?php endif; ?>
-
-                    <!-- 3. STARTERS SECTION -->
-                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                        <div class="menu-category-section">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">STARTERS</h3>
-                            </div>
-                            <ul class="section-list">
-                                <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
-                                        <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- 4. MAIN COURSE SECTION -->
-                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                        <div class="menu-category-section">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">MAIN COURSE</h3>
-                            </div>
-                            <ul class="section-list multi-col-list">
-                                <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
-                                        <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- 5. DESERTS SECTION -->
-                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                        <div class="menu-category-section">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">DESERTS</h3>
-                            </div>
-                            <ul class="section-list">
-                                <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
-                                        <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- 6. SERVICE & WASTE MANAGEMENT SECTION -->
-                    <?php if (isset($dishes_by_category['SERVICE & WASTE MANAGEMENT'])): ?>
-                        <div class="menu-category-section">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">SERVICE & WASTE MANAGEMENT</h3>
-                            </div>
-                            <ul class="section-list">
-                                <?php foreach ($dishes_by_category['SERVICE & WASTE MANAGEMENT'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
-                                        <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
 
                     <!-- Bottom Invoice Balance Summary -->
                     <div class="footer-summary-bar">
@@ -708,70 +716,46 @@ $settings = get_settings();
 
                     <!-- Column 1: Food details -->
                     <div>
-                        <!-- Welcome Drinks -->
-                        <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <div class="section-title-wrap">
-                                    <h3 class="section-title">Welcome Drinks</h3>
+                        <?php foreach ($dishes_by_category as $cat_name => $dishes): ?>
+                            <div class="menu-category-section" style="margin-bottom: 1.5rem;" data-category-name="<?= h($cat_name) ?>">
+                                <div class="page-break-indicator" onclick="togglePageBreak(this)">
+                                    <i class="fa-solid fa-scissors"></i> Insert Page Break Here
                                 </div>
-                                <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                            class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <!-- Starters -->
-                        <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
                                 <div class="section-title-wrap">
-                                    <h3 class="section-title">Appetizers & Starters</h3>
+                                    <h3 class="section-title">
+                                        <?php
+                                        $upper_name = strtoupper($cat_name);
+                                        if ($upper_name === 'WELCOME DRINK') {
+                                            echo 'Welcome Drinks';
+                                        } elseif ($upper_name === 'STARTERS') {
+                                            echo 'Appetizers & Starters';
+                                        } elseif ($upper_name === 'MAIN COURSE') {
+                                            echo 'Grand Buffet Main Course';
+                                        } elseif ($upper_name === 'DESERTS') {
+                                            echo 'Sweet Desserts';
+                                        } else {
+                                            echo h(ucwords(strtolower($cat_name)));
+                                        }
+                                        ?>
+                                    </h3>
                                 </div>
-                                <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                            class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-
-                        <!-- Main Course -->
-                        <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <div class="section-title-wrap">
-                                    <h3 class="section-title">Grand Buffet Main Course</h3>
-                                </div>
-                                <div class="multi-col-list">
-                                    <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
+                                <div class="<?= (strtoupper($cat_name) === 'MAIN COURSE') ? 'multi-col-list' : '' ?>">
+                                    <?php foreach ($dishes as $dish): ?>
                                         <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                        <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                                class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                        <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                            <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
+                                        </div>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
-                        <?php endif; ?>
-
-                        <!-- Desserts -->
-                        <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                            <div style="margin-bottom: 1.5rem;">
-                                <div class="section-title-wrap">
-                                    <h3 class="section-title">Sweet Desserts</h3>
-                                </div>
-                                <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                            class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
+                        <?php endforeach; ?>
                     </div>
 
                     <!-- Column 2: Stage decoration services and catering invoice specs -->
                     <div>
                         <!-- Stage work -->
                         <?php if (!empty($stage_work_items)): ?>
-                            <div style="margin-bottom: 1.5rem;">
+                            <div class="stage-work-section" style="margin-bottom: 1.5rem;">
                                 <div class="section-title-wrap">
                                     <h3 class="section-title">Stage & Setup Work</h3>
                                 </div>
@@ -889,51 +873,42 @@ $settings = get_settings();
                         <div>Time: <?= format_time($event['event_time']) ?></div>
                     </div>
 
-                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">Welcome Drinks</h3>
+                    <?php foreach ($dishes_by_category as $cat_name => $dishes): ?>
+                        <div class="menu-category-section" style="margin-bottom: 1.25rem;" data-category-name="<?= h($cat_name) ?>">
+                            <div class="page-break-indicator" onclick="togglePageBreak(this)">
+                                <i class="fa-solid fa-scissors"></i> Insert Page Break Here
                             </div>
-                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                            <div class="section-title-wrap">
+                                <h3 class="section-title">
+                                    <?php
+                                    $upper_name = strtoupper($cat_name);
+                                    if ($upper_name === 'WELCOME DRINK') {
+                                        echo 'Welcome Drinks';
+                                    } elseif ($upper_name === 'STARTERS') {
+                                        echo 'Starters';
+                                    } elseif ($upper_name === 'MAIN COURSE') {
+                                        echo 'Main Courses';
+                                    } else {
+                                        echo h(ucwords(strtolower($cat_name)));
+                                    }
+                                    ?>
+                                </h3>
+                            </div>
+                            <?php foreach ($dishes as $dish): ?>
                                 <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                        class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
+                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                    <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
+                                </div>
                             <?php endforeach; ?>
                         </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">Starters</h3>
-                            </div>
-                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                        class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <div class="section-title-wrap">
-                                <h3 class="section-title">Main Courses</h3>
-                            </div>
-                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                <div class="item-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>"><span
-                                        class="item-name"><?= h($dish['name']) . $p_suffix ?></span></div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
 
                 <!-- Financial details column -->
                 <div>
                     <!-- Stage decor services -->
                     <?php if (!empty($stage_work_items)): ?>
-                        <div style="margin-bottom: 2rem;">
+                        <div class="stage-work-section" style="margin-bottom: 2rem;">
                             <h4
                                 style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">
                                 STAGE & SERVICES</h4>
@@ -1293,7 +1268,8 @@ $settings = get_settings();
                             </td>
                         </tr>
                         <?php if ($invoice['advance_received'] > 0 && !empty($invoice['advance_paid_at'])): ?>
-                            <tr class="payment-history" style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
+                            <tr class="payment-history"
+                                style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
                                 <td colspan="2" style="padding: 0.25rem 0.6rem; font-style: italic;">
                                     ↳ Adv Paid: <?= format_price($invoice['advance_received']) ?> via
                                     <?= h($invoice['advance_payment_method'] ?: 'CASH') ?> on
@@ -1310,7 +1286,8 @@ $settings = get_settings();
                             </td>
                         </tr>
                         <?php if ($invoice['balance_received'] > 0 && !empty($invoice['balance_paid_at'])): ?>
-                            <tr class="payment-history" style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
+                            <tr class="payment-history"
+                                style="border-bottom: 1px solid #000000; font-size: 0.7rem; color: #475569;">
                                 <td colspan="2" style="padding: 0.25rem 0.6rem; font-style: italic;">
                                     ↳ Bal Paid: <?= format_price($invoice['balance_received']) ?> via
                                     <?= h($invoice['balance_payment_method'] ?: 'CASH') ?> on
@@ -1386,55 +1363,35 @@ $settings = get_settings();
                         <span class="section-subtitle">Exquisite food selection for your event</span>
                     </div>
 
-                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
+                    <?php foreach ($dishes_by_category as $cat_name => $dishes): ?>
+                        <div class="menu-category-section" style="margin-bottom: 1.5rem;" data-category-name="<?= h($cat_name) ?>">
+                            <div class="page-break-indicator" onclick="togglePageBreak(this)">
+                                <i class="fa-solid fa-scissors"></i> Insert Page Break Here
+                            </div>
                             <strong
-                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome
-                                Drinks</strong>
-                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">
+                                <?php
+                                $upper_name = strtoupper($cat_name);
+                                if ($upper_name === 'WELCOME DRINK') {
+                                    echo 'Welcome Drinks';
+                                } elseif ($upper_name === 'STARTERS') {
+                                    echo 'Starters';
+                                } elseif ($upper_name === 'MAIN COURSE') {
+                                    echo 'Main Course';
+                                } elseif ($upper_name === 'DESERTS') {
+                                    echo 'Desserts';
+                                } else {
+                                    echo h($cat_name);
+                                }
+                                ?>
+                            </strong>
+                            <?php foreach ($dishes as $dish): ?>
                                 <div class="item-row">
                                     <span class="item-name"><?= h($dish['name']) ?></span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Starters</strong>
-                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Main
-                                Course</strong>
-                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #f07c1b; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Desserts</strong>
-                            <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
@@ -1442,7 +1399,7 @@ $settings = get_settings();
             <div>
                 <!-- Stage work -->
                 <?php if (!empty($stage_work_items)): ?>
-                    <div style="margin-bottom: 2rem;">
+                    <div class="stage-work-section" style="margin-bottom: 2rem;">
                         <div class="section-title-wrap">
                             <h3 class="section-title">Stage & Decor Plan</h3>
                             <span class="section-subtitle">Visual & ambiance arrangements</span>
@@ -1506,64 +1463,42 @@ $settings = get_settings();
                         <span class="section-subtitle">Exquisite Catering Selections</span>
                     </div>
 
-                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
+                    <?php foreach ($dishes_by_category as $cat_name => $dishes): ?>
+                        <div class="menu-category-section" style="margin-bottom: 1.5rem;" data-category-name="<?= h($cat_name) ?>">
+                            <div class="page-break-indicator" onclick="togglePageBreak(this)">
+                                <i class="fa-solid fa-scissors"></i> Insert Page Break Here
+                            </div>
                             <strong
-                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome
-                                Drinks</strong>
-                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">
+                                <?php
+                                $upper_name = strtoupper($cat_name);
+                                if ($upper_name === 'WELCOME DRINK') {
+                                    echo 'Welcome Drinks';
+                                } elseif ($upper_name === 'STARTERS') {
+                                    echo 'Royal Appetizers';
+                                } elseif ($upper_name === 'MAIN COURSE') {
+                                    echo 'Grand Buffet Main Course';
+                                } elseif ($upper_name === 'DESERTS') {
+                                    echo 'Sweet Confiserie & Desserts';
+                                } else {
+                                    echo h($cat_name);
+                                }
+                                ?>
+                            </strong>
+                            <?php foreach ($dishes as $dish): ?>
                                 <div class="item-row">
                                     <span class="item-name"><?= h($dish['name']) ?></span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Royal
-                                Appetizers</strong>
-                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Grand
-                                Buffet Main Course</strong>
-                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                        <div style="margin-bottom: 1.5rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #d4af37; text-transform: uppercase; letter-spacing: 0.1em; display: block; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet
-                                Confiserie & Desserts</strong>
-                            <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
             <!-- Column 2: Event Details & Stage Services -->
             <div>
                 <?php if (!empty($stage_work_items)): ?>
-                    <div style="margin-bottom: 2rem;">
+                    <div class="stage-work-section" style="margin-bottom: 2rem;">
                         <div class="section-title-wrap">
                             <h3 class="section-title">Decors & Artistry</h3>
                             <span class="section-subtitle">Stage designs & custom requirements</span>
@@ -1628,64 +1563,42 @@ $settings = get_settings();
                         <span class="section-subtitle">Chic Food & Refreshments selections</span>
                     </div>
 
-                    <?php if (isset($dishes_by_category['WELCOME DRINK'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
+                    <?php foreach ($dishes_by_category as $cat_name => $dishes): ?>
+                        <div class="menu-category-section" style="margin-bottom: 1.25rem;" data-category-name="<?= h($cat_name) ?>">
+                            <div class="page-break-indicator" onclick="togglePageBreak(this)">
+                                <i class="fa-solid fa-scissors"></i> Insert Page Break Here
+                            </div>
                             <strong
-                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Welcome
-                                Drinks</strong>
-                            <?php foreach ($dishes_by_category['WELCOME DRINK'] as $dish): ?>
+                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">
+                                <?php
+                                $upper_name = strtoupper($cat_name);
+                                if ($upper_name === 'WELCOME DRINK') {
+                                    echo 'Welcome Drinks';
+                                } elseif ($upper_name === 'STARTERS') {
+                                    echo 'Sweet & Savory Starters';
+                                } elseif ($upper_name === 'MAIN COURSE') {
+                                    echo 'Grand Main Course';
+                                } elseif ($upper_name === 'DESERTS') {
+                                    echo 'Sweet Confiseur & Desserts';
+                                } else {
+                                    echo h($cat_name);
+                                }
+                                ?>
+                            </strong>
+                            <?php foreach ($dishes as $dish): ?>
                                 <div class="item-row">
                                     <span class="item-name"><?= h($dish['name']) ?></span>
                                 </div>
                             <?php endforeach; ?>
                         </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['STARTERS'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet
-                                & Savory Starters</strong>
-                            <?php foreach ($dishes_by_category['STARTERS'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['MAIN COURSE'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Grand
-                                Main Course</strong>
-                            <?php foreach ($dishes_by_category['MAIN COURSE'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (isset($dishes_by_category['DESERTS'])): ?>
-                        <div style="margin-bottom: 1.25rem;">
-                            <strong
-                                style="font-size: 0.85rem; color: #b25068; text-transform: uppercase; letter-spacing: 0.05em; display: block; border-bottom: 1px dotted #ffd2d2; padding-bottom: 0.25rem; margin-bottom: 0.5rem;">Sweet
-                                Confiseur & Desserts</strong>
-                            <?php foreach ($dishes_by_category['DESERTS'] as $dish): ?>
-                                <div class="item-row">
-                                    <span class="item-name"><?= h($dish['name']) ?></span>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
             </div>
 
             <!-- Column 2: Event Details & Stage Services -->
             <div>
                 <?php if (!empty($stage_work_items)): ?>
-                    <div style="margin-bottom: 2rem;">
+                    <div class="stage-work-section" style="margin-bottom: 2rem;">
                         <div class="section-title-wrap">
                             <h3 class="section-title">Decorations</h3>
                             <span class="section-subtitle">Chic stage styling & accessories</span>
@@ -1739,125 +1652,302 @@ $settings = get_settings();
     });
 
     document.getElementById('toggleDishesCheckbox').addEventListener('change', function (e) {
-        const invoiceCard = document.querySelector('.invoice-card');
-        if (!invoiceCard) return;
-        if (e.target.checked) {
-            invoiceCard.classList.remove('hide-dishes');
-        } else {
-            invoiceCard.classList.add('hide-dishes');
-        }
-    });
-
-    document.getElementById('togglePaymentCheckbox').addEventListener('change', function (e) {
-        const invoiceCard = document.querySelector('.invoice-card');
-        if (!invoiceCard) return;
-        if (e.target.checked) {
-            invoiceCard.classList.remove('hide-payments');
-        } else {
-            invoiceCard.classList.add('hide-payments');
-        }
-    });
-
-    document.getElementById('downloadImageBtn').addEventListener('click', function () {
-        const invoiceCard = document.querySelector('.invoice-card');
-        if (!invoiceCard) return;
-
-        const originalBtnContent = this.innerHTML;
-        this.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
-        this.disabled = true;
-
-        html2canvas(invoiceCard, {
-            useCORS: true,
-            scale: 2, // High resolution scale
-            backgroundColor: null
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = '<?= h($invoice["invoice_number"]) ?>.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-
-            this.innerHTML = originalBtnContent;
-            this.disabled = false;
-        }).catch(err => {
-            console.error('Error generating image:', err);
-            alert('Failed to generate image. Please try again.');
-            this.innerHTML = originalBtnContent;
-            this.disabled = false;
+        document.querySelectorAll('.invoice-card').forEach(card => {
+            if (e.target.checked) card.classList.remove('hide-dishes');
+            else card.classList.add('hide-dishes');
         });
     });
 
+    document.getElementById('togglePaymentCheckbox').addEventListener('change', function (e) {
+        document.querySelectorAll('.invoice-card').forEach(card => {
+            if (e.target.checked) card.classList.remove('hide-payments');
+            else card.classList.add('hide-payments');
+        });
+    });
+
+    // Toggle Page Break Split Controls visibility
+    document.getElementById('toggleSplitCheckbox').addEventListener('change', function (e) {
+        document.querySelectorAll('.invoice-card').forEach(card => {
+            if (e.target.checked) card.classList.add('enable-split-controls');
+            else card.classList.remove('enable-split-controls');
+        });
+    });
+
+    // ---------------------------------------------------------
+    // JS PAGINATION LOGIC
+    // ---------------------------------------------------------
+    function togglePageBreak(indicator) {
+        const section = indicator.closest('.menu-category-section');
+        if (!section) return;
+        
+        const catName = section.getAttribute('data-category-name');
+        
+        // Update the original hidden card
+        const originalCard = document.getElementById('originalInvoiceCard');
+        const originalSection = originalCard.querySelector(`.menu-category-section[data-category-name="${catName}"]`);
+        
+        if (originalSection) {
+            originalSection.classList.toggle('has-page-break');
+            const isBroken = originalSection.classList.contains('has-page-break');
+            
+            // Persist
+            const eventId = '<?= (int)$event["id"] ?>';
+            const template = '<?= h($template) ?>';
+            localStorage.setItem(`pb_${eventId}_${template}_${catName}`, isBroken ? 'true' : 'false');
+            
+            // Re-render pages
+            renderPaginatedPages();
+        }
+    }
+
+    function updateIndicatorText(indicator, isBroken) {
+        if (isBroken) {
+            indicator.innerHTML = '<i class="fa-solid fa-scissors"></i> Page Break Active (Starts new page here)';
+        } else {
+            indicator.innerHTML = '<i class="fa-solid fa-scissors"></i> Insert Page Break Here';
+        }
+    }
+
+    function renderPaginatedPages() {
+        const originalCard = document.getElementById('originalInvoiceCard');
+        const container = document.getElementById('paginatedPagesContainer');
+        container.innerHTML = '';
+        
+        const allSections = Array.from(originalCard.querySelectorAll('.menu-category-section'));
+        if (allSections.length === 0) {
+            // No categories, just show the card
+            const clone = originalCard.cloneNode(true);
+            clone.id = 'invoicePage_1';
+            clone.style.display = 'flex';
+            container.appendChild(clone);
+            return;
+        }
+
+        const pagesChunks = [];
+        let currentPage = [];
+        
+        allSections.forEach((sec, index) => {
+            // Split if it's marked as a page break and NOT the very first section
+            if (sec.classList.contains('has-page-break') && index !== 0 && currentPage.length > 0) {
+                pagesChunks.push(currentPage);
+                currentPage = [];
+            }
+            currentPage.push(index);
+        });
+        if (currentPage.length > 0) {
+            pagesChunks.push(currentPage);
+        }
+
+        pagesChunks.forEach((pageIndices, pageIndex) => {
+            const clone = originalCard.cloneNode(true);
+            clone.id = 'invoicePage_' + (pageIndex + 1);
+            clone.style.display = 'flex';
+            
+            // Sync checkbox states just in case
+            if (document.getElementById('toggleDishesCheckbox').checked) clone.classList.remove('hide-dishes');
+            else clone.classList.add('hide-dishes');
+            
+            if (document.getElementById('togglePaymentCheckbox').checked) clone.classList.remove('hide-payments');
+            else clone.classList.add('hide-payments');
+            
+            if (document.getElementById('toggleSplitCheckbox').checked) clone.classList.add('enable-split-controls');
+            else clone.classList.remove('enable-split-controls');
+
+            // Remove categories that do not belong to this page chunk
+            const cloneSections = Array.from(clone.querySelectorAll('.menu-category-section'));
+            cloneSections.forEach((cSec, index) => {
+                if (!pageIndices.includes(index)) {
+                    cSec.remove();
+                } else {
+                    const indicator = cSec.querySelector('.page-break-indicator');
+                    if (indicator) {
+                        updateIndicatorText(indicator, cSec.classList.contains('has-page-break'));
+                    }
+                }
+            });
+
+            // Hide the footer summary block on all pages except the very last one
+            if (pageIndex < pagesChunks.length - 1) {
+                const footer = clone.querySelector('.footer-summary-bar');
+                if (footer) footer.style.display = 'none';
+            }
+
+            // Hide the stage work section on all pages except the very first one
+            if (pageIndex > 0) {
+                const stageWork = clone.querySelector('.stage-work-section');
+                if (stageWork) stageWork.style.display = 'none';
+            }
+
+            container.appendChild(clone);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const eventId = '<?= (int)$event["id"] ?>';
+        const template = '<?= h($template) ?>';
+        const originalCard = document.getElementById('originalInvoiceCard');
+        
+        // Sync original card with localStorage state
+        originalCard.querySelectorAll('.menu-category-section').forEach(section => {
+            const catName = section.getAttribute('data-category-name');
+            if (!catName) return;
+            const isBroken = localStorage.getItem(`pb_${eventId}_${template}_${catName}`);
+            
+            if (isBroken !== null) {
+                if (isBroken === 'true') {
+                    section.classList.add('has-page-break');
+                } else {
+                    section.classList.remove('has-page-break');
+                }
+            }
+        });
+        
+        // Render pages on load
+        renderPaginatedPages();
+    });
+
+    // ---------------------------------------------------------
+    // SAVE MULTIPLE IMAGES
+    // ---------------------------------------------------------
+    document.getElementById('downloadImageBtn').addEventListener('click', async function () {
+        const pages = document.querySelectorAll('#paginatedPagesContainer .invoice-card');
+        if (pages.length === 0) return;
+
+        const btn = this;
+        const originalBtnContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+        btn.disabled = true;
+
+        try {
+            for (let i = 0; i < pages.length; i++) {
+                const page = pages[i];
+                
+                // Update button text to show progress
+                if (pages.length > 1) {
+                    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving Page ${i + 1}/${pages.length}...`;
+                }
+
+                page.classList.add('capture-mode');
+                
+                // Ensure page breaks display properly in the image
+                page.querySelectorAll('.has-page-break').forEach(sec => {
+                    sec.style.marginTop = '0';
+                    sec.style.paddingTop = '0';
+                    sec.style.borderTop = 'none';
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 150));
+
+                const canvas = await html2canvas(page, {
+                    useCORS: true,
+                    scale: 2,
+                    backgroundColor: null,
+                    scrollX: 0,
+                    scrollY: -window.scrollY,
+                    windowWidth: page.scrollWidth,
+                    windowHeight: page.scrollHeight,
+                });
+
+                page.classList.remove('capture-mode');
+                
+                // Restore styles
+                page.querySelectorAll('.has-page-break').forEach(sec => {
+                    sec.style.marginTop = '';
+                    sec.style.paddingTop = '';
+                });
+
+                const link = document.createElement('a');
+                let fileName = '<?= h($invoice["invoice_number"]) ?>';
+                if (pages.length > 1) fileName += `_Page_${i + 1}`;
+                link.download = fileName + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                if (i < pages.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 800)); // Pause between downloads to allow browser to process
+                }
+            }
+        } catch (err) {
+            console.error('Error generating image:', err);
+            alert('Failed to generate image. Please try again.');
+        }
+
+        btn.innerHTML = originalBtnContent;
+        btn.disabled = false;
+    });
+
     <?php if ($invoice['status'] === 'finalized'): ?>
-            const openBtn = document.getElementById('openPaymentModalBtn');
-            const closeBtn = document.getElementById('closePaymentModalBtn');
-            const modal = document.getElementById('paymentModal');
-            const amountInput = document.getElementById('amount_paid');
-            const partialOptions = document.getElementById('partialPaymentOptions');
-            const remSpan = document.getElementById('remainingBalance');
-            const writeOffSpan = document.getElementById('writeOffBalance');
-            const restToGive = <?= (float) $rest_to_give ?>;
+        const openBtn = document.getElementById('openPaymentModalBtn');
+        const closeBtn = document.getElementById('closePaymentModalBtn');
+        const modal = document.getElementById('paymentModal');
+        const amountInput = document.getElementById('amount_paid');
+        const partialOptions = document.getElementById('partialPaymentOptions');
+        const remSpan = document.getElementById('remainingBalance');
+        const writeOffSpan = document.getElementById('writeOffBalance');
+        const restToGive = <?= (float) $rest_to_give ?>;
 
-            if (openBtn && modal) {
-                openBtn.addEventListener('click', function () {
-                    const rest = <?= (float) $rest_to_give ?>;
-                    const confirmMsg = `Record full payment of Rs. ${rest.toLocaleString('en-IN')} now?\n\n- Click OK to save instantly.\n- Click Cancel to enter custom payment details (partial payment or bank methods).`;
-                    if (confirm(confirmMsg)) {
-                        const form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '';
+        if (openBtn && modal) {
+            openBtn.addEventListener('click', function () {
+                const rest = <?= (float) $rest_to_give ?>;
+                const confirmMsg = `Record full payment of Rs. ${rest.toLocaleString('en-IN')} now?\n\n- Click OK to save instantly.\n- Click Cancel to enter custom payment details (partial payment or bank methods).`;
+                if (confirm(confirmMsg)) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '';
 
-                        const actionInput = document.createElement('input');
-                        actionInput.type = 'hidden';
-                        actionInput.name = 'action';
-                        actionInput.value = 'mark_paid';
-                        form.appendChild(actionInput);
+                    const actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'action';
+                    actionInput.value = 'mark_paid';
+                    form.appendChild(actionInput);
 
-                        const amountInput = document.createElement('input');
-                        amountInput.type = 'hidden';
-                        amountInput.name = 'amount_paid';
-                        amountInput.value = rest;
-                        form.appendChild(amountInput);
+                    const amountInput = document.createElement('input');
+                    amountInput.type = 'hidden';
+                    amountInput.name = 'amount_paid';
+                    amountInput.value = rest;
+                    form.appendChild(amountInput);
 
-                        const methodInput = document.createElement('input');
-                        methodInput.type = 'hidden';
-                        methodInput.name = 'payment_method';
-                        methodInput.value = 'CASH';
-                        form.appendChild(methodInput);
+                    const methodInput = document.createElement('input');
+                    methodInput.type = 'hidden';
+                    methodInput.name = 'payment_method';
+                    methodInput.value = 'CASH';
+                    form.appendChild(methodInput);
 
-                        document.body.appendChild(form);
-                        form.submit();
-                    } else {
-                        modal.style.display = 'flex';
-                    }
-                });
-            }
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    modal.style.display = 'flex';
+                }
+            });
+        }
 
-            if (closeBtn && modal) {
-                closeBtn.addEventListener('click', function () {
+        if (closeBtn && modal) {
+            closeBtn.addEventListener('click', function () {
+                modal.style.display = 'none';
+            });
+        }
+
+        if (modal) {
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) {
                     modal.style.display = 'none';
-                });
-            }
+                }
+            });
+        }
 
-            if (modal) {
-                modal.addEventListener('click', function (e) {
-                    if (e.target === modal) {
-                        modal.style.display = 'none';
-                    }
-                });
-            }
-
-            if (amountInput) {
-                amountInput.addEventListener('input', function () {
-                    const val = parseFloat(amountInput.value) || 0;
-                    if (val < restToGive) {
-                        partialOptions.style.display = 'block';
-                        const diff = (restToGive - val).toFixed(2);
-                        remSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
-                        writeOffSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
-                    } else {
-                        partialOptions.style.display = 'none';
-                    }
-                });
-            }
+        if (amountInput) {
+            amountInput.addEventListener('input', function () {
+                const val = parseFloat(amountInput.value) || 0;
+                if (val < restToGive) {
+                    partialOptions.style.display = 'block';
+                    const diff = (restToGive - val).toFixed(2);
+                    remSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
+                    writeOffSpan.textContent = parseFloat(diff).toLocaleString('en-IN');
+                } else {
+                    partialOptions.style.display = 'none';
+                }
+            });
+        }
     <?php endif; ?>
 
     const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
@@ -1898,97 +1988,99 @@ $settings = get_settings();
 
 <!-- Payment Modal -->
 <?php if ($invoice['status'] === 'finalized'): ?>
-        <div id="paymentModal" class="modal-overlay">
-            <div class="card"
-                style="width: 450px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
-                <h3
-                    style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0 0 1.5rem 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
-                    <i class="fa-solid fa-money-bill-wave" style="color: var(--accent-color);"></i>
-                    Record Final Payment
-                </h3>
+    <div id="paymentModal" class="modal-overlay">
+        <div class="card"
+            style="width: 450px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-lg); padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-family: 'Inter', sans-serif;">
+            <h3
+                style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 0 0 1.5rem 0; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <i class="fa-solid fa-money-bill-wave" style="color: var(--accent-color);"></i>
+                Record Final Payment
+            </h3>
 
-                <form action="" method="POST" id="paymentForm">
-                    <input type="hidden" name="action" value="mark_paid">
+            <form action="" method="POST" id="paymentForm">
+                <input type="hidden" name="action" value="mark_paid">
 
-                    <div style="margin-bottom: 1.25rem;">
-                        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Invoice
-                            Amount</div>
-                        <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">
-                            <?= format_price($invoice['final_total']) ?></div>
+                <div style="margin-bottom: 1.25rem;">
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Invoice
+                        Amount</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">
+                        <?= format_price($invoice['final_total']) ?>
                     </div>
+                </div>
 
-                    <div style="margin-bottom: 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div style="margin-bottom: 1.25rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Already Received</span>
+                        <div style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">
+                            <?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?>
+                        </div>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">Rest to Give</span>
+                        <div style="font-size: 1rem; font-weight: 700; color: #dc2626;"><?= format_price($rest_to_give) ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="amount_paid" class="form-label"
+                        style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Amount
+                        Received Today (Rs.)</label>
+                    <input type="number" step="0.01" id="amount_paid" name="amount_paid" class="form-control"
+                        value="<?= $rest_to_give ?>" max="<?= $rest_to_give ?>" min="0.01" required
+                        style="font-size: 1.1rem; font-weight: 700; width: 100%; box-sizing: border-box;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label for="payment_method" class="form-label"
+                        style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Payment
+                        Method</label>
+                    <select name="payment_method" id="payment_method" class="form-control"
+                        style="width: 100%; box-sizing: border-box;">
+                        <option value="CASH">Cash</option>
+                        <option value="BANK TRANSFER">Bank Transfer</option>
+                        <option value="UPI">UPI (GPay/PhonePe)</option>
+                        <option value="CARD">Debit/Credit Card</option>
+                        <option value="CHEQUE">Cheque</option>
+                    </select>
+                </div>
+
+                <!-- Partial Payment options -->
+                <div id="partialPaymentOptions"
+                    style="display: none; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.2); padding: 0.75rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem;">
+                    <div style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.25rem;">Partial
+                        Payment Option</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
+                        The amount is less than the rest to give. Please choose how to handle the rest:
+                    </div>
+                    <label
+                        style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; margin-bottom: 0.5rem;">
+                        <input type="radio" name="payment_treatment" value="partial" checked style="margin-top: 2px;">
                         <div>
-                            <span style="font-size: 0.85rem; color: var(--text-secondary);">Already Received</span>
-                            <div style="font-size: 1rem; font-weight: 600; color: var(--text-primary);">
-                                <?= format_price($invoice['advance_received'] + $invoice['balance_received']) ?></div>
+                            <strong>Add to received</strong><br>
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">Leaves a remaining balance of
+                                Rs. <span id="remainingBalance">0</span></span>
                         </div>
+                    </label>
+                    <label
+                        style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer;">
+                        <input type="radio" name="payment_treatment" value="write_off" style="margin-top: 2px;">
                         <div>
-                            <span style="font-size: 0.85rem; color: var(--text-secondary);">Rest to Give</span>
-                            <div style="font-size: 1rem; font-weight: 700; color: #dc2626;"><?= format_price($rest_to_give) ?>
-                            </div>
+                            <strong>Mark as fully Paid anyway</strong><br>
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">Write off the remaining Rs.
+                                <span id="writeOffBalance">0</span></span>
                         </div>
-                    </div>
+                    </label>
+                </div>
 
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label for="amount_paid" class="form-label"
-                            style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Amount
-                            Received Today (Rs.)</label>
-                        <input type="number" step="0.01" id="amount_paid" name="amount_paid" class="form-control"
-                            value="<?= $rest_to_give ?>" max="<?= $rest_to_give ?>" min="0.01" required
-                            style="font-size: 1.1rem; font-weight: 700; width: 100%; box-sizing: border-box;">
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label for="payment_method" class="form-label"
-                            style="font-weight: 600; margin-bottom: 0.5rem; display: block; color: var(--text-primary);">Payment
-                            Method</label>
-                        <select name="payment_method" id="payment_method" class="form-control"
-                            style="width: 100%; box-sizing: border-box;">
-                            <option value="CASH">Cash</option>
-                            <option value="BANK TRANSFER">Bank Transfer</option>
-                            <option value="UPI">UPI (GPay/PhonePe)</option>
-                            <option value="CARD">Debit/Credit Card</option>
-                            <option value="CHEQUE">Cheque</option>
-                        </select>
-                    </div>
-
-                    <!-- Partial Payment options -->
-                    <div id="partialPaymentOptions"
-                        style="display: none; background: rgba(220, 38, 38, 0.05); border: 1px solid rgba(220, 38, 38, 0.2); padding: 0.75rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem;">
-                        <div style="font-weight: 700; color: #dc2626; font-size: 0.85rem; margin-bottom: 0.25rem;">Partial
-                            Payment Option</div>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4; margin-bottom: 0.5rem;">
-                            The amount is less than the rest to give. Please choose how to handle the rest:
-                        </div>
-                        <label
-                            style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; margin-bottom: 0.5rem;">
-                            <input type="radio" name="payment_treatment" value="partial" checked style="margin-top: 2px;">
-                            <div>
-                                <strong>Add to received</strong><br>
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Leaves a remaining balance of
-                                    Rs. <span id="remainingBalance">0</span></span>
-                            </div>
-                        </label>
-                        <label
-                            style="display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: var(--text-primary); cursor: pointer;">
-                            <input type="radio" name="payment_treatment" value="write_off" style="margin-top: 2px;">
-                            <div>
-                                <strong>Mark as fully Paid anyway</strong><br>
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Write off the remaining Rs.
-                                    <span id="writeOffBalance">0</span></span>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div
-                        style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                        <button type="button" id="closePaymentModalBtn" class="btn btn-secondary">Cancel</button>
-                        <button type="submit" class="btn btn-success">Confirm Payment</button>
-                    </div>
-                </form>
-            </div>
+                <div
+                    style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                    <button type="button" id="closePaymentModalBtn" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-success">Confirm Payment</button>
+                </div>
+            </form>
         </div>
+    </div>
 <?php endif; ?>
 
 <?php

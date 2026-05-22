@@ -507,6 +507,11 @@
    PRINT STYLESHEET
    ========================================================================= */
 @media print {
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+
     /* Hide all elements except the card itself */
     body * {
         visibility: hidden;
@@ -532,19 +537,113 @@
     }
 
     .invoice-card {
-        position: absolute;
-        left: 0;
-        top: 0;
+        position: static !important;
         width: 100% !important;
-        height: 100% !important;
-        min-height: 100% !important;
+        height: auto !important;
+        min-height: unset !important;
+        max-height: unset !important;
+        overflow: visible !important;
         box-shadow: none !important;
         border: none !important;
-        page-break-inside: avoid;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        page-break-inside: auto !important;
     }
-    
+    .invoice-card:not(:last-child) {
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    /* -----------------------------------------------------------------------
+       COLLAPSE MULTI-COLUMN GRIDS TO SINGLE COLUMN FOR PRINT FLOW
+    ----------------------------------------------------------------------- */
+
+    /* 2-column template bodies -> single column block flow */
+    .royal_gold .template-body,
+    .midnight_dark .template-body,
+    .modern_minimalist .template-body,
+    .emerald_luxury .template-body,
+    .blossom_chic .template-body {
+        display: block !important;
+        columns: unset !important;
+        grid-template-columns: unset !important;
+    }
+
+    /* Each column div inside the 2-col layout becomes full-width block */
+    .royal_gold .template-body > div,
+    .midnight_dark .template-body > div,
+    .modern_minimalist .template-body > div,
+    .emerald_luxury .template-body > div,
+    .blossom_chic .template-body > div {
+        display: block !important;
+        width: 100% !important;
+    }
+
+    /* -----------------------------------------------------------------------
+       orange_classic: PRESERVE its 2-column design on print.
+       Left sidebar (collage images) + right content column stay side-by-side.
+       The right column grows vertically and can span multiple pages naturally.
+    ----------------------------------------------------------------------- */
+    .orange_classic.invoice-card {
+        display: flex !important;
+        flex-direction: column !important;
+        height: auto !important;
+    }
+    .orange_classic .template-body {
+        display: flex !important;
+        flex: 1 !important;
+        align-items: stretch !important;
+        overflow: visible !important;
+    }
+    /* Keep left sidebar at a compact print width */
+    .orange_classic .left-accent-col {
+        width: 200px !important;
+        min-width: 200px !important;
+        max-width: 200px !important;
+        display: flex !important;
+    }
+    /* Scale down collage image tiles */
+    .orange_classic .collage-img {
+        min-height: 80px !important;
+    }
+    /* Right content column: allow full vertical overflow */
+    .orange_classic .right-content-col {
+        flex: 1 !important;
+        overflow: visible !important;
+    }
+    /* Tighter typography in print to fit more on one page */
+    .orange_classic .section-title {
+        font-size: 1rem !important;
+    }
+    .orange_classic .item-row {
+        font-size: 0.78rem !important;
+    }
+    .orange_classic .section-list {
+        gap: 0.2rem !important;
+    }
+
+    /* Category sections: allow natural page breaks between them */
+    .menu-category-section {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* Prevent breaking header across pages */
+    .template-header,
+    .header-date-bar,
+    .logo-contact,
+    .footer-summary-bar,
+    .summary-box {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* Manual & auto page breaks (has-page-break class) */
+    .menu-category-section.has-page-break {
+        page-break-before: always !important;
+        break-before: always !important;
+    }
+
     /* Ensure backgrounds carry over */
     .orange_classic {
         background-color: #000000 !important;
