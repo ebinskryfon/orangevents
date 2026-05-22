@@ -13,7 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
  */
 function check_admin_auth() {
     if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-        header('Location: ../index.php');
+        header('Location: ../login.php');
         exit;
     }
 }
