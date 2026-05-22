@@ -449,6 +449,10 @@ $settings = get_settings();
             <i class="fa-solid fa-image"></i> Save as Image
         </button>
 
+        <button id="whatsappShareBtn" class="btn" style="background-color: #25D366; border-color: #25D366; color: white; font-weight: 600;">
+            <i class="fa-brands fa-whatsapp"></i> WhatsApp Share
+        </button>
+
         <button onclick="window.print()" class="btn btn-primary">
             <i class="fa-solid fa-print"></i> Print / Save PDF
         </button>
@@ -572,8 +576,11 @@ $settings = get_settings();
                 </div>
             </header>
 
-            <div class="header-date-bar">
-                DATE: <?= format_date($event['event_date']) ?>
+            <div class="header-date-bar" style="display: flex; justify-content: space-between; align-items: center; padding-left: 2rem; padding-right: 2rem;">
+                <span>DATE: <?= format_date($event['event_date']) ?></span>
+                <?php if ($catering): ?>
+                    <span style="font-weight: 600; font-size: 0.95rem;">NOS: <?= $catering['total_plates'] ?> &nbsp;&nbsp;|&nbsp;&nbsp; PER PLATE: Rs. <?= number_format($catering['per_plate_price'], 0) ?></span>
+                <?php endif; ?>
             </div>
 
             <div class="template-body">
@@ -620,11 +627,6 @@ $settings = get_settings();
                             </div>
                             <div class="section-title-wrap">
                                 <h3 class="section-title"><?= h(strtoupper($category_name)) ?></h3>
-                                <?php if (strtoupper($category_name) === 'WELCOME DRINK' && $catering): ?>
-                                    <span class="section-subtitle">Per
-                                        Plate-Rs.<?= number_format($catering['per_plate_price'], 0) ?>
-                                        (Nos:<?= $catering['total_plates'] ?>)</span>
-                                <?php endif; ?>
                             </div>
                             <ul
                                 class="section-list<?= (strtoupper($category_name) === 'MAIN COURSE') ? ' multi-col-list' : '' ?>">
@@ -1875,6 +1877,105 @@ $settings = get_settings();
         btn.innerHTML = originalBtnContent;
         btn.disabled = false;
     });
+
+    // ---------------------------------------------------------
+    // WHATSAPP SHARE IMAGES
+    // ---------------------------------------------------------
+    const waShareBtn = document.getElementById('whatsappShareBtn');
+    if (waShareBtn) {
+        waShareBtn.addEventListener('click', async function () {
+            const pages = document.querySelectorAll('#paginatedPagesContainer .invoice-card');
+            if (pages.length === 0) return;
+
+            const btn = this;
+            const originalBtnContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
+            btn.disabled = true;
+
+            try {
+                let filesArray = [];
+                
+                for (let i = 0; i < pages.length; i++) {
+                    const page = pages[i];
+                    if (pages.length > 1) {
+                        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing Page ${i + 1}/${pages.length}...`;
+                    }
+
+                    page.classList.add('capture-mode');
+                    page.querySelectorAll('.has-page-break').forEach(sec => {
+                        sec.style.marginTop = '0';
+                        sec.style.paddingTop = '0';
+                        sec.style.borderTop = 'none';
+                    });
+
+                    await new Promise(resolve => setTimeout(resolve, 150));
+
+                    const canvas = await html2canvas(page, {
+                        useCORS: true,
+                        scale: 2,
+                        backgroundColor: null,
+                        scrollX: 0,
+                        scrollY: -window.scrollY,
+                        windowWidth: page.scrollWidth,
+                        windowHeight: page.scrollHeight,
+                    });
+
+                    page.classList.remove('capture-mode');
+                    page.querySelectorAll('.has-page-break').forEach(sec => {
+                        sec.style.marginTop = '';
+                        sec.style.paddingTop = '';
+                    });
+
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                    let fileName = '<?= h($invoice["invoice_number"]) ?>';
+                    if (pages.length > 1) fileName += `_Page_${i + 1}`;
+                    fileName += '.png';
+                    
+                    const file = new File([blob], fileName, { type: 'image/png' });
+                    filesArray.push(file);
+                }
+                
+                const clientName = <?= json_encode($event['client_name']) ?>;
+                const eventDate = <?= json_encode(format_date($event['event_date'])) ?>;
+                const grandTotal = "Rs. " + <?= json_encode(number_format($invoice['final_total'], 2)) ?>;
+                const amountPaid = "Rs. " + <?= json_encode(number_format($invoice['advance_received'] + $invoice['balance_received'], 2)) ?>;
+                const restDue = "Rs. " + <?= json_encode(number_format($invoice['final_total'] - ($invoice['advance_received'] + $invoice['balance_received']), 2)) ?>;
+                
+                const waMessage = `*Invoice: ${clientName}*\nEvent Date: ${eventDate}\nGrand Total: ${grandTotal}\nAmount Paid: ${amountPaid}\n*Balance Due: ${restDue}*`;
+
+                if (navigator.canShare && navigator.canShare({ files: filesArray })) {
+                    // Mobile native share sheet
+                    await navigator.share({
+                        files: filesArray,
+                        title: 'Event Invoice',
+                        text: waMessage
+                    });
+                } else {
+                    // Desktop fallback: Download files and open WhatsApp Web
+                    alert("Your desktop browser doesn't support direct image attachment to WhatsApp. \n\n1. The images will now download to your computer.\n2. WhatsApp Web will open automatically.\n3. Simply drag and drop the downloaded images into the chat window!");
+                    
+                    for (let i = 0; i < filesArray.length; i++) {
+                        const link = document.createElement('a');
+                        link.download = filesArray[i].name;
+                        link.href = URL.createObjectURL(filesArray[i]);
+                        link.click();
+                        if (i < filesArray.length - 1) await new Promise(r => setTimeout(r, 800));
+                    }
+                    
+                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(waMessage)}`, '_blank');
+                }
+                
+            } catch (err) {
+                console.error('Error preparing WhatsApp share:', err);
+                alert('Failed to prepare images for WhatsApp. Please try again.');
+            }
+
+            btn.innerHTML = originalBtnContent;
+            btn.disabled = false;
+        });
+    }
+
+
 
     <?php if ($invoice['status'] === 'finalized'): ?>
         const openBtn = document.getElementById('openPaymentModalBtn');
