@@ -14,10 +14,28 @@ $settings = [
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($settings['company_name']) ?> | Premium Event Management</title>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Public CSS -->
+    <meta name="description" content="Orange Events – Kerala's premier event management company. Premium stage decors, grand catering & full coordination for weddings, corporate events and celebrations in Alappuzha.">
+
+    <!-- Resource Hints: Tell browser to connect early -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://images.unsplash.com">
+
+    <!-- Google Fonts: non-blocking with font-display=swap -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"></noscript>
+
+    <!-- FontAwesome: load asynchronously to avoid render-blocking -->
+    <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+
+    <!-- Public CSS (local, fastest) -->
     <link rel="stylesheet" href="assets/css/public.css">
+
+    <!-- Preload critical above-the-fold image: logo -->
+    <link rel="preload" as="image" href="assets/images/logo.png">
 </head>
 
 <body class="loading">
@@ -62,9 +80,11 @@ $settings = [
     <!-- Hero Section -->
     <section id="home" class="hero">
         <!-- Video Background -->
-        <video autoplay muted loop playsinline class="hero-video">
-            <!-- Reliable flower video from Mozilla Developer Network -->
-            <source src="assets/videos/15496416_1920_1080_50fps.mp4" type="video/mp4">
+        <!-- Video: poster shows instantly, video streams in background -->
+        <video autoplay muted loop playsinline class="hero-video"
+               poster="assets/images/hero-poster.jpg"
+               preload="none">
+            <source data-src="assets/videos/15496416_1920_1080_50fps.mp4" type="video/mp4">
         </video>
         <div class="hero-overlay"></div>
 
@@ -107,8 +127,11 @@ $settings = [
                 </ul>
             </div>
             <div class="about-image">
-                <img src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=80&w=2069&auto=format&fit=crop"
-                    alt="Wedding Event Setup">
+                <!-- w=800 is plenty for a half-column layout; lazy load since it's below fold -->
+                <img src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=75&w=800&auto=format&fit=crop"
+                    alt="Wedding Event Setup"
+                    width="800" height="533"
+                    loading="lazy" decoding="async">
             </div>
         </div>
     </section>
@@ -164,33 +187,42 @@ $settings = [
         </div>
 
         <div class="gallery-grid">
+            <!-- w=600 for gallery cards; q=70 for smaller files; lazy load all -->
             <div class="gallery-item">
-                <img src="https://images.unsplash.com/photo-1519225421980-715cb0215aed?q=80&w=2070&auto=format&fit=crop"
-                    alt="Wedding Stage">
+                <img src="https://images.unsplash.com/photo-1519225421980-715cb0215aed?q=70&w=600&auto=format&fit=crop"
+                    alt="Wedding Stage"
+                    width="600" height="450"
+                    loading="lazy" decoding="async">
                 <div class="gallery-overlay">
                     <h4>Royal Stage Setup</h4>
                     <p>Wedding Reception</p>
                 </div>
             </div>
             <div class="gallery-item">
-                <img src="https://images.unsplash.com/photo-1555244162-803834f70033?q=80&w=2070&auto=format&fit=crop"
-                    alt="Premium Catering">
+                <img src="https://images.unsplash.com/photo-1555244162-803834f70033?q=70&w=600&auto=format&fit=crop"
+                    alt="Premium Catering"
+                    width="600" height="450"
+                    loading="lazy" decoding="async">
                 <div class="gallery-overlay">
                     <h4>Premium Buffet</h4>
                     <p>Grand Catering</p>
                 </div>
             </div>
             <div class="gallery-item">
-                <img src="https://images.unsplash.com/photo-1478146896981-b80fe463b330?q=80&w=2070&auto=format&fit=crop"
-                    alt="Lighting Setup">
+                <img src="https://images.unsplash.com/photo-1478146896981-b80fe463b330?q=70&w=600&auto=format&fit=crop"
+                    alt="Lighting Setup"
+                    width="600" height="450"
+                    loading="lazy" decoding="async">
                 <div class="gallery-overlay">
                     <h4>Ambient Lighting</h4>
                     <p>Evening Gala</p>
                 </div>
             </div>
             <div class="gallery-item">
-                <img src="https://images.unsplash.com/photo-1533142277637-88f5d0239cf9?q=80&w=2070&auto=format&fit=crop"
-                    alt="Table Arrangement">
+                <img src="https://images.unsplash.com/photo-1533142277637-88f5d0239cf9?q=70&w=600&auto=format&fit=crop"
+                    alt="Table Arrangement"
+                    width="600" height="450"
+                    loading="lazy" decoding="async">
                 <div class="gallery-overlay">
                     <h4>Elegant Dining</h4>
                     <p>Guest Seating</p>
@@ -367,13 +399,27 @@ $settings = [
             });
         });
 
-        // --- Preloader Splash Screen ---
+        // --- Lazy-load the hero video after page load ---
+        // This prevents the 8MB video from blocking the initial render
         window.addEventListener('load', () => {
+            const heroVideo = document.querySelector('.hero-video');
+            if (heroVideo) {
+                const source = heroVideo.querySelector('source[data-src]');
+                if (source) {
+                    source.src = source.dataset.src;
+                    heroVideo.load();
+                }
+            }
+        });
+
+        // --- Preloader Splash Screen ---
+        // Dismiss as soon as the animation is done (1.8s), don't wait for video
+        window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 const preloader = document.getElementById('preloader');
                 preloader.classList.add('fade-out');
                 document.body.classList.remove('loading');
-            }, 2600); // Wait for merge sequence to finish
+            }, 1800); // Animation takes ~1.6s; 200ms buffer
         });
 
         // --- Header scroll effect ---

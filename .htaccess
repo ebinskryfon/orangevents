@@ -1,0 +1,88 @@
+# ====================================================
+# Orange Events - Production Performance .htaccess
+# ====================================================
+
+# --- Enable Rewrite Engine ---
+RewriteEngine On
+
+# --- GZIP Compression ---
+# Compresses HTML, CSS, JS, fonts etc before sending to browser.
+# Typically reduces payload by 60-80%.
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/javascript
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE image/svg+xml
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE application/vnd.ms-fontobject
+    AddOutputFilterByType DEFLATE application/x-font-ttf
+    AddOutputFilterByType DEFLATE font/opentype
+    AddOutputFilterByType DEFLATE font/woff
+    AddOutputFilterByType DEFLATE font/woff2
+</IfModule>
+
+# --- Browser Caching ---
+# Static assets are immutable; tell browsers to cache them aggressively.
+<IfModule mod_expires.c>
+    ExpiresActive On
+
+    # Images: 1 year
+    ExpiresByType image/jpg          "access plus 1 year"
+    ExpiresByType image/jpeg         "access plus 1 year"
+    ExpiresByType image/png          "access plus 1 year"
+    ExpiresByType image/gif          "access plus 1 year"
+    ExpiresByType image/webp         "access plus 1 year"
+    ExpiresByType image/svg+xml      "access plus 1 year"
+    ExpiresByType image/x-icon       "access plus 1 year"
+    ExpiresByType image/ico          "access plus 1 year"
+
+    # Video: 1 month (large file, cache aggressively)
+    ExpiresByType video/mp4          "access plus 1 month"
+    ExpiresByType video/webm         "access plus 1 month"
+
+    # CSS & JS: 1 week (change filenames to bust cache when updating)
+    ExpiresByType text/css           "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType text/javascript    "access plus 1 week"
+
+    # Fonts: 1 year
+    ExpiresByType font/woff          "access plus 1 year"
+    ExpiresByType font/woff2         "access plus 1 year"
+    ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
+
+    # HTML & PHP: No cache (always fresh)
+    ExpiresByType text/html          "access plus 0 seconds"
+</IfModule>
+
+# --- Cache-Control Headers ---
+<IfModule mod_headers.c>
+    # Long-lived static assets
+    <FilesMatch "\.(ico|jpg|jpeg|png|gif|webp|svg|woff|woff2|ttf|eot|mp4|webm)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # CSS and JS
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=604800, must-revalidate"
+    </FilesMatch>
+
+    # PHP: never cache
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+    </FilesMatch>
+
+    # Security headers
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# --- Keep-Alive connections ---
+<IfModule mod_headers.c>
+    Header set Connection keep-alive
+</IfModule>
