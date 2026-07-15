@@ -1,0 +1,596 @@
+<?php
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
+check_admin_auth();
+
+$db = get_db_connection();
+
+// =========================================================
+// POST HANDLER (CHECKOUT API)
+// =========================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'checkout') {
+    $customer_name    = trim($_POST['customer_name'] ?? '');
+    $customer_phone   = trim($_POST['customer_phone'] ?? '');
+    $customer_address = trim($_POST['customer_address'] ?? '');
+    $discount_amount  = (float)($_POST['discount_amount'] ?? 0);
+    $payment_method   = trim($_POST['payment_method'] ?? 'Cash');
+    $cart_data_raw    = $_POST['cart_data'] ?? '[]';
+
+    $cart_items = json_decode($cart_data_raw, true);
+
+    if (empty($cart_items)) {
+        echo json_encode(['success' => false, 'error' => 'Cart is empty.']);
+        exit;
+    }
+
+    try {
+        $db->beginTransaction();
+
+        $total_amount = 0.00;
+        foreach ($cart_items as $item) {
+            $total_amount += (float)$item['price'] * (int)$item['quantity'];
+        }
+        $final_amount = $total_amount - $discount_amount;
+        if ($final_amount < 0) $final_amount = 0;
+
+        $today = date('Ymd');
+        $stmt_count = $db->query("SELECT COUNT(*) FROM billing_orders WHERE DATE(created_at) = CURDATE()");
+        $today_count = (int)$stmt_count->fetchColumn() + 1;
+        $invoice_number = "OE-B-" . $today . "-" . str_pad($today_count, 4, '0', STR_PAD_LEFT);
+
+        $stmt_order = $db->prepare(
+            "INSERT INTO billing_orders (invoice_number, customer_name, customer_phone, customer_address, total_amount, discount_amount, final_amount, payment_method)
+             VALUES (:invoice, :name, :phone, :address, :total, :discount, :final, :method)"
+        );
+        $stmt_order->execute([
+            'invoice' => $invoice_number,
+            'name' => !empty($customer_name) ? $customer_name : null,
+            'phone' => !empty($customer_phone) ? $customer_phone : null,
+            'address' => !empty($customer_address) ? $customer_address : null,
+            'total' => $total_amount,
+            'discount' => $discount_amount,
+            'final' => $final_amount,
+            'method' => $payment_method
+        ]);
+
+        $order_id = $db->lastInsertId();
+
+        $stmt_item = $db->prepare(
+            "INSERT INTO billing_order_items (order_id, product_id, variant_id, product_name, variant_size, price, quantity, total_price)
+             VALUES (:order_id, :prod_id, :var_id, :prod_name, :size, :price, :qty, :total_price)"
+        );
+
+        foreach ($cart_items as $item) {
+            $prod_id = isset($item['product_id']) ? (int)$item['product_id'] : 0;
+            $var_id = (isset($item['variant_id']) && $item['variant_id'] > 0) ? (int)$item['variant_id'] : null;
+            $name = $item['name'];
+            $size = isset($item['size']) ? $item['size'] : null;
+            $price = (float)$item['price'];
+            $qty = (int)$item['quantity'];
+            $total_price = $price * $qty;
+
+            if ($prod_id <= 0) {
+                $stmt_dummy = $db->prepare("SELECT id FROM billing_products WHERE product_name = 'Custom POS Item' LIMIT 1");
+                $stmt_dummy->execute();
+                $dummy_id = $stmt_dummy->fetchColumn();
+
+                if (!$dummy_id) {
+                    $first_cat = $db->query("SELECT id FROM billing_categories LIMIT 1")->fetchColumn();
+                    $stmt_ins_dummy = $db->prepare(
+                        "INSERT INTO billing_products (category_id, product_name, description, base_price, is_active)
+                         VALUES (:cat, 'Custom POS Item', 'Custom item added on checkout', 0.00, 0)"
+                    );
+                    $stmt_ins_dummy->execute(['cat' => $first_cat]);
+                    $dummy_id = $db->lastInsertId();
+                }
+                $prod_id = $dummy_id;
+            }
+
+            $stmt_item->execute([
+                'order_id' => $order_id,
+                'prod_id' => $prod_id,
+                'var_id' => $var_id,
+                'prod_name' => $name,
+                'size' => $size,
+                'price' => $price,
+                'qty' => $qty,
+                'total_price' => $total_price
+            ]);
+        }
+
+        $db->commit();
+
+        echo json_encode(['success' => true, 'order_id' => $order_id]);
+        exit;
+    } catch (Exception $e) {
+        $db->rollBack();
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit;
+    }
+}
+
+require_once __DIR__ . '/../includes/header.php';
+
+// Fetch Settings for default UPI Phone VPA
+$settings_res = $db->query("SELECT * FROM settings")->fetchAll();
+$settings = [];
+foreach ($settings_res as $row) {
+    $settings[$row['key']] = $row['value'];
+}
+$company_phone = $settings['company_phone'] ?? '9946731720';
+$phone_parts = explode('|', $company_phone);
+$primary_phone = trim($phone_parts[0]);
+$clean_phone = preg_replace('/[^0-9]/', '', $primary_phone);
+if (strlen($clean_phone) > 10) {
+    $clean_phone = substr($clean_phone, 0, 10);
+}
+if (empty($clean_phone)) {
+    $clean_phone = '9946731720';
+}
+$default_upi = $clean_phone . '@upi';
+?>
+
+<!-- Title & Back Link -->
+<div class="content-header">
+    <div class="header-title">
+        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
+            <a href="billing.php" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem;">
+                <i class="fa-solid fa-arrow-left-long"></i> Add More Items
+            </a>
+        </div>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+            <i class="fa-solid fa-cart-shopping" style="color:var(--accent-color);"></i>
+            Checkout & Billing
+        </h1>
+        <p style="color:var(--text-muted); margin-top:0.25rem;">
+            Finalize order details, apply discount, and choose payment method.
+        </p>
+    </div>
+</div>
+
+<style>
+    .checkout-container {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 1.5rem;
+        align-items: start;
+    }
+    @media (max-width: 992px) {
+        .checkout-container {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .cart-summary-table {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-lg);
+        padding: 1.25rem;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .payment-options {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    .pay-btn {
+        flex: 1;
+        background: var(--bg-control);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-md);
+        padding: 0.75rem;
+        text-align: center;
+        cursor: pointer;
+        transition: var(--transition-fast);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+    .pay-btn:hover {
+        border-color: var(--border-highlight);
+        color: var(--text-primary);
+    }
+    .pay-btn.active {
+        background: rgba(255, 107, 53, 0.08);
+        border-color: var(--accent-color);
+        color: var(--accent-color);
+    }
+    .pay-btn i {
+        font-size: 1.25rem;
+    }
+    
+    .qr-container {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-md);
+        padding: 1rem;
+        margin-top: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .summary-box {
+        background: rgba(255,255,255,0.02);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-md);
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+    .summary-row:last-child {
+        margin-bottom: 0;
+    }
+    .summary-total {
+        border-top: 1px dashed var(--border-color);
+        padding-top: 0.5rem;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+</style>
+
+<div class="checkout-container">
+    <!-- Left column: Items in Cart -->
+    <div class="cart-summary-table">
+        <h3 style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>Review Selected Items</span>
+            <button onclick="clearCartAndGoBack()" class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:rgba(255, 71, 87, 0.2);">
+                <i class="fa-solid fa-trash-can"></i> Clear Cart
+            </button>
+        </h3>
+        
+        <div id="cartItemsList" style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1rem;">
+            <!-- Rendered dynamically -->
+        </div>
+        
+        <div style="text-align:right;">
+            <a href="billing.php" class="btn btn-secondary" style="font-size:0.85rem;">
+                <i class="fa-solid fa-plus"></i> Add/Change Items
+            </a>
+        </div>
+    </div>
+
+    <!-- Right column: Customer details, discount, payment & checkout -->
+    <div class="card" style="padding:1.25rem;">
+        <h3 style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem;">
+            Order & Payment Details
+        </h3>
+        
+        <form id="checkoutForm" method="POST" style="margin:0;">
+            <input type="hidden" name="action" value="checkout">
+            <input type="hidden" id="cartDataInput" name="cart_data">
+
+            <!-- Customer Details -->
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" id="customerName" name="customer_name" class="form-control" placeholder="Walk-in Client">
+            </div>
+            
+            <div class="form-group" style="margin-top:1rem;">
+                <label class="form-label">Customer Phone</label>
+                <input type="text" id="customerPhone" name="customer_phone" class="form-control" placeholder="Phone No.">
+            </div>
+
+            <div class="form-group" style="margin-top:1rem;">
+                <label class="form-label">Customer Address</label>
+                <textarea id="customerAddress" name="customer_address" class="form-control" placeholder="Customer Address..." rows="2" style="resize:vertical;"></textarea>
+            </div>
+
+            <!-- Discount Input -->
+            <div class="form-group" style="margin-top:1rem;">
+                <label class="form-label">Discount (Flat Rs)</label>
+                <input type="number" min="0" value="0" id="discountInput" name="discount_amount" class="form-control" placeholder="0.00">
+            </div>
+
+            <!-- Summary Box -->
+            <div class="summary-box" style="margin-top:1.5rem;">
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span id="summarySubtotal">₹0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span>Discount</span>
+                    <span id="summaryDiscount" style="color:var(--danger);">-₹0.00</span>
+                </div>
+                <div class="summary-row summary-total">
+                    <span>Payable Total</span>
+                    <span id="summaryTotal" style="color:var(--accent-color);">₹0.00</span>
+                </div>
+            </div>
+
+            <!-- Payment mode selection -->
+            <div style="margin-top:1rem;">
+                <label class="form-label">Payment Method</label>
+                <div class="payment-options">
+                    <div class="pay-btn active" id="payCash" onclick="selectPaymentMethod('Cash')">
+                        <i class="fa-solid fa-money-bill-1-wave"></i>
+                        <span>Cash</span>
+                    </div>
+                    <div class="pay-btn" id="payUPI" onclick="selectPaymentMethod('UPI')">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <span>UPI QR</span>
+                    </div>
+                    <div class="pay-btn" id="payCard" onclick="selectPaymentMethod('Card')">
+                        <i class="fa-solid fa-credit-card"></i>
+                        <span>Card</span>
+                    </div>
+                </div>
+                <input type="hidden" id="paymentMethodInput" name="payment_method" value="Cash">
+            </div>
+
+            <!-- UPI Payment Area -->
+            <div id="upiPaymentArea" style="display:none; margin-top:1rem;">
+                <div class="qr-container">
+                    <div style="font-size:0.8rem; color:var(--text-secondary); width:100%; display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                        <span style="white-space:nowrap;">UPI VPA / Phone:</span>
+                        <input type="text" id="upiPhoneInput" class="form-control" style="padding:0.25rem 0.5rem; font-size:0.8rem; height:28px;" value="<?= h($default_upi) ?>">
+                    </div>
+                    <img id="upiQRCodeImage" src="" alt="UPI Payment QR Code" style="background:#fff; border-radius:4px; padding:0.25rem; display:block; width:160px; height:160px;">
+                    <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:0.4rem;">
+                        <i class="fa-solid fa-circle-info"></i> Scan with GPay, PhonePe, Paytm etc.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit button -->
+            <button type="button" onclick="submitCheckout()" class="btn btn-success" style="width:100%; height:48px; margin-top:1.5rem; font-size:1rem; box-shadow:0 4px 12px rgba(46, 213, 115, 0.2);">
+                <i class="fa-solid fa-file-invoice-dollar"></i> Generate & Print Receipt
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+let cart = [];
+let selectedPaymentMethod = 'Cash';
+
+// Initialize Cart from LocalStorage
+function loadCart() {
+    const saved = localStorage.getItem('orange_billing_cart');
+    if (saved) {
+        try {
+            cart = json_parse_or_empty(saved);
+        } catch (e) {
+            cart = [];
+        }
+    }
+    renderCartItems();
+    updateSummary();
+}
+
+function json_parse_or_empty(str) {
+    try {
+        return JSON.parse(str);
+    } catch(e) {
+        return [];
+    }
+}
+
+function saveCart() {
+    localStorage.setItem('orange_billing_cart', JSON.stringify(cart));
+}
+
+// Render Items inside Cart Summary
+function renderCartItems() {
+    const container = document.getElementById('cartItemsList');
+    if (!container) return;
+
+    if (cart.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:3rem; color:var(--text-muted);">
+                <i class="fa-solid fa-basket-shopping" style="font-size:3rem; opacity:0.3; margin-bottom:1rem; display:block;"></i>
+                Your cart is empty. Please <a href="billing.php" style="color:var(--accent-color); font-weight:600;">go back</a> and add products.
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    cart.forEach((item, index) => {
+        const itemTotal = item.price * item.quantity;
+        html += `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; background:rgba(255,255,255,0.015); border:1px solid var(--border-color); border-radius:var(--border-radius-sm); padding:0.75rem 1rem;">
+                <div style="flex-grow:1;">
+                    <div style="font-weight:600; color:var(--text-primary);">${escapeHtml(item.name)}</div>
+                    ${item.size ? `<div style="font-size:0.75rem; color:var(--text-muted);">Size: ${escapeHtml(item.size)}</div>` : ''}
+                    <div style="font-size:0.85rem; color:var(--accent-color); font-weight:600; margin-top:0.25rem;">₹${parseFloat(item.price).toFixed(2)}</div>
+                </div>
+                
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <div style="display:flex; align-items:center; border:1px solid var(--border-color); border-radius:4px; overflow:hidden;">
+                        <button type="button" onclick="updateQty(${index}, -1)" style="border:none; background:var(--bg-control); color:var(--text-primary); width:28px; height:28px; font-weight:bold; cursor:pointer;">-</button>
+                        <span style="width:36px; text-align:center; font-weight:600; font-size:0.9rem;">${item.quantity}</span>
+                        <button type="button" onclick="updateQty(${index}, 1)" style="border:none; background:var(--bg-control); color:var(--text-primary); width:28px; height:28px; font-weight:bold; cursor:pointer;">+</button>
+                    </div>
+                    
+                    <div style="font-weight:700; font-size:0.95rem; width:80px; text-align:right; color:var(--text-primary);">₹${itemTotal.toFixed(2)}</div>
+                    
+                    <button type="button" onclick="removeItem(${index})" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Remove Item">
+                        <i class="fa-solid fa-trash-can" style="font-size:0.9rem;"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function updateQty(index, delta) {
+    cart[index].quantity += delta;
+    if (cart[index].quantity <= 0) {
+        cart.splice(index, 1);
+    }
+    saveCart();
+    renderCartItems();
+    updateSummary();
+}
+
+function removeItem(index) {
+    cart.splice(index, 1);
+    saveCart();
+    renderCartItems();
+    updateSummary();
+}
+
+function clearCartAndGoBack() {
+    if (confirm('Are you sure you want to clear your cart?')) {
+        cart = [];
+        saveCart();
+        window.location.href = 'billing.php';
+    }
+}
+
+// Calculate Summary Totals
+function updateSummary() {
+    let subtotal = 0;
+    cart.forEach(item => {
+        subtotal += item.price * item.quantity;
+    });
+
+    const discountVal = parseFloat(document.getElementById('discountInput').value) || 0;
+    const finalTotal = Math.max(0, subtotal - discountVal);
+
+    document.getElementById('summarySubtotal').innerText = '₹' + subtotal.toFixed(2);
+    document.getElementById('summaryDiscount').innerText = '-₹' + discountVal.toFixed(2);
+    document.getElementById('summaryTotal').innerText = '₹' + finalTotal.toFixed(2);
+
+    if (selectedPaymentMethod === 'UPI') {
+        generateUPICode(finalTotal);
+    }
+}
+
+// Discount input change listener
+document.getElementById('discountInput').addEventListener('input', function() {
+    localStorage.setItem('orange_billing_discount', this.value);
+    updateSummary();
+});
+
+// Payment Method Switcher
+function selectPaymentMethod(method) {
+    selectedPaymentMethod = method;
+    document.getElementById('paymentMethodInput').value = method;
+    localStorage.setItem('orange_billing_payment_method', method);
+    
+    document.querySelectorAll('.pay-btn').forEach(btn => btn.classList.remove('active'));
+    
+    if (method === 'Cash') {
+        document.getElementById('payCash').classList.add('active');
+        document.getElementById('upiPaymentArea').style.display = 'none';
+    } else if (method === 'UPI') {
+        document.getElementById('payUPI').classList.add('active');
+        document.getElementById('upiPaymentArea').style.display = 'block';
+        updateSummary(); // trigger QR generation
+    } else if (method === 'Card') {
+        document.getElementById('payCard').classList.add('active');
+        document.getElementById('upiPaymentArea').style.display = 'none';
+    }
+}
+
+// UPI Dynamic QR Code Generation
+function generateUPICode(amount) {
+    const upiPhoneInput = document.getElementById('upiPhoneInput').value.trim();
+    if (!upiPhoneInput) return;
+
+    const companyName = "Orange Events";
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiPhoneInput)}&pn=${encodeURIComponent(companyName)}&am=${amount.toFixed(2)}&cu=INR&tn=Invoice%20Payment`;
+    
+    const qrImg = document.getElementById('upiQRCodeImage');
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiUrl)}`;
+}
+
+// Recalculate QR Code when UPI input phone changes
+document.getElementById('upiPhoneInput').addEventListener('input', function() {
+    localStorage.setItem('orange_billing_upi_phone', this.value);
+    let subtotal = 0;
+    cart.forEach(item => { subtotal += item.price * item.quantity; });
+    const discountVal = parseFloat(document.getElementById('discountInput').value) || 0;
+    const finalTotal = Math.max(0, subtotal - discountVal);
+    generateUPICode(finalTotal);
+});
+
+// Checkout Submission
+function submitCheckout() {
+    if (cart.length === 0) {
+        alert('Cart is empty.');
+        return;
+    }
+
+    const customerName = document.getElementById('customerName').value.trim();
+    const customerPhone = document.getElementById('customerPhone').value.trim();
+    
+    document.getElementById('cartDataInput').value = JSON.stringify(cart);
+
+    const formData = new FormData(document.getElementById('checkoutForm'));
+
+    fetch('billing-cart.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            localStorage.setItem('orange_billing_customer_name', customerName);
+            localStorage.setItem('orange_billing_customer_phone', customerPhone);
+            localStorage.removeItem('orange_billing_cart');
+            localStorage.removeItem('orange_billing_discount');
+            window.location.href = 'billing-invoice.php?id=' + data.order_id + '&print=1';
+        } else {
+            alert('Checkout failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Error processing checkout request.');
+    });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text
+        .toString()
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Load cart on page ready
+document.addEventListener('DOMContentLoaded', () => {
+    const customerName = document.getElementById('customerName');
+    const customerPhone = document.getElementById('customerPhone');
+    const discountInput = document.getElementById('discountInput');
+    const upiPhoneInput = document.getElementById('upiPhoneInput');
+
+    customerName.value = localStorage.getItem('orange_billing_customer_name') || '';
+    customerPhone.value = localStorage.getItem('orange_billing_customer_phone') || '';
+    discountInput.value = localStorage.getItem('orange_billing_discount') || '0';
+    
+    customerName.addEventListener('input', () => localStorage.setItem('orange_billing_customer_name', customerName.value));
+    customerPhone.addEventListener('input', () => localStorage.setItem('orange_billing_customer_phone', customerPhone.value));
+
+    const savedPayment = localStorage.getItem('orange_billing_payment_method') || 'Cash';
+    selectPaymentMethod(savedPayment);
+
+    const savedUpiPhone = localStorage.getItem('orange_billing_upi_phone');
+    if (savedUpiPhone && upiPhoneInput) {
+        upiPhoneInput.value = savedUpiPhone;
+    }
+
+    loadCart();
+});
+</script>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

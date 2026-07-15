@@ -9,7 +9,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // Determine active module
 $event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
 $rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
-$billing_pages = ['billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php'];
+$billing_pages = ['billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php'];
 
 if (isset($_GET['module'])) {
     $_SESSION['current_module'] = $_GET['module'];
@@ -123,6 +123,12 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                             <a href="billing-products.php">
                                 <i class="fa-solid fa-box-open"></i>
                                 <span>Products & Catalog</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= in_array($current_page, ['billing-invoices.php', 'billing-invoice.php']) ? 'active' : '' ?>">
+                            <a href="billing-invoices.php">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
+                                <span>POS Invoices</span>
                             </a>
                         </li>
                     <?php endif; ?>

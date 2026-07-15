@@ -4,119 +4,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 $db = get_db_connection();
 
-// =========================================================
-// POST HANDLER (CHECKOUT API)
-// =========================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'checkout') {
-    $customer_name   = trim($_POST['customer_name'] ?? '');
-    $customer_phone  = trim($_POST['customer_phone'] ?? '');
-    $discount_amount = (float)($_POST['discount_amount'] ?? 0);
-    $payment_method  = trim($_POST['payment_method'] ?? 'Cash');
-    $cart_data_raw   = $_POST['cart_data'] ?? '[]';
 
-    $cart_items = json_decode($cart_data_raw, true);
-
-    if (empty($cart_items)) {
-        echo json_encode(['success' => false, 'error' => 'Cart is empty.']);
-        exit;
-    }
-
-    try {
-        $db->beginTransaction();
-
-        // 1. Calculate totals on backend to verify
-        $total_amount = 0.00;
-        foreach ($cart_items as $item) {
-            $total_amount += (float)$item['price'] * (int)$item['quantity'];
-        }
-        $final_amount = $total_amount - $discount_amount;
-        if ($final_amount < 0) $final_amount = 0;
-
-        // 2. Generate sequential Invoice Number: OE-B-YYYYMMDD-XXXX
-        $today = date('Ymd');
-        $stmt_count = $db->query("SELECT COUNT(*) FROM billing_orders WHERE DATE(created_at) = CURDATE()");
-        $today_count = (int)$stmt_count->fetchColumn() + 1;
-        $invoice_number = "OE-B-" . $today . "-" . str_pad($today_count, 4, '0', STR_PAD_LEFT);
-
-        // 3. Insert Billing Order
-        $stmt_order = $db->prepare(
-            "INSERT INTO billing_orders (invoice_number, customer_name, customer_phone, total_amount, discount_amount, final_amount, payment_method)
-             VALUES (:invoice, :name, :phone, :total, :discount, :final, :method)"
-        );
-        $stmt_order->execute([
-            'invoice' => $invoice_number,
-            'name' => !empty($customer_name) ? $customer_name : null,
-            'phone' => !empty($customer_phone) ? $customer_phone : null,
-            'total' => $total_amount,
-            'discount' => $discount_amount,
-            'final' => $final_amount,
-            'method' => $payment_method
-        ]);
-
-        $order_id = $db->lastInsertId();
-
-        // 4. Insert Billing Order Items
-        $stmt_item = $db->prepare(
-            "INSERT INTO billing_order_items (order_id, product_id, variant_id, product_name, variant_size, price, quantity, total_price)
-             VALUES (:order_id, :prod_id, :var_id, :prod_name, :size, :price, :qty, :total_price)"
-        );
-
-        foreach ($cart_items as $item) {
-            $prod_id = isset($item['product_id']) ? (int)$item['product_id'] : 0;
-            $var_id = (isset($item['variant_id']) && $item['variant_id'] > 0) ? (int)$item['variant_id'] : null;
-            $name = $item['name'];
-            $size = isset($item['size']) ? $item['size'] : null;
-            $price = (float)$item['price'];
-            $qty = (int)$item['quantity'];
-            $total_price = $price * $qty;
-
-            // Handle custom unlisted item references
-            if ($prod_id <= 0) {
-                // If it is a custom item, we set product_id to a dummy reference or seed a custom row.
-                // In our schema, we enforce foreign key constraint to billing_products.
-                // To support custom items cleanly under the foreign key constraint, we can either:
-                // a) Seed a default dummy product with ID = 0 or 1 named "Custom POS Item", or
-                // b) Create a default custom product row if not exists.
-                // Let's check if a custom dummy product exists, else create it.
-                $stmt_dummy = $db->prepare("SELECT id FROM billing_products WHERE product_name = 'Custom POS Item' LIMIT 1");
-                $stmt_dummy->execute();
-                $dummy_id = $stmt_dummy->fetchColumn();
-
-                if (!$dummy_id) {
-                    // Get first category
-                    $first_cat = $db->query("SELECT id FROM billing_categories LIMIT 1")->fetchColumn();
-                    $stmt_ins_dummy = $db->prepare(
-                        "INSERT INTO billing_products (category_id, product_name, description, base_price, is_active)
-                         VALUES (:cat, 'Custom POS Item', 'Custom item added on checkout', 0.00, 0)"
-                    );
-                    $stmt_ins_dummy->execute(['cat' => $first_cat]);
-                    $dummy_id = $db->lastInsertId();
-                }
-                $prod_id = $dummy_id;
-            }
-
-            $stmt_item->execute([
-                'order_id' => $order_id,
-                'prod_id' => $prod_id,
-                'var_id' => $var_id,
-                'prod_name' => $name,
-                'size' => $size,
-                'price' => $price,
-                'qty' => $qty,
-                'total_price' => $total_price
-            ]);
-        }
-
-        $db->commit();
-
-        echo json_encode(['success' => true, 'order_id' => $order_id]);
-        exit;
-    } catch (Exception $e) {
-        $db->rollBack();
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        exit;
-    }
-}
 
 // =========================================================
 // FETCH DATA FOR RENDERING
@@ -160,15 +48,9 @@ foreach ($variants as $v) {
 <style>
     .pos-container {
         display: grid;
-        grid-template-columns: 1.4fr 1fr;
+        grid-template-columns: 1fr;
         gap: 1.5rem;
-        height: calc(100vh - 160px);
-    }
-    @media (max-width: 1024px) {
-        .pos-container {
-            grid-template-columns: 1fr;
-            height: auto;
-        }
+        height: calc(100vh - 80px);
     }
     
     /* Left Panel: Catalog */
@@ -208,6 +90,7 @@ foreach ($variants as $v) {
         overflow-y: auto;
         padding-right: 0.25rem;
         flex-grow: 1;
+        align-content: start;
     }
     .prod-card {
         background: var(--bg-card);
@@ -473,106 +356,49 @@ foreach ($variants as $v) {
         </div>
     </div>
 
-    <!-- Right panel: shopping cart -->
-    <div class="cart-panel">
-        <div class="cart-header">
-            <h3 style="font-size:1.1rem; display:flex; align-items:center; gap:0.5rem;">
-                <i class="fa-solid fa-cart-shopping" style="color:var(--accent-color);"></i> Cart
-            </h3>
-            <button onclick="clearCart()" class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:rgba(255, 71, 87, 0.2);">
-                <i class="fa-solid fa-trash-can"></i> Clear
-            </button>
-        </div>
-
-        <!-- Cart items list -->
-        <div class="cart-items-list" id="cartItemsList">
-            <!-- Dynamic JavaScript content -->
-            <div style="text-align:center; margin:auto; color:var(--text-muted); font-size:0.9rem;">
-                <i class="fa-solid fa-basket-shopping" style="font-size:2.5rem; opacity:0.3; margin-bottom:0.75rem; display:block;"></i>
-                Cart is empty
-            </div>
-        </div>
-
-        <!-- Billing Summary & Checkout Form -->
-        <form id="checkoutForm" method="POST" style="margin:0;">
-            <input type="hidden" name="action" value="checkout">
-            <input type="hidden" id="cartDataInput" name="cart_data">
-
-            <!-- Customer Details -->
-            <div class="form-row" style="margin-bottom:0.75rem;">
-                <div class="form-group" style="margin-bottom:0;">
-                    <label class="form-label" style="font-size:0.78rem;">Customer Name</label>
-                    <input type="text" id="customerName" name="customer_name" class="form-control" style="padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="Walk-in Client">
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label class="form-label" style="font-size:0.78rem;">Customer Phone</label>
-                    <input type="text" id="customerPhone" name="customer_phone" class="form-control" style="padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="Phone No.">
-                </div>
-            </div>
-
-            <!-- Discount Input -->
-            <div class="form-group" style="margin-bottom:0.75rem;">
-                <label class="form-label" style="font-size:0.78rem;">Discount (Flat Rs)</label>
-                <input type="number" min="0" value="0" id="discountInput" name="discount_amount" class="form-control" style="padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="0.00">
-            </div>
-
-            <!-- Summary Calculations -->
-            <div class="cart-summary">
-                <div class="summary-row">
-                    <span>Subtotal</span>
-                    <span id="summarySubtotal">₹0.00</span>
-                </div>
-                <div class="summary-row">
-                    <span>Discount</span>
-                    <span id="summaryDiscount" style="color:var(--danger);">-₹0.00</span>
-                </div>
-                <div class="summary-row summary-total">
-                    <span>Payable Total</span>
-                    <span id="summaryTotal">₹0.00</span>
-                </div>
-            </div>
-
-            <!-- Payment mode selection -->
-            <div style="margin-top:0.75rem;">
-                <label class="form-label" style="font-size:0.78rem; margin-bottom:0.25rem;">Payment Method</label>
-                <div class="payment-options">
-                    <div class="pay-btn active" id="payCash" onclick="selectPaymentMethod('Cash')">
-                        <i class="fa-solid fa-money-bill-1-wave"></i>
-                        <span>Cash</span>
-                    </div>
-                    <div class="pay-btn" id="payUPI" onclick="selectPaymentMethod('UPI')">
-                        <i class="fa-solid fa-qrcode"></i>
-                        <span>UPI QR</span>
-                    </div>
-                    <div class="pay-btn" id="payCard" onclick="selectPaymentMethod('Card')">
-                        <i class="fa-solid fa-credit-card"></i>
-                        <span>Card</span>
-                    </div>
-                </div>
-                <input type="hidden" id="paymentMethodInput" name="payment_method" value="Cash">
-            </div>
-
-            <!-- UPI Payment Area -->
-            <div id="upiPaymentArea" style="display:none;">
-                <div class="qr-container">
-                    <div style="font-size:0.78rem; color:var(--text-secondary); width:100%; display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
-                        <span style="white-space:nowrap;">UPI VPA / Phone:</span>
-                        <input type="text" id="upiPhoneInput" class="form-control" style="padding:0.25rem 0.5rem; font-size:0.8rem; height:26px;" value="<?= h($default_upi) ?>">
-                    </div>
-                    <img id="upiQRCodeImage" src="" alt="UPI Payment QR Code" style="background:#fff; border-radius:4px; padding:0.25rem; display:block; width:150px; height:150px;">
-                    <div style="font-size:0.7rem; color:var(--text-muted); text-align:center; margin-top:0.25rem;">
-                        <i class="fa-solid fa-circle-info"></i> Scan with GPay, PhonePe, Paytm etc.
-                    </div>
-                </div>
-            </div>
-
-            <!-- Submit buttons -->
-            <button type="button" onclick="submitCheckout()" class="btn btn-success" style="width:100%; height:48px; margin-top:0.75rem; font-size:1rem; box-shadow:0 4px 12px rgba(46, 213, 115, 0.2);">
-                <i class="fa-solid fa-file-invoice-dollar"></i> Generate & Print Receipt
-            </button>
-        </form>
     </div>
 </div>
+
+<!-- Floating Cart Button -->
+<div id="floatingCartBtn" onclick="openCartModal()" style="position: fixed; bottom: 2.5rem; right: 2.5rem; background: var(--accent-color); color: #fff; border-radius: 50px; padding: 0.85rem 1.75rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; box-shadow: 0 8px 30px rgba(255, 107, 53, 0.4); z-index: 999; font-weight: 600; transition: transform var(--transition-fast); border: 2px solid rgba(255,255,255,0.1); display: none;">
+    <i class="fa-solid fa-cart-shopping" style="font-size: 1.25rem;"></i>
+    <span>Cart: <span id="floatingCartCount">0</span> items</span>
+    <span style="background: rgba(255,255,255,0.25); padding: 0.15rem 0.5rem; border-radius: 20px; font-size: 0.85rem; font-weight: 700;" id="floatingCartTotal">₹0.00</span>
+</div>
+
+<!-- ============================================================
+     MODAL: Cart Preview / Selected Items
+     ============================================================ -->
+<div id="cartPreviewModal" class="modal">
+    <div class="modal-content" style="max-width: 620px;">
+        <button class="modal-close" onclick="closeModal('cartPreviewModal')">&times;</button>
+        <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+            <span style="display:flex; align-items:center; gap:0.5rem;">
+                <i class="fa-solid fa-cart-shopping" style="color:var(--accent-color);"></i> Selected Items
+            </span>
+            <button onclick="clearCart()" class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:rgba(255, 71, 87, 0.2);">
+                <i class="fa-solid fa-trash-can"></i> Clear Cart
+            </button>
+        </h3>
+        
+        <div id="modalCartItemsList" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 350px; overflow-y: auto; margin-bottom: 1.5rem; padding-right: 0.25rem;">
+            <!-- Dynamic items list -->
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border-color); padding-top: 1rem; margin-bottom: 1.5rem;">
+            <span style="font-weight: 600; color: var(--text-secondary);">Subtotal:</span>
+            <span id="modalCartSubtotal" style="font-size: 1.3rem; font-weight: 800; color: var(--accent-color);">₹0.00</span>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" onclick="closeModal('cartPreviewModal')" class="btn btn-secondary">Continue Shopping</button>
+            <button type="button" onclick="goToCheckout()" class="btn btn-success" style="box-shadow: 0 4px 12px rgba(46, 213, 115, 0.2); font-weight:600;">
+                <i class="fa-solid fa-circle-check"></i> Proceed to Checkout
+            </button>
+        </div>
+    </div>
+</div>
+
 
 <!-- ============================================================
      MODAL: Select Variant (Sizes)
@@ -622,19 +448,13 @@ foreach ($variants as $v) {
     // POS State
     let cart = [];
     let selectedCategoryId = 0;
-    let paymentMethod = 'Cash';
 
     // Elements
     const searchBar = document.getElementById('searchBar');
     const productGrid = document.getElementById('productGrid');
-    const cartItemsList = document.getElementById('cartItemsList');
-    const discountInput = document.getElementById('discountInput');
-    const customerName = document.getElementById('customerName');
-    const customerPhone = document.getElementById('customerPhone');
-    const summarySubtotal = document.getElementById('summarySubtotal');
-    const summaryDiscount = document.getElementById('summaryDiscount');
-    const summaryTotal = document.getElementById('summaryTotal');
-    const upiPhoneInput = document.getElementById('upiPhoneInput');
+    const floatingCartBtn = document.getElementById('floatingCartBtn');
+    const floatingCartCount = document.getElementById('floatingCartCount');
+    const floatingCartTotal = document.getElementById('floatingCartTotal');
 
     // =========================================================
     // INITIALIZATION & LOCALSTORAGE RESTORATION
@@ -650,32 +470,8 @@ foreach ($variants as $v) {
             }
         }
         
-        // Restore customer details
-        customerName.value = localStorage.getItem('orange_billing_customer_name') || '';
-        customerPhone.value = localStorage.getItem('orange_billing_customer_phone') || '';
-        discountInput.value = localStorage.getItem('orange_billing_discount') || '0';
-        paymentMethod = localStorage.getItem('orange_billing_payment_method') || 'Cash';
-        
-        if (localStorage.getItem('orange_billing_upi_phone')) {
-            upiPhoneInput.value = localStorage.getItem('orange_billing_upi_phone');
-        }
-
-        // Live backup event listeners
-        customerName.addEventListener('input', () => localStorage.setItem('orange_billing_customer_name', customerName.value));
-        customerPhone.addEventListener('input', () => localStorage.setItem('orange_billing_customer_phone', customerPhone.value));
-        discountInput.addEventListener('input', () => {
-            localStorage.setItem('orange_billing_discount', discountInput.value);
-            renderCart();
-        });
-        upiPhoneInput.addEventListener('input', () => {
-            localStorage.setItem('orange_billing_upi_phone', upiPhoneInput.value);
-            updateUPIQRCode();
-        });
-
         // Search live filter
         searchBar.addEventListener('input', filterProducts);
-
-        selectPaymentMethod(paymentMethod);
         renderCart();
     });
 
@@ -750,7 +546,6 @@ foreach ($variants as $v) {
     }
 
     function addItemToCart(productId, variantId, name, size, price) {
-        // Check if item already exists in cart with same product_id and variant_id
         const existingIndex = cart.findIndex(item => 
             item.product_id === productId && 
             item.variant_id === variantId &&
@@ -792,7 +587,6 @@ foreach ($variants as $v) {
             return;
         }
 
-        // Add custom item
         cart.push({
             product_id: 0,
             variant_id: null,
@@ -803,7 +597,6 @@ foreach ($variants as $v) {
             is_custom: true
         });
 
-        // Clear modal values
         nameInput.value = '';
         priceInput.value = '';
         qtyInput.value = '1';
@@ -840,161 +633,100 @@ foreach ($variants as $v) {
     }
 
     // =========================================================
-    // RENDER CART & UPI QR CODE
+    // RENDER FLOATING CART & MODAL CART
     // =========================================================
     function renderCart() {
-        cartItemsList.innerHTML = '';
-        
         if (cart.length === 0) {
-            cartItemsList.innerHTML = `
-                <div style="text-align:center; margin:auto; color:var(--text-muted); font-size:0.9rem;">
-                    <i class="fa-solid fa-basket-shopping" style="font-size:2.5rem; opacity:0.3; margin-bottom:0.75rem; display:block;"></i>
-                    Cart is empty
-                </div>
-            `;
-            summarySubtotal.innerText = '₹0.00';
-            summaryDiscount.innerText = '-₹0.00';
-            summaryTotal.innerText = '₹0.00';
-            updateUPIQRCode();
+            floatingCartBtn.style.display = 'none';
+            floatingCartCount.innerText = '0';
+            floatingCartTotal.innerText = '₹0.00';
+            
+            // If the modal is visible, we update/close it
+            renderModalCart();
             return;
         }
 
+        let totalQty = 0;
         let subtotal = 0.00;
+        
+        cart.forEach(item => {
+            totalQty += item.quantity;
+            subtotal += item.price * item.quantity;
+        });
+
+        floatingCartBtn.style.display = 'flex';
+        floatingCartCount.innerText = totalQty;
+        floatingCartTotal.innerText = `₹${subtotal.toFixed(2)}`;
+
+        // Render modal cart list reactively if open
+        renderModalCart();
+    }
+
+    function openCartModal() {
+        renderModalCart();
+        openModal('cartPreviewModal');
+    }
+
+    function renderModalCart() {
+        const listContainer = document.getElementById('modalCartItemsList');
+        const subtotalContainer = document.getElementById('modalCartSubtotal');
+        if (!listContainer) return;
+
+        if (cart.length === 0) {
+            listContainer.innerHTML = `
+                <div style="text-align:center; padding:3rem; color:var(--text-muted);">
+                    <i class="fa-solid fa-basket-shopping" style="font-size:2.5rem; opacity:0.3; margin-bottom:0.75rem; display:block;"></i>
+                    Cart is empty. Add products from the catalog.
+                </div>
+            `;
+            subtotalContainer.innerText = '₹0.00';
+            closeModal('cartPreviewModal');
+            return;
+        }
+
+        let subtotal = 0;
+        let html = '';
         
         cart.forEach((item, index) => {
             const itemTotal = item.price * item.quantity;
             subtotal += itemTotal;
-
-            const cartRow = document.createElement('div');
-            cartRow.className = 'cart-item';
-            cartRow.innerHTML = `
-                <div class="cart-item-details">
-                    <div class="cart-item-name">${item.name}</div>
-                    ${item.size ? `<div class="cart-item-size"><i class="fa-solid fa-arrows-left-right"></i> ${item.size}</div>` : ''}
-                    <div class="cart-item-price">₹${item.price.toFixed(2)} × ${item.quantity} = ₹${itemTotal.toFixed(2)}</div>
-                </div>
-                <div class="cart-item-actions">
-                    <button type="button" class="qty-btn" onclick="updateQty(${index}, -1)">-</button>
-                    <span style="font-weight:600; min-width:18px; text-align:center;">${item.quantity}</span>
-                    <button type="button" class="qty-btn" onclick="updateQty(${index}, 1)">+</button>
-                    <button type="button" class="qty-btn" onclick="removeItem(${index})" style="background:rgba(255, 71, 87, 0.1); color:var(--danger); border-color:rgba(255,71,87,0.15); margin-left:0.25rem;">
-                        <i class="fa-solid fa-trash-can" style="font-size:0.75rem;"></i>
-                    </button>
+            
+            html += `
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; background:rgba(255,255,255,0.015); border:1px solid var(--border-color); border-radius:var(--border-radius-sm); padding:0.6rem 0.75rem;">
+                    <div style="flex-grow:1;">
+                        <div style="font-weight:600; font-size:0.9rem; color:var(--text-primary);">${escapeHtml(item.name)}</div>
+                        ${item.size ? `<div style="font-size:0.75rem; color:var(--text-muted);">Size: ${escapeHtml(item.size)}</div>` : ''}
+                        <div style="font-size:0.85rem; color:var(--accent-color); font-weight:600; margin-top:0.15rem;">₹${item.price.toFixed(2)}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <button type="button" class="qty-btn" onclick="updateQty(${index}, -1)">-</button>
+                        <span style="font-weight:600; min-width:18px; text-align:center; font-size:0.9rem;">${item.quantity}</span>
+                        <button type="button" class="qty-btn" onclick="updateQty(${index}, 1)">+</button>
+                        <button type="button" class="qty-btn" onclick="removeItem(${index})" style="background:rgba(255, 71, 87, 0.1); color:var(--danger); border-color:rgba(255,71,87,0.15); margin-left:0.25rem;">
+                            <i class="fa-solid fa-trash-can" style="font-size:0.75rem;"></i>
+                        </button>
+                    </div>
                 </div>
             `;
-            cartItemsList.appendChild(cartRow);
         });
-
-        // Summaries
-        const discountVal = parseFloat(discountInput.value) || 0.00;
-        let totalVal = subtotal - discountVal;
-        if (totalVal < 0) totalVal = 0.00;
-
-        summarySubtotal.innerText = `₹${subtotal.toFixed(2)}`;
-        summaryDiscount.innerText = `-₹${discountVal.toFixed(2)}`;
-        summaryTotal.innerText = `₹${totalVal.toFixed(2)}`;
-
-        updateUPIQRCode();
+        
+        listContainer.innerHTML = html;
+        subtotalContainer.innerText = '₹' + subtotal.toFixed(2);
     }
 
-    // =========================================================
-    // PAYMENT & UPI QR CODE GENERATION
-    // =========================================================
-    function selectPaymentMethod(method) {
-        paymentMethod = method;
-        localStorage.setItem('orange_billing_payment_method', method);
-        document.getElementById('paymentMethodInput').value = method;
-
-        // Toggle button active classes
-        document.querySelectorAll('.pay-btn').forEach(btn => btn.classList.remove('active'));
-        if (method === 'Cash') document.getElementById('payCash').classList.add('active');
-        if (method === 'UPI') document.getElementById('payUPI').classList.add('active');
-        if (method === 'Card') document.getElementById('payCard').classList.add('active');
-
-        // Show/hide QR code area
-        const upiArea = document.getElementById('upiPaymentArea');
-        if (method === 'UPI') {
-            upiArea.style.display = 'block';
-            updateUPIQRCode();
-        } else {
-            upiArea.style.display = 'none';
-        }
+    function goToCheckout() {
+        window.location.href = 'billing-cart.php';
     }
 
-    function updateUPIQRCode() {
-        if (paymentMethod !== 'UPI') return;
-        
-        // Calculate total amount
-        let subtotal = 0.00;
-        cart.forEach(item => subtotal += item.price * item.quantity);
-        const discountVal = parseFloat(discountInput.value) || 0.00;
-        let totalVal = subtotal - discountVal;
-        if (totalVal < 0) totalVal = 0.00;
-
-        let upiId = upiPhoneInput.value.trim();
-        if (upiId === '') return;
-
-        // If it is a 10 digit phone number, append @upi
-        if (/^\d{10}$/.test(upiId)) {
-            upiId = upiId + '@upi';
-        }
-
-        const businessName = encodeURIComponent("Orange Events");
-        const amount = totalVal.toFixed(2);
-        
-        // Build standard UPI URL schema
-        const upiUrl = `upi://pay?pa=${upiId}&pn=${businessName}&am=${amount}&cu=INR`;
-        
-        // Generate QR code URL using standard web service
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUrl)}`;
-        
-        document.getElementById('upiQRCodeImage').src = qrCodeUrl;
-    }
-
-    // =========================================================
-    // ORDER SUBMISSION
-    // =========================================================
-    function submitCheckout() {
-        if (cart.length === 0) {
-            alert('Cannot checkout because your cart is empty.');
-            return;
-        }
-
-        // Prepare post parameters
-        const form = document.getElementById('checkoutForm');
-        document.getElementById('cartDataInput').value = JSON.stringify(cart);
-
-        // Submit form via fetch to process and get redirected
-        const formData = new FormData(form);
-
-        // Add additional field for UPI VPA/phone used in payment
-        if (paymentMethod === 'UPI') {
-            formData.append('upi_id_used', upiPhoneInput.value.trim());
-        }
-
-        fetch('billing.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Clear local storage on success
-                localStorage.removeItem('orange_billing_cart');
-                localStorage.removeItem('orange_billing_customer_name');
-                localStorage.removeItem('orange_billing_customer_phone');
-                localStorage.removeItem('orange_billing_discount');
-                
-                // Redirect to thermal invoice print page
-                window.location.href = 'billing-invoice.php?id=' + data.order_id;
-            } else {
-                alert('Checkout failed: ' + data.error);
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Checkout failed due to a network error.');
-        });
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 </script>
 
