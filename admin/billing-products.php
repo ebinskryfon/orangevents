@@ -110,47 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-
-    // ── SAVE VARIANT ──────────────────────────────────────
-    if ($action === 'save_variant') {
-        $variant_id = (int)($_POST['variant_id'] ?? 0);
-        $product_id = (int)($_POST['product_id'] ?? 0);
-        $size       = trim($_POST['size'] ?? '');
-        $inherit    = isset($_POST['inherit_price']) ? 1 : 0;
-        $price      = $inherit ? null : (float)($_POST['price'] ?? 0);
-
-        if ($product_id <= 0 || empty($size)) {
-            $error = 'Size / Label is required.';
-        } else {
-            if ($variant_id > 0) {
-                $stmt = $db->prepare(
-                    "UPDATE billing_product_variants SET size = :size, price = :price WHERE id = :id"
-                );
-                $stmt->execute(['size' => $size, 'price' => $price, 'id' => $variant_id]);
-                $message = 'Variant updated!';
-            } else {
-                $stmt = $db->prepare(
-                    "INSERT INTO billing_product_variants (product_id, size, price) VALUES (:prod, :size, :price)"
-                );
-                $stmt->execute(['prod' => $product_id, 'size' => $size, 'price' => $price]);
-                $message = 'Variant added successfully!';
-            }
-        }
-    }
-
-    // ── DELETE VARIANT ────────────────────────────────────
-    if ($action === 'delete_variant') {
-        $variant_id = (int)($_POST['variant_id'] ?? 0);
-        if ($variant_id > 0) {
-            try {
-                $db->prepare("DELETE FROM billing_product_variants WHERE id = :id")->execute(['id' => $variant_id]);
-                $message = 'Variant deleted.';
-            } catch (PDOException $e) {
-                $error = 'Cannot delete variant. It may be referenced in past orders.';
-            }
-        }
-    }
-
     // ── TOGGLE ACTIVE PRODUCT ─────────────────────────────
     if ($action === 'toggle_active') {
         $prod_id = (int)($_POST['product_id'] ?? 0);
@@ -245,12 +204,12 @@ foreach ($all_variants as $v) {
                         <thead>
                             <tr>
                                 <th style="width:8%; text-align:center;">Image</th>
-                                <th style="width:25%;">Product / Variant Name</th>
-                                <th style="width:22%;">Description</th>
-                                <th style="width:12%; text-align:center;">Price</th>
-                                <th style="width:15%; text-align:center;">Type / Size</th>
+                                <th style="width:25%;">Product Name</th>
+                                <th style="width:30%;">Description</th>
+                                <th style="width:12%; text-align:center;">Base Price</th>
+                                <th style="width:10%; text-align:center;">Variants</th>
                                 <th style="width:10%; text-align:center;">Status</th>
-                                <th style="width:8%; text-align:right;">Actions</th>
+                                <th style="width:15%; text-align:right;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -262,9 +221,10 @@ foreach ($all_variants as $v) {
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($cat_prods as $prod): ?>
-                                    <?php $prod_variants = $variants_by_prod[$prod['id']] ?? []; ?>
+                                    <?php $prod_variants = $variants_by_prod[$prod['id']] ?? []; 
+                                          $variant_count = count($prod_variants);
+                                    ?>
                                     
-                                    <!-- Base Product Row -->
                                     <tr class="product-row" 
                                         data-search-text="<?= htmlspecialchars(strtolower($prod['product_name'] . ' ' . ($prod['description'] ?? '')), ENT_QUOTES) ?>" 
                                         style="<?= !$prod['is_active'] ? 'opacity:0.6;' : '' ?>">
@@ -295,19 +255,19 @@ foreach ($all_variants as $v) {
                                             <?= format_price($prod['base_price']) ?>
                                         </td>
 
-                                        <!-- Type / Size / Add Variant button -->
+                                        <!-- Variants Count -->
                                         <td style="text-align:center; vertical-align:middle;">
-                                            <div style="display:flex; flex-direction:column; align-items:center; gap:0.25rem;">
-                                                <span class="badge" style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.7rem; padding:0.15rem 0.4rem;">Base Product</span>
-                                                <button
-                                                    class="btn btn-secondary"
-                                                    style="padding:0.15rem 0.4rem; font-size:0.65rem;"
-                                                    onclick="openAddVariantModal(<?= $prod['id'] ?>, <?= htmlspecialchars(json_encode($prod['product_name']), ENT_QUOTES) ?>)"
-                                                    title="Add a new variant/size override for this product"
-                                                >
-                                                    <i class="fa-solid fa-plus-circle"></i> Add Size
-                                                </button>
-                                            </div>
+                                            <a href="billing-product-variants.php?product_id=<?= $prod['id'] ?>" style="text-decoration:none;">
+                                                <?php if ($variant_count > 0): ?>
+                                                    <span class="badge" style="background:rgba(54,162,235,0.08); color:var(--info); font-size:0.75rem; padding:0.2rem 0.5rem; font-weight:600;">
+                                                        <i class="fa-solid fa-layer-group"></i> <?= $variant_count ?> Sizes
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-muted); font-size:0.75rem; padding:0.2rem 0.5rem;">
+                                                        Base Only
+                                                    </span>
+                                                <?php endif; ?>
+                                            </a>
                                         </td>
 
                                         <!-- Status -->
@@ -327,7 +287,14 @@ foreach ($all_variants as $v) {
 
                                         <!-- Actions -->
                                         <td style="text-align:right; vertical-align:middle;">
-                                            <div style="display:inline-flex; gap:0.35rem;">
+                                            <div style="display:inline-flex; gap:0.35rem; align-items:center;">
+                                                <a href="billing-product-variants.php?product_id=<?= $prod['id'] ?>" 
+                                                   class="btn btn-secondary" 
+                                                   style="padding:0.3rem 0.55rem; font-size:0.75rem; color:var(--info);" 
+                                                   title="Manage Sizes/Variants"
+                                                >
+                                                    <i class="fa-solid fa-layer-group"></i> Sizes
+                                                </a>
                                                 <button
                                                     class="btn btn-secondary"
                                                     style="padding:0.3rem 0.55rem; font-size:0.75rem;"
@@ -346,82 +313,6 @@ foreach ($all_variants as $v) {
                                             </div>
                                         </td>
                                     </tr>
-
-                                    <!-- Variant Rows -->
-                                    <?php foreach ($prod_variants as $v): 
-                                        $v_price = $v['price'] !== null ? $v['price'] : $prod['base_price'];
-                                    ?>
-                                        <tr class="product-row variant-row" 
-                                            data-search-text="<?= htmlspecialchars(strtolower($prod['product_name'] . ' ' . $v['size']), ENT_QUOTES) ?>" 
-                                            style="background:rgba(255,255,255,0.015); <?= !$prod['is_active'] ? 'opacity:0.6;' : '' ?>">
-                                            
-                                            <!-- Faded Parent Image -->
-                                            <td style="text-align:center; vertical-align:middle; opacity:0.5;">
-                                                <?php if (!empty($prod['image_path'])): ?>
-                                                    <img src="../<?= h($prod['image_path']) ?>" alt="Product Image" style="width:32px; height:32px; object-fit:cover; border-radius:var(--border-radius-sm); border:1px solid var(--border-color);">
-                                                <?php else: ?>
-                                                    <div style="width:32px; height:32px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color);">
-                                                        <i class="fa-solid fa-image" style="font-size:0.8rem;"></i>
-                                                    </div>
-                                                <?php endif; ?>
-                                            </td>
-
-                                            <!-- Indented Variant Name -->
-                                            <td style="vertical-align:middle; padding-left:1.5rem; color:var(--text-secondary);">
-                                                <i class="fa-solid fa-arrow-turn-up" style="transform: rotate(90deg); margin-right:0.5rem; color:var(--text-muted);"></i>
-                                                <span style="font-weight:500;"><?= h($v['size']) ?></span>
-                                            </td>
-
-                                            <!-- Reference Desc -->
-                                            <td style="color:var(--text-muted); font-size:0.8rem; vertical-align:middle; font-style:italic;">
-                                                Size override for <?= h($prod['product_name']) ?>
-                                            </td>
-
-                                            <!-- Variant Price -->
-                                            <td style="text-align:center; font-weight:700; color:var(--accent-color); vertical-align:middle;">
-                                                <?= format_price($v_price) ?>
-                                                <?php if ($v['price'] === null): ?>
-                                                    <span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal; display:block;">(Inherited)</span>
-                                                <?php endif; ?>
-                                            </td>
-
-                                            <!-- Size Tag Badge -->
-                                            <td style="text-align:center; vertical-align:middle;">
-                                                <span class="badge" style="background:rgba(54,162,235,0.08); color:var(--info); font-size:0.7rem; padding:0.15rem 0.4rem;">Size Option</span>
-                                            </td>
-
-                                            <!-- Parent Status Inheritance -->
-                                            <td style="text-align:center; vertical-align:middle;">
-                                                <?php if (!$prod['is_active']): ?>
-                                                    <span class="badge badge-cancelled" title="Parent product is inactive">Inactive</span>
-                                                <?php else: ?>
-                                                    <span class="badge badge-confirmed">Active</span>
-                                                <?php endif; ?>
-                                            </td>
-
-                                            <!-- Variant Actions -->
-                                            <td style="text-align:right; vertical-align:middle;">
-                                                <div style="display:inline-flex; gap:0.35rem;">
-                                                    <button
-                                                        class="btn btn-secondary"
-                                                        style="padding:0.25rem 0.5rem; font-size:0.7rem;"
-                                                        onclick='openEditVariantModal(<?= htmlspecialchars(json_encode($v), ENT_QUOTES) ?>)'
-                                                        title="Edit Size / Price"
-                                                    >
-                                                        <i class="fa-solid fa-pencil"></i>
-                                                    </button>
-                                                    <form method="POST" style="margin:0;" onsubmit="return confirm('Delete this variant?');">
-                                                        <input type="hidden" name="action" value="delete_variant">
-                                                        <input type="hidden" name="variant_id" value="<?= $v['id'] ?>">
-                                                        <button type="submit" class="btn btn-danger" style="padding:0.25rem 0.5rem; font-size:0.7rem;" title="Delete Variant">
-                                                            <i class="fa-solid fa-trash-can"></i>
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </tbody>
@@ -493,46 +384,6 @@ foreach ($all_variants as $v) {
     </div>
 </div>
 
-<!-- ============================================================
-     MODAL: Add / Edit Variant
-     ============================================================ -->
-<div id="variantModal" class="modal">
-    <div class="modal-content">
-        <button class="modal-close" onclick="closeModal('variantModal')">&times;</button>
-        <h3 id="variantModalTitle" style="margin-bottom:1.5rem;">
-            <i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant
-        </h3>
-        <p id="variantProductLabel" style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1rem;"></p>
-        <form method="POST">
-            <input type="hidden" name="action" value="save_variant">
-            <input type="hidden" name="product_id" id="variantProductId">
-            <input type="hidden" name="variant_id" id="variantId" value="0">
-
-            <div class="form-group">
-                <label class="form-label">Size / Label</label>
-                <input type="text" name="size" id="variantSize" class="form-control" placeholder="e.g. Standard (50 pcs)" required>
-            </div>
-
-            <div class="form-group" style="margin-top:1rem;">
-                <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
-                    <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer;">Inherit Product Base Price</label>
-                </div>
-            </div>
-
-            <div class="form-group" id="variantPriceGroup" style="display:none; margin-top:1rem;">
-                <label class="form-label">Custom Variant Price (Rs)</label>
-                <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control" placeholder="180">
-            </div>
-
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
-                <button type="button" onclick="closeModal('variantModal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Variant</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <script>
 // Product Modal Helpers
 function openAddProductModal() {
@@ -589,56 +440,6 @@ document.getElementById('productImage').addEventListener('change', function() {
     }
 });
 
-// Variant Modal Helpers
-const inheritCheckbox = document.getElementById('variantInherit');
-const priceGroup = document.getElementById('variantPriceGroup');
-const priceInput = document.getElementById('variantPrice');
-
-inheritCheckbox.addEventListener('change', function() {
-    if (this.checked) {
-        priceGroup.style.display = 'none';
-        priceInput.removeAttribute('required');
-    } else {
-        priceGroup.style.display = 'block';
-        priceInput.setAttribute('required', 'required');
-    }
-});
-
-function openAddVariantModal(productId, productName) {
-    document.getElementById('variantModalTitle').innerHTML =
-        '<i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant';
-    document.getElementById('variantProductLabel').innerText = 'Product: ' + productName;
-    document.getElementById('variantProductId').value = productId;
-    document.getElementById('variantId').value = '0';
-    document.getElementById('variantSize').value = '';
-    inheritCheckbox.checked = true;
-    priceGroup.style.display = 'none';
-    priceInput.removeAttribute('required');
-    priceInput.value = '';
-    openModal('variantModal');
-}
-
-function openEditVariantModal(v) {
-    document.getElementById('variantModalTitle').innerHTML =
-        '<i class="fa-solid fa-pen-to-square" style="color:var(--accent-color);"></i> Edit Size/Variant';
-    document.getElementById('variantProductLabel').innerText = '';
-    document.getElementById('variantProductId').value = v.product_id;
-    document.getElementById('variantId').value = v.id;
-    document.getElementById('variantSize').value = v.size;
-    if (v.price === null || v.price === undefined) {
-        inheritCheckbox.checked = true;
-        priceGroup.style.display = 'none';
-        priceInput.removeAttribute('required');
-        priceInput.value = '';
-    } else {
-        inheritCheckbox.checked = false;
-        priceGroup.style.display = 'block';
-        priceInput.setAttribute('required', 'required');
-        priceInput.value = v.price;
-    }
-    openModal('variantModal');
-}
-
 // Search Filtering Functionality
 const searchInput = document.getElementById('catalogSearch');
 if (searchInput) {
@@ -656,5 +457,6 @@ if (searchInput) {
     });
 }
 </script>
+
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
