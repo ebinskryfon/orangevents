@@ -142,6 +142,12 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
             color: #38b6ff;
             box-shadow: 0 0 20px rgba(56, 182, 255, 0.2);
         }
+
+        .module-card.billing .module-icon {
+            background: rgba(46, 213, 115, 0.15);
+            color: #2ed573;
+            box-shadow: 0 0 20px rgba(46, 213, 115, 0.2);
+        }
         
         .module-card:hover .module-icon {
             transform: scale(1.1);
@@ -155,6 +161,11 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
         .module-card.rental:hover .module-icon {
             background: rgba(56, 182, 255, 0.25);
             box-shadow: 0 0 30px rgba(56, 182, 255, 0.4);
+        }
+
+        .module-card.billing:hover .module-icon {
+            background: rgba(46, 213, 115, 0.25);
+            box-shadow: 0 0 30px rgba(46, 213, 115, 0.4);
         }
         
         .module-title {
@@ -189,6 +200,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
         
         .module-card.event .module-action { color: #f07c1b; }
         .module-card.rental .module-action { color: #38b6ff; }
+        .module-card.billing .module-action { color: #2ed573; }
         
         .module-card:hover .module-action {
             opacity: 1;
@@ -258,6 +270,19 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
                 </div>
                 <h2 class="module-title">Rental Management</h2>
                 <p class="module-desc">Track equipment rental orders, monitor stock availability, manage advance payments, and handle item returns.</p>
+                <div class="module-action">
+                    <span>Enter Module</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </div>
+            </a>
+
+            <!-- POS Billing Card -->
+            <a href="admin/billing.php?module=billing" class="module-card billing">
+                <div class="module-icon">
+                    <i class="fa-solid fa-calculator"></i>
+                </div>
+                <h2 class="module-title">POS Billing</h2>
+                <p class="module-desc">Quick checkout terminal for birthday and event items with size-based variants, discount controls, and UPI payment QR codes.</p>
                 <div class="module-action">
                     <span>Enter Module</span>
                     <i class="fa-solid fa-arrow-right"></i>

@@ -9,6 +9,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // Determine active module
 $event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
 $rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
+$billing_pages = ['billing.php', 'billing-items.php', 'billing-invoice.php'];
 
 if (isset($_GET['module'])) {
     $_SESSION['current_module'] = $_GET['module'];
@@ -16,6 +17,8 @@ if (isset($_GET['module'])) {
     $_SESSION['current_module'] = 'event';
 } elseif (in_array($current_page, $rental_pages)) {
     $_SESSION['current_module'] = 'rental';
+} elseif (in_array($current_page, $billing_pages)) {
+    $_SESSION['current_module'] = 'billing';
 }
 
 $current_module = $_SESSION['current_module'] ?? 'event';
@@ -46,7 +49,9 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                 <a href="../select-module.php" style="text-decoration: none;">
                     <div class="brand-logo" style="display: flex; align-items: center; gap: 0.5rem;">
                         <img src="../assets/images/logo.png" alt="Orange Events Logo" style="height: 36px; width: auto;">
-                        <span style="color: var(--text-primary); font-weight: 800; font-size: 1.5rem; letter-spacing: 0.05em;">Events</span>
+                        <span style="color: var(--text-primary); font-weight: 800; font-size: 1.35rem; letter-spacing: 0.05em;">
+                            <?= $current_module === 'event' ? 'Events' : ($current_module === 'rental' ? 'Rentals' : 'POS Billing') ?>
+                        </span>
                     </div>
                 </a>
             </div>
@@ -100,6 +105,22 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                             </a>
                         </li>
                     <?php endif; ?>
+                    
+                    <?php if ($current_module === 'billing'): ?>
+                        <li class="nav-item <?= $current_page == 'billing.php' ? 'active' : '' ?>">
+                            <a href="billing.php">
+                                <i class="fa-solid fa-calculator"></i>
+                                <span>POS Terminal</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'billing-items.php' ? 'active' : '' ?>">
+                            <a href="billing-items.php">
+                                <i class="fa-solid fa-tags"></i>
+                                <span>Product Catalog</span>
+                            </a>
+                        </li>
+                    <?php endif; ?>
+                    
                     <li class="nav-item <?= $current_page == 'settings.php' ? 'active' : '' ?>">
                         <a href="settings.php">
                             <i class="fa-solid fa-gears"></i>
