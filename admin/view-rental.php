@@ -93,7 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Auto-mark overdue ─────────────────────────────────────────────────────────
 $db->prepare("UPDATE rental_orders SET status='overdue'
-              WHERE id=:id AND status='active' AND rental_end_date < CURDATE()")
+              WHERE id=:id AND status='active' AND rental_end_date < CURDATE() AND balance_due > 0")
+   ->execute(['id'=>$id]);
+
+$db->prepare("UPDATE rental_orders SET status='active'
+              WHERE id=:id AND status='overdue' AND balance_due <= 0")
    ->execute(['id'=>$id]);
 
 // ── Fetch order + items + payments ────────────────────────────────────────────
