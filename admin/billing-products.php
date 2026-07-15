@@ -12,55 +12,6 @@ $error   = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    // ── ADD CATEGORY ──────────────────────────────────────
-    if ($action === 'add_category') {
-        $name = trim($_POST['category_name'] ?? '');
-        if (empty($name)) {
-            $error = 'Category name is required.';
-        } else {
-            try {
-                $stmt = $db->prepare(
-                    "INSERT INTO billing_categories (category_name, display_order)
-                     VALUES (:name, (SELECT IFNULL(MAX(display_order), 0) + 1 FROM billing_categories c))"
-                );
-                $stmt->execute(['name' => $name]);
-                $message = 'Category created successfully!';
-            } catch (PDOException $e) {
-                $error = 'Category already exists.';
-            }
-        }
-    }
-
-    // ── UPDATE CATEGORY ───────────────────────────────────
-    if ($action === 'update_category') {
-        $cat_id = (int)($_POST['category_id'] ?? 0);
-        $name   = trim($_POST['category_name'] ?? '');
-        if ($cat_id <= 0 || empty($name)) {
-            $error = 'Category name is required.';
-        } else {
-            try {
-                $stmt = $db->prepare("UPDATE billing_categories SET category_name = :name WHERE id = :id");
-                $stmt->execute(['name' => $name, 'id' => $cat_id]);
-                $message = 'Category updated!';
-            } catch (PDOException $e) {
-                $error = 'Category name already exists.';
-            }
-        }
-    }
-
-    // ── DELETE CATEGORY ───────────────────────────────────
-    if ($action === 'delete_category') {
-        $cat_id = (int)($_POST['category_id'] ?? 0);
-        if ($cat_id > 0) {
-            try {
-                $db->prepare("DELETE FROM billing_categories WHERE id = :id")->execute(['id' => $cat_id]);
-                $message = 'Category deleted.';
-            } catch (PDOException $e) {
-                $error = 'Cannot delete category as it contains products that are referenced in previous orders.';
-            }
-        }
-    }
-
     // ── SAVE PRODUCT ──────────────────────────────────────
     if ($action === 'save_product') {
         $prod_id    = (int)($_POST['product_id'] ?? 0);
@@ -73,28 +24,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($prod_name) || $cat_id <= 0) {
             $error = 'Product name and category are required.';
         } else {
+            // Image Upload Handling
+            $image_path = null;
             if ($prod_id > 0) {
-                $stmt = $db->prepare(
-                    "UPDATE billing_products
-                        SET category_id = :cat, product_name = :name, description = :desc,
-                            base_price = :price, is_active = :active
-                      WHERE id = :id"
-                );
-                $stmt->execute([
-                    'cat' => $cat_id, 'name' => $prod_name, 'desc' => $desc,
-                    'price' => $base_price, 'active' => $is_active, 'id' => $prod_id
-                ]);
-                $message = 'Product updated successfully!';
-            } else {
-                $stmt = $db->prepare(
-                    "INSERT INTO billing_products (category_id, product_name, description, base_price, is_active)
-                     VALUES (:cat, :name, :desc, :price, :active)"
-                );
-                $stmt->execute([
-                    'cat' => $cat_id, 'name' => $prod_name, 'desc' => $desc,
-                    'price' => $base_price, 'active' => $is_active
-                ]);
-                $message = 'Product added successfully!';
+                // Get existing image path in case no new image is uploaded
+                $stmt_img = $db->prepare("SELECT image_path FROM billing_products WHERE id = :id");
+                $stmt_img->execute(['id' => $prod_id]);
+                $image_path = $stmt_img->fetchColumn();
+            }
+
+            if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] === UPLOAD_ERR_OK) {
+                $tmp_name = $_FILES['product_image']['tmp_name'];
+                $orig_name = $_FILES['product_image']['name'];
+                $ext = strtolower(pathinfo($orig_name, PATHINFO_EXTENSION));
+                $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+                if (in_array($ext, $allowed)) {
+                    $upload_dir = __DIR__ . '/../uploads/billing/';
+                    if (!file_exists($upload_dir)) {
+                        mkdir($upload_dir, 0755, true);
+                    }
+
+                    $new_name = 'prod_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+                    $dest = $upload_dir . $new_name;
+
+                    if (move_uploaded_file($tmp_name, $dest)) {
+                        // Delete old image if exists
+                        if ($image_path && file_exists(__DIR__ . '/../' . $image_path)) {
+                            @unlink(__DIR__ . '/../' . $image_path);
+                        }
+                        $image_path = 'uploads/billing/' . $new_name;
+                    } else {
+                        $error = 'Failed to move uploaded file.';
+                    }
+                } else {
+                    $error = 'Invalid image type. Allowed: JPG, JPEG, PNG, WEBP, GIF.';
+                }
+            }
+
+            if (empty($error)) {
+                if ($prod_id > 0) {
+                    $stmt = $db->prepare(
+                        "UPDATE billing_products
+                            SET category_id = :cat, product_name = :name, description = :desc,
+                                base_price = :price, is_active = :active, image_path = :img
+                          WHERE id = :id"
+                    );
+                    $stmt->execute([
+                        'cat' => $cat_id, 'name' => $prod_name, 'desc' => $desc,
+                        'price' => $base_price, 'active' => $is_active, 'img' => $image_path, 'id' => $prod_id
+                    ]);
+                    $message = 'Product updated successfully!';
+                } else {
+                    $stmt = $db->prepare(
+                        "INSERT INTO billing_products (category_id, product_name, description, base_price, is_active, image_path)
+                         VALUES (:cat, :name, :desc, :price, :active, :img)"
+                    );
+                    $stmt->execute([
+                        'cat' => $cat_id, 'name' => $prod_name, 'desc' => $desc,
+                        'price' => $base_price, 'active' => $is_active, 'img' => $image_path
+                    ]);
+                    $message = 'Product added successfully!';
+                }
             }
         }
     }
@@ -104,6 +95,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $prod_id = (int)($_POST['product_id'] ?? 0);
         if ($prod_id > 0) {
             try {
+                // Delete image file first
+                $stmt_img = $db->prepare("SELECT image_path FROM billing_products WHERE id = :id");
+                $stmt_img->execute(['id' => $prod_id]);
+                $img = $stmt_img->fetchColumn();
+                if ($img && file_exists(__DIR__ . '/../' . $img)) {
+                    @unlink(__DIR__ . '/../' . $img);
+                }
+
                 $db->prepare("DELETE FROM billing_products WHERE id = :id")->execute(['id' => $prod_id]);
                 $message = 'Product deleted.';
             } catch (PDOException $e) {
@@ -186,23 +185,15 @@ $variants_by_prod = [];
 foreach ($all_variants as $v) {
     $variants_by_prod[$v['product_id']][] = $v;
 }
-
-// Summary stats
-$total_products = count($all_products);
-$active_products = count(array_filter($all_products, fn($p) => $p['is_active']));
-$total_cats = count($categories);
 ?>
 
 <!-- Page Header -->
 <div class="content-header">
     <div class="header-title">
-        <h1>Billing Catalogue</h1>
-        <p>Manage products, categories, and size-based price variants for quick POS billing.</p>
+        <h1>Billing Products</h1>
+        <p>Manage catalog products, sizes, prices, and upload product images.</p>
     </div>
-    <div style="display:flex; gap:0.5rem;">
-        <button onclick="openModal('addCategoryModal')" class="btn btn-secondary">
-            <i class="fa-solid fa-folder-plus"></i> New Category
-        </button>
+    <div>
         <button onclick="openAddProductModal()" class="btn btn-primary">
             <i class="fa-solid fa-plus"></i> Add Product
         </button>
@@ -221,74 +212,24 @@ $total_cats = count($categories);
 </div>
 <?php endif; ?>
 
-<!-- Summary Stat Cards -->
-<div class="stats-grid" style="margin-bottom:2rem;">
-    <div class="card stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-tags"></i></div>
-        <div class="stat-info">
-            <h3><?= $total_products ?></h3>
-            <p>Total Products</p>
-        </div>
-    </div>
-    <div class="card stat-card green">
-        <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
-        <div class="stat-info">
-            <h3><?= $active_products ?></h3>
-            <p>Active Products</p>
-        </div>
-    </div>
-    <div class="card stat-card blue">
-        <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
-        <div class="stat-info">
-            <h3><?= $total_cats ?></h3>
-            <p>Categories</p>
-        </div>
-    </div>
-    <div class="card stat-card purple">
-        <div class="stat-icon"><i class="fa-solid fa-boxes-stacked"></i></div>
-        <div class="stat-info">
-            <h3><?= count($all_variants) ?></h3>
-            <p>Total Variants</p>
-        </div>
-    </div>
-</div>
-
-<!-- Categories & Products List -->
-<div style="display:flex;flex-direction:column;gap:2rem;">
+<!-- Products Grid by Category -->
+<div style="display:flex; flex-direction:column; gap:2rem;">
     <?php if (empty($categories)): ?>
-        <div class="card" style="text-align:center;padding:3rem;color:var(--text-muted);">
-            <i class="fa-solid fa-box-open" style="font-size:3rem;margin-bottom:1rem;opacity:0.4;"></i>
-            <p>No categories yet. Click <strong>New Category</strong> to get started.</p>
+        <div class="card" style="text-align:center; padding:3rem; color:var(--text-muted);">
+            <i class="fa-solid fa-box-open" style="font-size:3rem; margin-bottom:1rem; opacity:0.4;"></i>
+            <p>No categories found. Please create categories first on the <a href="billing-categories.php" style="color:var(--accent-color); font-weight:600;">Categories Page</a>.</p>
         </div>
     <?php else: ?>
         <?php foreach ($categories as $cat): ?>
             <?php $cat_prods = $products_by_cat[$cat['id']] ?? []; ?>
             <div class="card">
-                <!-- Category Header -->
-                <h2 class="card-title" style="border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
-                    <span style="display:flex;align-items:center;gap:0.75rem;">
-                        <span style="width:36px;height:36px;border-radius:var(--border-radius-sm);background:rgba(255,107,53,0.12);display:flex;align-items:center;justify-content:center;">
-                            <i class="fa-solid fa-folder-open" style="color:var(--accent-color);font-size:1rem;"></i>
-                        </span>
+                <!-- Category Title -->
+                <h2 class="card-title" style="border-bottom:1px solid var(--border-color); padding-bottom:0.75rem;">
+                    <span style="display:flex; align-items:center; gap:0.5rem;">
+                        <i class="fa-solid fa-folder-open" style="color:var(--accent-color);"></i>
                         <?= h($cat['category_name']) ?>
-                        <span style="font-size:0.78rem;font-weight:400;color:var(--text-muted);"><?= count($cat_prods) ?> product<?= count($cat_prods) !== 1 ? 's' : '' ?></span>
+                        <span style="font-size:0.8rem; font-weight:400; color:var(--text-muted);">(<?= count($cat_prods) ?> Products)</span>
                     </span>
-                    <div style="display:flex;gap:0.4rem;">
-                        <button
-                            class="btn btn-secondary"
-                            style="padding:0.3rem 0.65rem;font-size:0.78rem;"
-                            onclick="openEditCategory(<?= $cat['id'] ?>, <?= htmlspecialchars(json_encode($cat['category_name']), ENT_QUOTES) ?>)"
-                        >
-                            <i class="fa-solid fa-pen-to-square"></i> Edit
-                        </button>
-                        <form method="POST" style="margin:0;" onsubmit="return confirm('Delete this category and ALL its products?');">
-                            <input type="hidden" name="action" value="delete_category">
-                            <input type="hidden" name="category_id" value="<?= $cat['id'] ?>">
-                            <button type="submit" class="btn btn-danger" style="padding:0.3rem 0.65rem;font-size:0.78rem;">
-                                <i class="fa-solid fa-trash-can"></i> Delete
-                            </button>
-                        </form>
-                    </div>
                 </h2>
 
                 <!-- Products Table -->
@@ -296,58 +237,69 @@ $total_cats = count($categories);
                     <table class="table">
                         <thead>
                             <tr>
-                                <th style="width:25%;">Product</th>
-                                <th style="width:25%;">Description</th>
-                                <th style="width:12%;text-align:center;">Base Price</th>
+                                <th style="width:8%; text-align:center;">Image</th>
+                                <th style="width:22%;">Product Name</th>
+                                <th style="width:20%;">Description</th>
+                                <th style="width:12%; text-align:center;">Base Price</th>
                                 <th style="width:20%;">Variants & Pricing</th>
-                                <th style="width:10%;text-align:center;">Status</th>
-                                <th style="width:8%;text-align:right;">Actions</th>
+                                <th style="width:10%; text-align:center;">Status</th>
+                                <th style="width:8%; text-align:right;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($cat_prods)): ?>
                                 <tr>
-                                    <td colspan="6" style="text-align:center;color:var(--text-muted);padding:1.75rem 0;">
-                                        No products in this category yet.
+                                    <td colspan="7" style="text-align:center; color:var(--text-muted); padding:1.5rem 0;">
+                                        No products in this category.
                                     </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($cat_prods as $prod): ?>
                                     <?php $prod_variants = $variants_by_prod[$prod['id']] ?? []; ?>
-                                    <tr style="<?= !$prod['is_active'] ? 'opacity:0.5;' : '' ?>">
-                                        <td style="font-weight:600;color:var(--text-primary);">
+                                    <tr style="<?= !$prod['is_active'] ? 'opacity:0.6;' : '' ?>">
+                                        <!-- Image Cell -->
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <?php if (!empty($prod['image_path'])): ?>
+                                                <img src="../<?= h($prod['image_path']) ?>" alt="Product Image" style="width:48px; height:48px; object-fit:cover; border-radius:var(--border-radius-sm); border:1px solid var(--border-color);">
+                                            <?php else: ?>
+                                                <div style="width:48px; height:48px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color);">
+                                                    <i class="fa-solid fa-image" style="font-size:1.2rem;"></i>
+                                                </div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="font-weight:600; color:var(--text-primary); vertical-align:middle;">
                                             <?= h($prod['product_name']) ?>
                                         </td>
-                                        <td style="color:var(--text-secondary);font-size:0.84rem;">
+                                        <td style="color:var(--text-secondary); font-size:0.85rem; vertical-align:middle;">
                                             <?= h($prod['description'] ?: '—') ?>
                                         </td>
-                                        <td style="text-align:center;font-weight:700;color:var(--accent-color);">
+                                        <td style="text-align:center; font-weight:700; color:var(--accent-color); vertical-align:middle;">
                                             <?= format_price($prod['base_price']) ?>
                                         </td>
-                                        <td>
-                                            <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                                        <td style="vertical-align:middle;">
+                                            <div style="display:flex; flex-direction:column; gap:0.3rem;">
                                                 <?php foreach ($prod_variants as $v): ?>
-                                                    <div style="font-size:0.82rem;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);padding:0.2rem 0.5rem;border-radius:4px;border:1px solid var(--border-color);">
+                                                    <div style="font-size:0.8rem; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.02); padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border-color);">
                                                         <span><?= h($v['size']) ?></span>
-                                                        <span style="font-weight:600;">
+                                                        <span style="font-weight:600; margin-left: auto; margin-right: 0.5rem;">
                                                             <?php if ($v['price'] === null): ?>
-                                                                <span style="color:var(--text-muted);font-style:italic;" title="Inherits Base Price"><?= format_price($prod['base_price']) ?> (inherited)</span>
+                                                                <span style="color:var(--text-muted); font-style:italic;" title="Inherits Base Price"><?= format_price($prod['base_price']) ?></span>
                                                             <?php else: ?>
                                                                 <?= format_price($v['price']) ?>
                                                             <?php endif; ?>
                                                         </span>
-                                                        <div style="display:flex;gap:0.25rem;">
+                                                        <div style="display:flex; gap:0.25rem;">
                                                             <button
                                                                 onclick='openEditVariantModal(<?= htmlspecialchars(json_encode($v), ENT_QUOTES) ?>)'
-                                                                style="background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:0 2px;"
+                                                                style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:0 2px;"
                                                                 title="Edit Variant"
                                                             >
                                                                 <i class="fa-solid fa-pencil" style="font-size:0.75rem;"></i>
                                                             </button>
-                                                            <form method="POST" style="margin:0;display:inline;" onsubmit="return confirm('Delete this variant?');">
+                                                            <form method="POST" style="margin:0; display:inline;" onsubmit="return confirm('Delete this variant?');">
                                                                 <input type="hidden" name="action" value="delete_variant">
                                                                 <input type="hidden" name="variant_id" value="<?= $v['id'] ?>">
-                                                                <button type="submit" style="background:none;border:none;color:var(--danger);cursor:pointer;padding:0 2px;" title="Delete Variant">
+                                                                <button type="submit" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0 2px;" title="Delete Variant">
                                                                     <i class="fa-solid fa-trash" style="font-size:0.75rem;"></i>
                                                                 </button>
                                                             </form>
@@ -356,18 +308,18 @@ $total_cats = count($categories);
                                                 <?php endforeach; ?>
                                                 <button
                                                     class="btn btn-secondary"
-                                                    style="padding:0.2rem 0.5rem;font-size:0.75rem;align-self:flex-start;margin-top:0.25rem;"
+                                                    style="padding:0.2rem 0.5rem; font-size:0.75rem; align-self:flex-start; margin-top:0.25rem;"
                                                     onclick="openAddVariantModal(<?= $prod['id'] ?>, <?= htmlspecialchars(json_encode($prod['product_name']), ENT_QUOTES) ?>)"
                                                 >
-                                                    <i class="fa-solid fa-plus-circle"></i> Add Size/Variant
+                                                    <i class="fa-solid fa-plus-circle"></i> Add Variant/Size
                                                 </button>
                                             </div>
                                         </td>
-                                        <td style="text-align:center;">
-                                            <form method="POST" style="margin:0;display:inline;">
+                                        <td style="text-align:center; vertical-align:middle;">
+                                            <form method="POST" style="margin:0; display:inline;">
                                                 <input type="hidden" name="action" value="toggle_active">
                                                 <input type="hidden" name="product_id" value="<?= $prod['id'] ?>">
-                                                <button type="submit" title="Click to toggle status" style="border:none;background:none;cursor:pointer;padding:0;">
+                                                <button type="submit" title="Click to toggle status" style="border:none; background:none; cursor:pointer; padding:0;">
                                                     <?php if (!$prod['is_active']): ?>
                                                         <span class="badge badge-cancelled">Inactive</span>
                                                     <?php else: ?>
@@ -376,11 +328,11 @@ $total_cats = count($categories);
                                                 </button>
                                             </form>
                                         </td>
-                                        <td style="text-align:right;">
-                                            <div style="display:inline-flex;gap:0.35rem;">
+                                        <td style="text-align:right; vertical-align:middle;">
+                                            <div style="display:inline-flex; gap:0.35rem;">
                                                 <button
                                                     class="btn btn-secondary"
-                                                    style="padding:0.3rem 0.55rem;font-size:0.75rem;"
+                                                    style="padding:0.3rem 0.55rem; font-size:0.75rem;"
                                                     onclick='openEditProductModal(<?= htmlspecialchars(json_encode($prod), ENT_QUOTES) ?>)'
                                                 >
                                                     <i class="fa-solid fa-pen-to-square"></i>
@@ -388,7 +340,7 @@ $total_cats = count($categories);
                                                 <form method="POST" style="margin:0;" onsubmit="return confirm('Delete this product?');">
                                                     <input type="hidden" name="action" value="delete_product">
                                                     <input type="hidden" name="product_id" value="<?= $prod['id'] ?>">
-                                                    <button type="submit" class="btn btn-danger" style="padding:0.3rem 0.55rem;font-size:0.75rem;">
+                                                    <button type="submit" class="btn btn-danger" style="padding:0.3rem 0.55rem; font-size:0.75rem;">
                                                         <i class="fa-solid fa-trash-can"></i>
                                                     </button>
                                                 </form>
@@ -406,53 +358,6 @@ $total_cats = count($categories);
 </div>
 
 <!-- ============================================================
-     MODAL: Add Category
-     ============================================================ -->
-<div id="addCategoryModal" class="modal">
-    <div class="modal-content">
-        <button class="modal-close" onclick="closeModal('addCategoryModal')">&times;</button>
-        <h3 style="margin-bottom:1.5rem;">
-            <i class="fa-solid fa-folder-plus" style="color:var(--accent-color);"></i> New Category
-        </h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="add_category">
-            <div class="form-group">
-                <label class="form-label">Category Name</label>
-                <input type="text" name="category_name" class="form-control" placeholder="e.g. Birthday Items" required>
-            </div>
-            <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1.5rem;">
-                <button type="button" onclick="closeModal('addCategoryModal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Category</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- ============================================================
-     MODAL: Edit Category
-     ============================================================ -->
-<div id="editCategoryModal" class="modal">
-    <div class="modal-content">
-        <button class="modal-close" onclick="closeModal('editCategoryModal')">&times;</button>
-        <h3 style="margin-bottom:1.5rem;">
-            <i class="fa-solid fa-folder-pen" style="color:var(--accent-color);"></i> Edit Category
-        </h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="update_category">
-            <input type="hidden" name="category_id" id="editCatId">
-            <div class="form-group">
-                <label class="form-label">Category Name</label>
-                <input type="text" id="editCatName" name="category_name" class="form-control" required>
-            </div>
-            <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1.5rem;">
-                <button type="button" onclick="closeModal('editCategoryModal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- ============================================================
      MODAL: Add / Edit Product
      ============================================================ -->
 <div id="productModal" class="modal">
@@ -461,7 +366,7 @@ $total_cats = count($categories);
         <h3 id="productModalTitle" style="margin-bottom:1.5rem;">
             <i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Product
         </h3>
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="action" value="save_product">
             <input type="hidden" name="product_id" id="productId" value="0">
 
@@ -491,12 +396,21 @@ $total_cats = count($categories);
                 <textarea name="description" id="productDesc" class="form-control" rows="2" placeholder="Short description of the product..."></textarea>
             </div>
 
-            <div class="form-group" style="display:flex;align-items:center;gap:0.6rem;padding-top:0.5rem;">
-                <input type="checkbox" name="is_active" id="productActive" value="1" checked style="width:18px;height:18px;accent-color:var(--accent-color);cursor:pointer;">
-                <label for="productActive" class="form-label" style="margin:0;cursor:pointer;">Mark as Active</label>
+            <div class="form-group">
+                <label class="form-label">Product Image</label>
+                <input type="file" name="product_image" id="productImage" class="form-control" accept="image/*">
+                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">Supported: JPG, JPEG, PNG, WEBP, GIF (Max 2MB)</p>
+                <div id="imagePreviewContainer" style="display:none; margin-top:0.75rem; border:1px solid var(--border-color); border-radius:4px; padding:4px; display:inline-block;">
+                    <img id="productImagePreview" src="" alt="Preview" style="max-height:80px; display:block; border-radius:4px;">
+                </div>
             </div>
 
-            <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1.5rem;">
+            <div class="form-group" style="display:flex; align-items:center; gap:0.6rem; padding-top:0.5rem;">
+                <input type="checkbox" name="is_active" id="productActive" value="1" checked style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
+                <label for="productActive" class="form-label" style="margin:0; cursor:pointer;">Mark as Active</label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                 <button type="button" onclick="closeModal('productModal')" class="btn btn-secondary">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="productSaveBtn"><i class="fa-solid fa-floppy-disk"></i> Save Product</button>
             </div>
@@ -513,7 +427,7 @@ $total_cats = count($categories);
         <h3 id="variantModalTitle" style="margin-bottom:1.5rem;">
             <i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant
         </h3>
-        <p id="variantProductLabel" style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:1rem;"></p>
+        <p id="variantProductLabel" style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1rem;"></p>
         <form method="POST">
             <input type="hidden" name="action" value="save_variant">
             <input type="hidden" name="product_id" id="variantProductId">
@@ -521,22 +435,22 @@ $total_cats = count($categories);
 
             <div class="form-group">
                 <label class="form-label">Size / Label</label>
-                <input type="text" name="size" id="variantSize" class="form-control" placeholder="e.g. Standard (50 pcs) or Large" required>
+                <input type="text" name="size" id="variantSize" class="form-control" placeholder="e.g. Standard (50 pcs)" required>
             </div>
 
             <div class="form-group" style="margin-top:1rem;">
-                <div style="display:flex;align-items:center;gap:0.6rem;">
-                    <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked style="width:18px;height:18px;accent-color:var(--accent-color);cursor:pointer;">
-                    <label for="variantInherit" class="form-label" style="margin:0;cursor:pointer;">Inherit Product Base Price</label>
+                <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
+                    <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer;">Inherit Product Base Price</label>
                 </div>
             </div>
 
-            <div class="form-group" id="variantPriceGroup" style="display:none;margin-top:1rem;">
+            <div class="form-group" id="variantPriceGroup" style="display:none; margin-top:1rem;">
                 <label class="form-label">Custom Variant Price (Rs)</label>
                 <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control" placeholder="180">
             </div>
 
-            <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1.5rem;">
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                 <button type="button" onclick="closeModal('variantModal')" class="btn btn-secondary">Cancel</button>
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Variant</button>
             </div>
@@ -545,14 +459,7 @@ $total_cats = count($categories);
 </div>
 
 <script>
-// Category Modals
-function openEditCategory(id, name) {
-    document.getElementById('editCatId').value = id;
-    document.getElementById('editCatName').value = name;
-    openModal('editCategoryModal');
-}
-
-// Product Modals
+// Product Modal Helpers
 function openAddProductModal() {
     document.getElementById('productModalTitle').innerHTML =
         '<i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Product';
@@ -562,6 +469,9 @@ function openAddProductModal() {
     document.getElementById('productDesc').value = '';
     document.getElementById('productBasePrice').value = '';
     document.getElementById('productActive').checked = true;
+    document.getElementById('productImage').value = '';
+    document.getElementById('imagePreviewContainer').style.display = 'none';
+    document.getElementById('productImagePreview').src = '';
     openModal('productModal');
 }
 
@@ -574,10 +484,37 @@ function openEditProductModal(prod) {
     document.getElementById('productDesc').value = prod.description || '';
     document.getElementById('productBasePrice').value = prod.base_price;
     document.getElementById('productActive').checked = parseInt(prod.is_active) === 1;
+    document.getElementById('productImage').value = '';
+    
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    const previewImg = document.getElementById('productImagePreview');
+    if (prod.image_path) {
+        previewImg.src = '../' + prod.image_path;
+        previewContainer.style.display = 'inline-block';
+    } else {
+        previewContainer.style.display = 'none';
+        previewImg.src = '';
+    }
     openModal('productModal');
 }
 
-// Variant Modals
+// Live Image Preview Selector
+document.getElementById('productImage').addEventListener('change', function() {
+    const file = this.files[0];
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    const previewImg = document.getElementById('productImagePreview');
+    
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            previewContainer.style.display = 'inline-block';
+        }
+        reader.readAsDataURL(file);
+    }
+});
+
+// Variant Modal Helpers
 const inheritCheckbox = document.getElementById('variantInherit');
 const priceGroup = document.getElementById('variantPriceGroup');
 const priceInput = document.getElementById('variantPrice');

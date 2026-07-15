@@ -410,20 +410,32 @@ foreach ($variants as $v) {
                      data-name="<?= htmlspecialchars(strtolower($p['product_name']), ENT_QUOTES) ?>"
                      onclick='handleProductClick(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['product_name']), ENT_QUOTES) ?>, <?= $p['base_price'] ?>, <?= $vars_json ?>)'>
                     
-                    <div>
-                        <span class="badge" style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.7rem; padding:0.15rem 0.4rem; margin-bottom:0.4rem;">
-                            <?= h($p['category_name']) ?>
-                        </span>
-                        <div class="prod-title"><?= h($p['product_name']) ?></div>
-                    </div>
-                    
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span class="prod-price"><?= format_price($p['base_price']) ?></span>
-                        <?php if ($has_vars): ?>
-                            <span style="font-size:0.75rem; color:var(--info); font-weight:600;"><i class="fa-solid fa-layer-group"></i> <?= count($prod_variants[$p['id']]) ?> Sizes</span>
-                        <?php else: ?>
-                            <span style="font-size:0.75rem; color:var(--text-muted);"><i class="fa-solid fa-plus-circle"></i> Add</span>
-                        <?php endif; ?>
+                    <?php if (!empty($p['image_path'])): ?>
+                        <div style="width:100%; height:90px; border-radius:var(--border-radius-sm); overflow:hidden; border:1px solid var(--border-color); margin-bottom:0.25rem;">
+                            <img src="../<?= h($p['image_path']) ?>" alt="<?= h($p['product_name']) ?>" style="width:100%; height:100%; object-fit:cover;">
+                        </div>
+                    <?php else: ?>
+                        <div style="width:100%; height:90px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color); margin-bottom:0.25rem;">
+                            <i class="fa-solid fa-image" style="font-size:1.5rem;"></i>
+                        </div>
+                    <?php endif; ?>
+
+                    <div style="flex-grow:1; display:flex; flex-direction:column; justify-content:space-between; gap:0.25rem;">
+                        <div>
+                            <span class="badge" style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.7rem; padding:0.15rem 0.4rem; margin-bottom:0.25rem; display:inline-block;">
+                                <?= h($p['category_name']) ?>
+                            </span>
+                            <div class="prod-title" style="min-height:32px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;"><?= h($p['product_name']) ?></div>
+                        </div>
+                        
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span class="prod-price" style="font-size:1rem;"><?= format_price($p['base_price']) ?></span>
+                            <?php if ($has_vars): ?>
+                                <span style="font-size:0.7rem; color:var(--info); font-weight:600;"><i class="fa-solid fa-layer-group"></i> <?= count($prod_variants[$p['id']]) ?> Sizes</span>
+                            <?php else: ?>
+                                <span style="font-size:0.7rem; color:var(--text-muted);"><i class="fa-solid fa-plus-circle"></i> Add</span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             <?php endforeach; ?>

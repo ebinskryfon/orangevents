@@ -9,7 +9,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // Determine active module
 $event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
 $rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
-$billing_pages = ['billing.php', 'billing-items.php', 'billing-invoice.php'];
+$billing_pages = ['billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php'];
 
 if (isset($_GET['module'])) {
     $_SESSION['current_module'] = $_GET['module'];
@@ -113,10 +113,16 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                                 <span>POS Terminal</span>
                             </a>
                         </li>
-                        <li class="nav-item <?= $current_page == 'billing-items.php' ? 'active' : '' ?>">
-                            <a href="billing-items.php">
-                                <i class="fa-solid fa-tags"></i>
-                                <span>Product Catalog</span>
+                        <li class="nav-item <?= $current_page == 'billing-categories.php' ? 'active' : '' ?>">
+                            <a href="billing-categories.php">
+                                <i class="fa-solid fa-folder-tree"></i>
+                                <span>Categories</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'billing-products.php' ? 'active' : '' ?>">
+                            <a href="billing-products.php">
+                                <i class="fa-solid fa-box-open"></i>
+                                <span>Products & Catalog</span>
                             </a>
                         </li>
                     <?php endif; ?>
