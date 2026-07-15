@@ -36,6 +36,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $db->commit();
         $message = 'Business settings updated successfully!';
+        
+        // Handle Image Uploads for Collage
+        $collage_images = [
+            'collage_stage' => 'stage.png', 
+            'collage_catering' => 'catering.png', 
+            'collage_drinks' => 'drinks.png', 
+            'collage_deserts' => 'deserts.png'
+        ];
+        $upload_dir = __DIR__ . '/../assets/images/collage/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0755, true);
+        }
+        foreach ($collage_images as $input_name => $filename) {
+            if (isset($_FILES[$input_name]) && $_FILES[$input_name]['error'] === UPLOAD_ERR_OK) {
+                $tmp_name = $_FILES[$input_name]['tmp_name'];
+                
+                // Basic image validation
+                if (getimagesize($tmp_name) !== false) {
+                    $dest = $upload_dir . $filename;
+                    if (move_uploaded_file($tmp_name, $dest)) {
+                        chmod($dest, 0644);
+                        $message = 'Settings and images updated successfully! (Press Ctrl+F5 if you don\'t see the new images immediately).';
+                    } else {
+                        $error = "Failed to upload image $input_name. Check directory permissions.";
+                    }
+                } else {
+                    $error = "Invalid image file uploaded for $input_name.";
+                }
+            }
+        }
+        
     } catch (Exception $e) {
         $db->rollBack();
         $error = 'Failed to update settings: ' . $e->getMessage();
@@ -66,8 +97,8 @@ $settings = get_settings();
     </div>
 <?php endif; ?>
 
-<div class="card" style="max-width: 800px; margin-bottom: 3rem;">
-    <form action="" method="POST" style="display: flex; flex-direction: column; gap: 1.5rem;">
+<div class="card" style="max-width: 1000px; margin: 0 auto 3rem auto;">
+    <form action="" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 1.5rem;">
         
         <!-- Section: Company Branding -->
         <div>
@@ -146,6 +177,36 @@ $settings = get_settings();
                 </div>
             </div>
         </div>
+
+        <!-- Section: Orange Classic Collage Images -->
+        <div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-images" style="color: var(--accent-color);"></i>
+                Orange Classic Template Images
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">Upload new images to replace the left-sidebar collage in the <strong>Orange Classic</strong> invoice template. Note: Existing images will be permanently overwritten. Please ensure your images are roughly square.</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label for="collage_stage" class="form-label">Stage Decor Image</label>
+                    <input type="file" id="collage_stage" name="collage_stage" class="form-control" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="collage_catering" class="form-label">Catering Image</label>
+                    <input type="file" id="collage_catering" name="collage_catering" class="form-control" accept="image/*">
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label for="collage_drinks" class="form-label">Drinks Image</label>
+                    <input type="file" id="collage_drinks" name="collage_drinks" class="form-control" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="collage_deserts" class="form-label">Desserts Image</label>
+                    <input type="file" id="collage_deserts" name="collage_deserts" class="form-control" accept="image/*">
+                </div>
+            </div>
+        </div>
+
 
         <div style="margin-top: 1rem; display: flex; gap: 1rem;">
             <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
