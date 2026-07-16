@@ -209,7 +209,7 @@ $all_products = $db->query("
 ")->fetchAll();
 
 $all_variants = $db->query("
-    SELECT id as variant_id, product_id, size, price, barcode
+    SELECT id as variant_id, product_id, size, price, barcode, stock_quantity, stock_linked_to_variant_id, units_per_parent
       FROM billing_product_variants
      ORDER BY id ASC
 ")->fetchAll();
@@ -227,6 +227,22 @@ foreach ($all_products as $p) {
     if (isset($variants_by_prod[$p_id])) {
         foreach ($variants_by_prod[$p_id] as $v) {
             $price = $v['price'] !== null ? (float)$v['price'] : (float)$p['base_price'];
+            
+            // Calculate effective stock
+            $stock = 0.00;
+            if (empty($v['stock_linked_to_variant_id'])) {
+                $stock = (float)$v['stock_quantity'];
+            } else {
+                $parent_stock = 0.00;
+                foreach ($all_variants as $parent_v) {
+                    if ($parent_v['variant_id'] == $v['stock_linked_to_variant_id']) {
+                        $parent_stock = (float)$parent_v['stock_quantity'];
+                        break;
+                    }
+                }
+                $stock = $parent_stock * (float)$v['units_per_parent'];
+            }
+
             $selectable_items[] = [
                 'product_id' => $p_id,
                 'variant_id' => $v['variant_id'],
@@ -234,7 +250,8 @@ foreach ($all_products as $p) {
                 'size' => $v['size'],
                 'price' => $price,
                 'category' => $p['category_name'],
-                'barcode' => $v['barcode']
+                'barcode' => $v['barcode'],
+                'stock' => $stock
             ];
         }
     } else {
@@ -245,7 +262,8 @@ foreach ($all_products as $p) {
             'size' => null,
             'price' => (float)$p['base_price'],
             'category' => $p['category_name'],
-            'barcode' => null
+            'barcode' => null,
+            'stock' => 0.00
         ];
     }
 }
@@ -739,12 +757,23 @@ function filterSearchProducts() {
         const displayBarcode = item.barcode ? `<span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.5rem;">[${highlightMatch(item.barcode, query)}]</span>` : '';
         const activeClass = i === activeSearchIndex ? 'active' : '';
         
+        let stockHtml = '';
+        if (item.stock !== undefined && item.variant_id !== null) {
+            const st = parseFloat(item.stock);
+            if (st <= 0) {
+                stockHtml = `<span style="font-size:0.75rem; color:var(--danger); font-weight:normal; margin-left:0.5rem;">(Out of Stock)</span>`;
+            } else {
+                stockHtml = `<span style="font-size:0.75rem; color:var(--success); font-weight:normal; margin-left:0.5rem;">(${st.toFixed(2)} available)</span>`;
+            }
+        }
+        
         html += `
             <div class="suggestion-item ${activeClass}" data-index="${entry.index}" onclick="selectSuggestion(${entry.index}, '${escapeJsString(item.name)}')">
                 <div style="display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
                     <span class="suggestion-category">${displayCategory}</span>
                     <span style="font-weight: 500; font-size: 0.85rem;">${displayName}</span>
                     ${displayBarcode}
+                    ${stockHtml}
                 </div>
                 <div class="suggestion-price">₹${item.price.toFixed(2)}</div>
             </div>

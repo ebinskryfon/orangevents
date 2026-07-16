@@ -43,6 +43,24 @@ $prod_variants = [];
 foreach ($variants as $v) {
     $prod_variants[$v['product_id']][] = $v;
 }
+
+function get_variant_effective_stock($v, $all_variants) {
+    if (empty($v['stock_linked_to_variant_id'])) {
+        return (float)$v['stock_quantity'];
+    }
+    // Find parent stock
+    $parent = null;
+    foreach ($all_variants as $parent_v) {
+        if ($parent_v['id'] == $v['stock_linked_to_variant_id']) {
+            $parent = $parent_v;
+            break;
+        }
+    }
+    if ($parent) {
+        return (float)$parent['stock_quantity'] * (float)$v['units_per_parent'];
+    }
+    return 0.00;
+}
 ?>
 
 <style>
@@ -290,6 +308,7 @@ foreach ($variants as $v) {
                 <?php if ($has_vars): ?>
                     <?php foreach ($prod_variants[$p['id']] as $v): 
                         $price = $v['price'] !== null ? (float)$v['price'] : (float)$p['base_price'];
+                        $stock = get_variant_effective_stock($v, $variants);
                     ?>
                         <div class="prod-card" 
                              data-category="<?= $p['category_id'] ?>" 
@@ -312,6 +331,13 @@ foreach ($variants as $v) {
                                         <?= h($p['category_name']) ?>
                                     </span>
                                     <div class="prod-title" style="min-height:32px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;"><?= h($p['product_name']) ?> <span style="color:var(--text-secondary); font-size:0.8rem; font-weight:normal;">(<?= h($v['size']) ?>)</span></div>
+                                    <div style="margin-top:0.2rem; margin-bottom:0.25rem;">
+                                        <?php if ($stock <= 0): ?>
+                                            <span class="badge" style="background:rgba(255,71,87,0.08); color:var(--danger); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(255,71,87,0.15); display:inline-block;">Out of Stock</span>
+                                        <?php else: ?>
+                                            <span class="badge" style="background:rgba(46,213,115,0.08); color:var(--success); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(46,213,115,0.15); display:inline-block;"><?= number_format($stock, 2) ?> available</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                                 
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
