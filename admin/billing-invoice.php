@@ -464,6 +464,9 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <div style="display:flex; gap:0.5rem;">
+        <a href="edit-billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary" style="background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15); font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
+            <i class="fa-solid fa-pen-to-square"></i> Edit
+        </a>
         <button onclick="shareWhatsApp()" class="btn btn-success" style="background-color: #25d366; border-color: #25d366; color: #ffffff;">
             <i class="fa-brands fa-whatsapp"></i> Share WhatsApp
         </button>
@@ -473,8 +476,14 @@ require_once __DIR__ . '/../includes/header.php';
         <button onclick="window.print()" class="btn btn-primary">
             <i class="fa-solid fa-print"></i> Print Invoice
         </button>
-    </div>
 </div>
+
+<?php if (isset($_GET['edit_success'])): ?>
+    <div style="background-color: var(--success); color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-top: 1.5rem; margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600; width: 100%; max-width: 210mm;">
+        <span><i class="fa-solid fa-circle-check"></i> POS Invoice has been updated successfully.</span>
+        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    </div>
+<?php endif; ?>
 
 <!-- Dual View Container -->
 <div class="view-container view-a4" id="viewContainer" style="width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 1.5rem;">

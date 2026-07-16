@@ -76,7 +76,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Total POS Sales</p>
-            <h3 style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">₹<?= number_format($total_sales, 2) ?></h3>
+            <h3 id="statTotalSales" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">₹<?= number_format($total_sales, 2) ?></h3>
         </div>
     </div>
     
@@ -87,7 +87,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Total Invoices</p>
-            <h3 style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;"><?= $total_count ?></h3>
+            <h3 id="statTotalCount" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;"><?= $total_count ?></h3>
         </div>
     </div>
 
@@ -98,7 +98,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Average Ticket</p>
-            <h3 style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">₹<?= number_format($avg_order, 2) ?></h3>
+            <h3 id="statAvgTicket" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">₹<?= number_format($avg_order, 2) ?></h3>
         </div>
     </div>
 
@@ -109,7 +109,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Total Discounts</p>
-            <h3 style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">₹<?= number_format($total_discount, 2) ?></h3>
+            <h3 id="statTotalDiscount" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">₹<?= number_format($total_discount, 2) ?></h3>
         </div>
     </div>
 </div>
@@ -117,17 +117,28 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- Filter Bar -->
 <div class="card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
     <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
-        <div style="display: flex; flex-grow: 1; gap: 0.75rem; min-width: 280px;">
-            <div style="position: relative; flex-grow: 1;">
+        <div style="display: flex; flex-wrap: wrap; flex-grow: 1; gap: 0.75rem; min-width: 280px; align-items: center;">
+            <div style="position: relative; flex-grow: 2; min-width: 200px;">
                 <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
                 <input type="text" id="invoiceSearch" class="form-control" placeholder="Search by Invoice No, Customer Name or Phone..." style="padding-left: 2.75rem; width: 100%;" onkeyup="filterInvoices()">
             </div>
-            <select id="paymentFilter" class="form-control" style="width: 160px; cursor: pointer;" onchange="filterInvoices()">
+            <select id="paymentFilter" class="form-control" style="width: 140px; cursor: pointer; flex-grow: 0;" onchange="filterInvoices()">
                 <option value="">All Payments</option>
                 <option value="Cash">Cash</option>
                 <option value="UPI">UPI</option>
                 <option value="Card">Card</option>
             </select>
+            <div style="display: flex; align-items: center; gap: 0.35rem; flex-grow: 0;">
+                <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">From:</span>
+                <input type="date" id="dateFrom" class="form-control" style="width: 135px; cursor: pointer; padding: 0.375rem 0.5rem;" onchange="filterInvoices()">
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.35rem; flex-grow: 0;">
+                <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">To:</span>
+                <input type="date" id="dateTo" class="form-control" style="width: 135px; cursor: pointer; padding: 0.375rem 0.5rem;" onchange="filterInvoices()">
+            </div>
+            <button onclick="clearDateFilters()" class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.85rem;" title="Reset Date Filters">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+            </button>
         </div>
         <div style="color: var(--text-muted); font-size: 0.9rem;">
             Showing <strong id="visibleCount" style="color: var(--text-primary);"><?= count($orders) ?></strong> of <strong><?= count($orders) ?></strong> records
@@ -141,12 +152,12 @@ require_once __DIR__ . '/../includes/header.php';
         <table class="table" id="invoicesTable">
             <thead>
                 <tr>
-                    <th style="width: 15%;">Invoice No</th>
-                    <th style="width: 20%;">Date & Time</th>
+                    <th style="width: 14%;">Invoice No</th>
+                    <th style="width: 18%;">Date & Time</th>
                     <th style="width: 25%;">Customer Details</th>
                     <th style="width: 15%;">Total Amount</th>
-                    <th style="width: 12%;">Method</th>
-                    <th style="text-align: right; width: 13%;">Actions</th>
+                    <th style="width: 10%;">Method</th>
+                    <th style="text-align: right; width: 18%;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -159,7 +170,14 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 <?php else: ?>
                     <?php foreach ($orders as $ord): ?>
-                        <tr class="invoice-row" data-invoice="<?= h(strtolower($ord['invoice_number'])) ?>" data-name="<?= h(strtolower($ord['customer_name'] ?? '')) ?>" data-phone="<?= h(strtolower($ord['customer_phone'] ?? '')) ?>" data-method="<?= h(strtolower($ord['payment_method'])) ?>">
+                        <tr class="invoice-row" 
+                            data-invoice="<?= h(strtolower($ord['invoice_number'])) ?>" 
+                            data-name="<?= h(strtolower($ord['customer_name'] ?? '')) ?>" 
+                            data-phone="<?= h(strtolower($ord['customer_phone'] ?? '')) ?>" 
+                            data-method="<?= h(strtolower($ord['payment_method'])) ?>"
+                            data-date="<?= date('Y-m-d', strtotime($ord['created_at'])) ?>"
+                            data-amount="<?= (float)$ord['final_amount'] ?>"
+                            data-discount="<?= (float)$ord['discount_amount'] ?>">
                             <td style="font-weight: 700; color: var(--text-primary);"><?= h($ord['invoice_number']) ?></td>
                             <td style="color: var(--text-secondary);"><?= date('d M Y, h:i A', strtotime($ord['created_at'])) ?></td>
                             <td>
@@ -185,14 +203,17 @@ require_once __DIR__ . '/../includes/header.php';
                                 </span>
                             </td>
                             <td style="text-align: right;">
-                                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                                    <a href="billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;" title="View Thermal Receipt">
+                                <div style="display: flex; gap: 0.35rem; justify-content: flex-end;">
+                                    <a href="billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;" title="View Thermal Receipt">
                                         <i class="fa-solid fa-eye"></i> View
                                     </a>
-                                    <a href="billing-invoice.php?id=<?= $ord['id'] ?>&print=1" class="btn btn-primary" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; background: var(--accent-gradient);" title="Print Receipt">
+                                    <a href="edit-billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary" style="padding: 0.4rem 0.5rem; font-size: 0.75rem; background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15);" title="Edit Invoice">
+                                        <i class="fa-solid fa-pen-to-square"></i> Edit
+                                    </a>
+                                    <a href="billing-invoice.php?id=<?= $ord['id'] ?>&print=1" class="btn btn-primary" style="padding: 0.4rem 0.5rem; font-size: 0.75rem; background: var(--accent-gradient);" title="Print Receipt">
                                         <i class="fa-solid fa-print"></i> Print
                                     </a>
-                                    <a href="?action=delete&id=<?= $ord['id'] ?>" class="btn btn-danger" style="padding: 0.4rem 0.6rem; font-size: 0.8rem; background: rgba(255, 71, 87, 0.1); border-color: rgba(255, 71, 87, 0.15); color: var(--danger);" onclick="return confirm('Are you sure you want to delete invoice <?= $ord['invoice_number'] ?>? This action is permanent.');" title="Delete Invoice">
+                                    <a href="?action=delete&id=<?= $ord['id'] ?>" class="btn btn-danger" style="padding: 0.4rem 0.5rem; font-size: 0.75rem; background: rgba(255, 71, 87, 0.1); border-color: rgba(255, 71, 87, 0.15); color: var(--danger);" onclick="return confirm('Are you sure you want to delete invoice <?= $ord['invoice_number'] ?>? This action is permanent.');" title="Delete Invoice">
                                         <i class="fa-solid fa-trash"></i>
                                     </a>
                                 </div>
@@ -209,28 +230,58 @@ require_once __DIR__ . '/../includes/header.php';
 function filterInvoices() {
     const searchVal = document.getElementById('invoiceSearch').value.toLowerCase().trim();
     const paymentVal = document.getElementById('paymentFilter').value.toLowerCase().trim();
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
     
     const rows = document.querySelectorAll('.invoice-row');
     let visibleCount = 0;
+    let totalSales = 0;
+    let totalDiscount = 0;
     
     rows.forEach(row => {
         const inv = row.getAttribute('data-invoice') || '';
         const name = row.getAttribute('data-name') || '';
         const phone = row.getAttribute('data-phone') || '';
         const method = row.getAttribute('data-method') || '';
+        const date = row.getAttribute('data-date') || '';
         
         const matchesSearch = !searchVal || inv.includes(searchVal) || name.includes(searchVal) || phone.includes(searchVal);
         const matchesPayment = !paymentVal || method === paymentVal;
         
-        if (matchesSearch && matchesPayment) {
+        let matchesDate = true;
+        if (dateFrom && date < dateFrom) {
+            matchesDate = false;
+        }
+        if (dateTo && date > dateTo) {
+            matchesDate = false;
+        }
+        
+        if (matchesSearch && matchesPayment && matchesDate) {
             row.style.display = '';
             visibleCount++;
+            totalSales += parseFloat(row.getAttribute('data-amount') || 0);
+            totalDiscount += parseFloat(row.getAttribute('data-discount') || 0);
         } else {
             row.style.display = 'none';
         }
     });
     
+    // Update showing text
     document.getElementById('visibleCount').textContent = visibleCount;
+    
+    // Update stats grid values reactively
+    const avgTicket = visibleCount > 0 ? (totalSales / visibleCount) : 0;
+    
+    document.getElementById('statTotalSales').textContent = '₹' + totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('statTotalCount').textContent = visibleCount;
+    document.getElementById('statAvgTicket').textContent = '₹' + avgTicket.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('statTotalDiscount').textContent = '₹' + totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function clearDateFilters() {
+    document.getElementById('dateFrom').value = '';
+    document.getElementById('dateTo').value = '';
+    filterInvoices();
 }
 </script>
 
