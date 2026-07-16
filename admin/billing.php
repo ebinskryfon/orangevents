@@ -45,21 +45,47 @@ foreach ($variants as $v) {
 }
 
 function get_variant_effective_stock($v, $all_variants) {
-    if (empty($v['stock_linked_to_variant_id'])) {
-        return (float)$v['stock_quantity'];
+    return (float)$v['stock_quantity'];
+}
+
+function format_variant_stock_badge($v) {
+    $stock = (float)$v['stock_quantity'];
+    if ($stock <= 0) {
+        return '<span class="badge" style="background:rgba(255,71,87,0.08); color:var(--danger); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(255,71,87,0.15); display:inline-block;">Out of Stock</span>';
     }
-    // Find parent stock
-    $parent = null;
-    foreach ($all_variants as $parent_v) {
-        if ($parent_v['id'] == $v['stock_linked_to_variant_id']) {
-            $parent = $parent_v;
-            break;
+
+    if ($v['allow_loose']) {
+        $units_per_whole = (float)$v['loose_units_per_whole'];
+        $whole_packets = floor($stock);
+        $fraction = $stock - $whole_packets;
+        // round to prevent floating point imprecision issues (e.g. 0.94999999)
+        $loose_units = round($fraction * $units_per_whole);
+        
+        // If rounding results in loose units equal to units_per_whole, adjust
+        if ($loose_units >= $units_per_whole) {
+            $whole_packets += 1;
+            $loose_units = 0;
         }
+
+        $parts = [];
+        if ($whole_packets > 0) {
+            $parts[] = $whole_packets . ' Pack' . ($whole_packets > 1 ? 's' : '');
+        }
+        if ($loose_units > 0) {
+            $parts[] = $loose_units . ' Loose';
+        }
+        
+        $label = implode(' + ', $parts);
+        if (empty($label)) {
+            $label = '0 available';
+        } else {
+            $label = $label . ' available';
+        }
+        
+        return '<span class="badge" style="background:rgba(46,213,115,0.08); color:var(--success); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(46,213,115,0.15); display:inline-block;" title="' . number_format($stock, 2) . ' Packets">' . $label . '</span>';
+    } else {
+        return '<span class="badge" style="background:rgba(46,213,115,0.08); color:var(--success); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(46,213,115,0.15); display:inline-block;">' . number_format($stock, 2) . ' available</span>';
     }
-    if ($parent) {
-        return (float)$parent['stock_quantity'] * (float)$v['units_per_parent'];
-    }
-    return 0.00;
 }
 ?>
 
@@ -332,11 +358,7 @@ function get_variant_effective_stock($v, $all_variants) {
                                     </span>
                                     <div class="prod-title" style="min-height:32px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;"><?= h($p['product_name']) ?> <span style="color:var(--text-secondary); font-size:0.8rem; font-weight:normal;">(<?= h($v['size']) ?>)</span></div>
                                     <div style="margin-top:0.2rem; margin-bottom:0.25rem;">
-                                        <?php if ($stock <= 0): ?>
-                                            <span class="badge" style="background:rgba(255,71,87,0.08); color:var(--danger); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(255,71,87,0.15); display:inline-block;">Out of Stock</span>
-                                        <?php else: ?>
-                                            <span class="badge" style="background:rgba(46,213,115,0.08); color:var(--success); font-size:0.7rem; padding:0.15rem 0.4rem; border:1px solid rgba(46,213,115,0.15); display:inline-block;"><?= number_format($stock, 2) ?> available</span>
-                                        <?php endif; ?>
+                                        <?= format_variant_stock_badge($v) ?>
                                     </div>
                                 </div>
                                 
