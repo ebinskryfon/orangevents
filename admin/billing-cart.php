@@ -2,6 +2,35 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+
+function adjust_variant_stock($db, $variant_id, $quantity, $is_restore = false) {
+    if (!$variant_id) return;
+    
+    // Fetch variant details
+    $stmt = $db->prepare("SELECT id, stock_linked_to_variant_id, units_per_parent FROM billing_product_variants WHERE id = :id");
+    $stmt->execute(['id' => $variant_id]);
+    $var = $stmt->fetch();
+    
+    if (!$var) return;
+    
+    $multiplier = $is_restore ? 1 : -1;
+    
+    if (!empty($var['stock_linked_to_variant_id'])) {
+        // Linked stock: deduct/restore from parent
+        $parent_id = $var['stock_linked_to_variant_id'];
+        $parent_deduction = ($quantity / (float)$var['units_per_parent']) * $multiplier;
+        
+        $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+        $stmt_up->execute(['qty' => $parent_deduction, 'id' => $parent_id]);
+    } else {
+        // Direct stock: deduct/restore directly
+        $direct_deduction = $quantity * $multiplier;
+        
+        $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+        $stmt_up->execute(['qty' => $direct_deduction, 'id' => $variant_id]);
+    }
+}
+
 check_admin_auth();
 
 $db = get_db_connection();
@@ -97,6 +126,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'qty' => $qty,
                 'total_price' => $total_price
             ]);
+
+            if ($var_id) {
+                adjust_variant_stock($db, $var_id, $qty, false);
+            }
         }
 
         $db->commit();

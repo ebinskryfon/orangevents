@@ -6,6 +6,34 @@ check_admin_auth();
 
 $db = get_db_connection();
 
+function adjust_variant_stock($db, $variant_id, $quantity, $is_restore = false) {
+    if (!$variant_id) return;
+    
+    // Fetch variant details
+    $stmt = $db->prepare("SELECT id, stock_linked_to_variant_id, units_per_parent FROM billing_product_variants WHERE id = :id");
+    $stmt->execute(['id' => $variant_id]);
+    $var = $stmt->fetch();
+    
+    if (!$var) return;
+    
+    $multiplier = $is_restore ? 1 : -1;
+    
+    if (!empty($var['stock_linked_to_variant_id'])) {
+        // Linked stock: deduct/restore from parent
+        $parent_id = $var['stock_linked_to_variant_id'];
+        $parent_deduction = ($quantity / (float)$var['units_per_parent']) * $multiplier;
+        
+        $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+        $stmt_up->execute(['qty' => $parent_deduction, 'id' => $parent_id]);
+    } else {
+        // Direct stock: deduct/restore directly
+        $direct_deduction = $quantity * $multiplier;
+        
+        $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+        $stmt_up->execute(['qty' => $direct_deduction, 'id' => $variant_id]);
+    }
+}
+
 // Handle deletion
 $msg = '';
 $msg_type = 'success';
@@ -18,6 +46,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])
         $inv_no = $stmt->fetchColumn();
 
         if ($inv_no) {
+            // Restore stock for all variant items in the deleted order
+            $stmt_old_items = $db->prepare("SELECT variant_id, quantity FROM billing_order_items WHERE order_id = :id");
+            $stmt_old_items->execute(['id' => $order_id]);
+            $old_items = $stmt_old_items->fetchAll();
+            foreach ($old_items as $old_item) {
+                if ($old_item['variant_id']) {
+                    adjust_variant_stock($db, $old_item['variant_id'], $old_item['quantity'], true);
+                }
+            }
+
             $db->prepare("DELETE FROM billing_orders WHERE id = :id")->execute(['id' => $order_id]);
             $msg = "Invoice $inv_no has been deleted successfully.";
         }

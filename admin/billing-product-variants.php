@@ -24,6 +24,29 @@ if (!$product) {
     exit;
 }
 
+function get_effective_stock_label($variant, $all_variants) {
+    if (empty($variant['stock_linked_to_variant_id'])) {
+        return '<span class="badge" style="background:rgba(46,213,115,0.12); color:var(--success); font-weight:600;">' . number_format($variant['stock_quantity'], 2) . ' Direct</span>';
+    }
+    
+    // Find parent
+    $parent = null;
+    foreach ($all_variants as $v) {
+        if ($v['id'] == $variant['stock_linked_to_variant_id']) {
+            $parent = $v;
+            break;
+        }
+    }
+    
+    if ($parent) {
+        $calc_stock = $parent['stock_quantity'] * $variant['units_per_parent'];
+        return '<span class="badge" style="background:rgba(255,107,53,0.12); color:var(--accent-color); font-weight:600;">' . number_format($calc_stock, 2) . ' Linked</span>' .
+               '<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.25rem;">(' . number_format($variant['units_per_parent'], 2) . ' / ' . h($parent['size']) . ')</div>';
+    }
+    
+    return '<span class="badge" style="background:rgba(255,71,87,0.12); color:var(--danger);">Linked (Orphaned)</span>';
+}
+
 function generate_unique_barcode($db) {
     do {
         // EAN-13 internal store barcode prefix (200) + 9 random digits
@@ -54,11 +77,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── SAVE VARIANT ──────────────────────────────────────
     if ($action === 'save_variant') {
-        $variant_id = (int)($_POST['variant_id'] ?? 0);
-        $size       = trim($_POST['size'] ?? '');
-        $inherit    = isset($_POST['inherit_price']) ? 1 : 0;
-        $price      = $inherit ? null : (float)($_POST['price'] ?? 0);
-        $barcode    = trim($_POST['barcode'] ?? '');
+        $variant_id  = (int)($_POST['variant_id'] ?? 0);
+        $size        = trim($_POST['size'] ?? '');
+        $inherit     = isset($_POST['inherit_price']) ? 1 : 0;
+        $price       = $inherit ? null : (float)($_POST['price'] ?? 0);
+        $barcode     = trim($_POST['barcode'] ?? '');
+        $stock_qty   = (float)($_POST['stock_quantity'] ?? 0);
+        $stock_link  = $_POST['stock_linked_to_variant_id'] !== '' ? (int)$_POST['stock_linked_to_variant_id'] : null;
+        $units_per_p = $_POST['units_per_parent'] !== '' ? (float)$_POST['units_per_parent'] : 1.00;
 
         if (empty($size)) {
             $error = 'Size / Label is required.';
@@ -90,27 +116,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($variant_id > 0) {
                     $stmt_upd = $db->prepare("
                         UPDATE billing_product_variants 
-                           SET size = :size, price = :price, barcode = :barcode 
+                           SET size = :size, price = :price, barcode = :barcode,
+                               stock_quantity = :stock_quantity,
+                               stock_linked_to_variant_id = :stock_linked_to_variant_id,
+                               units_per_parent = :units_per_parent
                          WHERE id = :id AND product_id = :prod_id
                     ");
                     $stmt_upd->execute([
                         'size' => $size,
                         'price' => $price,
                         'barcode' => $barcode,
+                        'stock_quantity' => $stock_qty,
+                        'stock_linked_to_variant_id' => $stock_link,
+                        'units_per_parent' => $units_per_p,
                         'id' => $variant_id,
                         'prod_id' => $product_id
                     ]);
                     $message = 'Variant updated successfully!';
                 } else {
                     $stmt_ins = $db->prepare("
-                        INSERT INTO billing_product_variants (product_id, size, price, barcode) 
-                        VALUES (:prod, :size, :price, :barcode)
+                        INSERT INTO billing_product_variants (product_id, size, price, barcode, stock_quantity, stock_linked_to_variant_id, units_per_parent) 
+                        VALUES (:prod, :size, :price, :barcode, :stock_quantity, :stock_linked_to_variant_id, :units_per_parent)
                     ");
                     $stmt_ins->execute([
                         'prod' => $product_id,
                         'size' => $size,
                         'price' => $price,
-                        'barcode' => $barcode
+                        'barcode' => $barcode,
+                        'stock_quantity' => $stock_qty,
+                        'stock_linked_to_variant_id' => $stock_link,
+                        'units_per_parent' => $units_per_p
                     ]);
                     $message = 'Variant added successfully!';
                 }
@@ -241,10 +276,11 @@ $variants = $stmt_vars->fetchAll();
             <table class="table">
                 <thead>
                     <tr>
-                        <th style="width:40%;">Size / Option Name</th>
-                        <th style="width:25%; text-align:center;">Barcode</th>
-                        <th style="width:20%; text-align:center;">Selling Price</th>
-                        <th style="width:15%; text-align:right;">Actions</th>
+                        <th style="width:30%;">Size / Option Name</th>
+                        <th style="width:20%; text-align:center;">Barcode</th>
+                        <th style="width:22%; text-align:center;">Stock Level</th>
+                        <th style="width:16%; text-align:center;">Selling Price</th>
+                        <th style="width:12%; text-align:right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -265,6 +301,9 @@ $variants = $stmt_vars->fetchAll();
                                 </td>
                                 <td style="text-align:center; font-family: monospace; font-size:0.9rem; color:var(--text-secondary); vertical-align:middle;">
                                     <?= h($v['barcode'] ?: 'N/A') ?>
+                                </td>
+                                <td style="text-align:center; vertical-align:middle;">
+                                    <?= get_effective_stock_label($v, $variants) ?>
                                 </td>
                                 <td style="text-align:center; font-weight:700; color:var(--accent-color); vertical-align:middle;">
                                     <?= format_price($v_price) ?>
@@ -335,6 +374,41 @@ $variants = $stmt_vars->fetchAll();
                 <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control" placeholder="<?= $product['base_price'] ?>">
             </div>
 
+            <!-- Stock and Inventory Management section -->
+            <div style="margin-top:1.5rem; border-top:1px solid var(--border-color); padding-top:1.25rem;">
+                <h4 style="font-size:0.9rem; margin-bottom:0.75rem; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                    <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-color); font-size:0.95rem;"></i> Stock & Inventory
+                </h4>
+                
+                <div class="form-group">
+                    <label class="form-label" style="font-size:0.8rem;">Link stock to another variant? (For units/packets conversion)</label>
+                    <select name="stock_linked_to_variant_id" id="variantStockLink" class="form-control" onchange="toggleStockLinkFields()">
+                        <option value="">No, this variant has its own independent stock</option>
+                        <?php foreach ($variants as $other_v): ?>
+                            <option value="<?= $other_v['id'] ?>"><?= h($other_v['size']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">
+                        Use this if selling single/loose items that deduct from a parent packet's stock.
+                    </small>
+                </div>
+                
+                <!-- If independent stock -->
+                <div class="form-group" id="variantDirectStockGroup" style="margin-top:1rem;">
+                    <label class="form-label" style="font-size:0.8rem;">Stock Quantity</label>
+                    <input type="number" step="0.01" name="stock_quantity" id="variantStockQty" class="form-control" placeholder="0.00">
+                </div>
+                
+                <!-- If linked stock -->
+                <div class="form-group" id="variantLinkedStockGroup" style="margin-top:1rem; display:none;">
+                    <label class="form-label" style="font-size:0.8rem;">Units per Parent packet / item</label>
+                    <input type="number" step="0.01" name="units_per_parent" id="variantUnitsPerParent" class="form-control" placeholder="e.g. 50">
+                    <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">
+                        How many of this variant equal 1 unit of the parent variant? (e.g. if 50 balloons make up 1 packet, enter 50)
+                    </small>
+                </div>
+            </div>
+
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                 <button type="button" onclick="closeModal('variantModal')" class="btn btn-secondary">Cancel</button>
                 <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Variant</button>
@@ -364,10 +438,24 @@ function openAddVariantModal() {
     document.getElementById('variantId').value = '0';
     document.getElementById('variantSize').value = '';
     document.getElementById('variantBarcode').value = '';
+    
+    // Enable and show all options in link dropdown
+    const select = document.getElementById('variantStockLink');
+    for (let i = 0; i < select.options.length; i++) {
+        select.options[i].disabled = false;
+        select.options[i].style.display = 'block';
+    }
+    
+    document.getElementById('variantStockLink').value = '';
+    document.getElementById('variantStockQty').value = '0.00';
+    document.getElementById('variantUnitsPerParent').value = '1.00';
+    
     inheritCheckbox.checked = true;
     priceGroup.style.display = 'none';
     priceInput.removeAttribute('required');
     priceInput.value = '';
+    
+    toggleStockLinkFields();
     openModal('variantModal');
 }
 
@@ -377,6 +465,24 @@ function openEditVariantModal(v) {
     document.getElementById('variantId').value = v.id;
     document.getElementById('variantSize').value = v.size;
     document.getElementById('variantBarcode').value = v.barcode || '';
+    
+    // Hide/disable itself in link dropdown
+    const select = document.getElementById('variantStockLink');
+    for (let i = 0; i < select.options.length; i++) {
+        const opt = select.options[i];
+        if (opt.value == v.id) {
+            opt.disabled = true;
+            opt.style.display = 'none';
+        } else {
+            opt.disabled = false;
+            opt.style.display = 'block';
+        }
+    }
+    
+    document.getElementById('variantStockLink').value = v.stock_linked_to_variant_id || '';
+    document.getElementById('variantStockQty').value = v.stock_quantity || '0.00';
+    document.getElementById('variantUnitsPerParent').value = v.units_per_parent || '1.00';
+    
     if (v.price === null || v.price === undefined) {
         inheritCheckbox.checked = true;
         priceGroup.style.display = 'none';
@@ -388,7 +494,27 @@ function openEditVariantModal(v) {
         priceInput.setAttribute('required', 'required');
         priceInput.value = v.price;
     }
+    
+    toggleStockLinkFields();
     openModal('variantModal');
+}
+
+function toggleStockLinkFields() {
+    const stockLinkVal = document.getElementById('variantStockLink').value;
+    const directGroup = document.getElementById('variantDirectStockGroup');
+    const linkedGroup = document.getElementById('variantLinkedStockGroup');
+    
+    if (stockLinkVal === "") {
+        directGroup.style.display = 'block';
+        linkedGroup.style.display = 'none';
+        document.getElementById('variantStockQty').setAttribute('required', 'required');
+        document.getElementById('variantUnitsPerParent').removeAttribute('required');
+    } else {
+        directGroup.style.display = 'none';
+        linkedGroup.style.display = 'block';
+        document.getElementById('variantStockQty').removeAttribute('required');
+        document.getElementById('variantUnitsPerParent').setAttribute('required', 'required');
+    }
 }
 </script>
 

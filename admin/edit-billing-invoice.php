@@ -6,6 +6,34 @@ check_admin_auth();
 
 $db = get_db_connection();
 
+function adjust_variant_stock($db, $variant_id, $quantity, $is_restore = false) {
+    if (!$variant_id) return;
+    
+    // Fetch variant details
+    $stmt = $db->prepare("SELECT id, stock_linked_to_variant_id, units_per_parent FROM billing_product_variants WHERE id = :id");
+    $stmt->execute(['id' => $variant_id]);
+    $var = $stmt->fetch();
+    
+    if (!$var) return;
+    
+    $multiplier = $is_restore ? 1 : -1;
+    
+    if (!empty($var['stock_linked_to_variant_id'])) {
+        // Linked stock: deduct/restore from parent
+        $parent_id = $var['stock_linked_to_variant_id'];
+        $parent_deduction = ($quantity / (float)$var['units_per_parent']) * $multiplier;
+        
+        $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+        $stmt_up->execute(['qty' => $parent_deduction, 'id' => $parent_id]);
+    } else {
+        // Direct stock: deduct/restore directly
+        $direct_deduction = $quantity * $multiplier;
+        
+        $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+        $stmt_up->execute(['qty' => $direct_deduction, 'id' => $variant_id]);
+    }
+}
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($id <= 0) {
     header("Location: billing-invoices.php");
@@ -98,6 +126,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id' => $id
             ]);
 
+            // Restore stock for old items first
+            $stmt_old_items = $db->prepare("SELECT variant_id, quantity FROM billing_order_items WHERE order_id = :id");
+            $stmt_old_items->execute(['id' => $id]);
+            $old_items = $stmt_old_items->fetchAll();
+            foreach ($old_items as $old_item) {
+                if ($old_item['variant_id']) {
+                    adjust_variant_stock($db, $old_item['variant_id'], $old_item['quantity'], true);
+                }
+            }
+
             // Clear old items
             $stmt_del = $db->prepare("DELETE FROM billing_order_items WHERE order_id = :id");
             $stmt_del->execute(['id' => $id]);
@@ -145,6 +183,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'qty' => $qty,
                     'total_price' => $total_price
                 ]);
+
+                if ($var_id) {
+                    adjust_variant_stock($db, $var_id, $qty, false);
+                }
             }
 
             $db->commit();
