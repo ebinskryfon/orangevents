@@ -319,11 +319,30 @@ function format_variant_stock_badge($v) {
             </div>
             <div style="position:relative; width:220px;">
                 <i class="fa-solid fa-barcode" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--accent-color);"></i>
-                <input type="text" id="barcodeInput" class="form-control" placeholder="Scan Barcode..." style="padding-left:35px; width:100%; height:42px; border-color:rgba(255,107,53,0.4);">
+                <input type="text" id="barcodeInput" class="form-control" placeholder="Scan barcode, press Enter..." style="padding-left:35px; width:100%; height:42px; border-color:rgba(255,107,53,0.4);">
             </div>
             <button onclick="openModal('customItemModal')" class="btn btn-secondary" style="white-space:nowrap; height:42px; display:inline-flex; align-items:center; gap:0.35rem;">
                 <i class="fa-solid fa-plus-circle"></i> Custom Item
             </button>
+        </div>
+        <!-- Barcode scan pending confirmation strip -->
+        <div id="barcodePendingStrip" style="display:none; margin-top:0.5rem; background:rgba(255,107,53,0.08); border:1px solid rgba(255,107,53,0.3); border-radius:8px; padding:0.6rem 1rem; display:none; align-items:center; gap:1rem; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <i class="fa-solid fa-barcode" style="color:var(--accent-color); font-size:1.2rem;"></i>
+                <div>
+                    <div id="barcodePendingName" style="font-weight:700; color:var(--text-primary); font-size:0.9rem;"></div>
+                    <div id="barcodePendingPrice" style="font-size:0.78rem; color:var(--accent-color); margin-top:0.1rem;"></div>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <span style="font-size:0.78rem; color:var(--text-muted);">Press <kbd style="background:var(--bg-control); border:1px solid var(--border-color); border-radius:4px; padding:1px 5px; font-size:0.75rem;">Enter</kbd> to add&nbsp;</span>
+                <button id="barcodePendingAdd" class="btn btn-primary" style="height:34px; padding:0 0.9rem; font-size:0.8rem;">
+                    <i class="fa-solid fa-cart-plus"></i> Add to Cart
+                </button>
+                <button id="barcodePendingCancel" class="btn btn-secondary" style="height:34px; padding:0 0.65rem; font-size:0.8rem; color:var(--danger); border-color:rgba(255,71,87,0.25);">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
         </div>
         
         <div class="catalog-filters">
@@ -591,43 +610,91 @@ function format_variant_stock_badge($v) {
         
         // Search live filter
         searchBar.addEventListener('input', filterProducts);
-        
-        // Barcode scanning listener
+              // Barcode scanning listener — two-step flow:
+        // Step 1: Enter populates a confirmation strip
+        // Step 2: User presses Enter again (or clicks Add button) to confirm add to cart
         const barcodeInput = document.getElementById('barcodeInput');
+        const pendingStrip = document.getElementById('barcodePendingStrip');
+        const pendingName = document.getElementById('barcodePendingName');
+        const pendingPrice = document.getElementById('barcodePendingPrice');
+        const pendingAdd = document.getElementById('barcodePendingAdd');
+        const pendingCancel = document.getElementById('barcodePendingCancel');
+
+        let pendingCard = null; // Holds the matched card from scan
+
+        function clearPendingBarcode() {
+            pendingCard = null;
+            barcodeInput.value = '';
+            pendingStrip.style.display = 'none';
+            pendingName.textContent = '';
+            pendingPrice.textContent = '';
+        }
+
+        function confirmPendingAdd() {
+            if (!pendingCard) return;
+            const productId = parseInt(pendingCard.dataset.productId);
+            const variantId = parseInt(pendingCard.dataset.variantId);
+            const displayName = pendingCard.dataset.displayName;
+            const size = pendingCard.dataset.size;
+            const price = parseFloat(pendingCard.dataset.price);
+            const allowLoose = parseInt(pendingCard.dataset.allowLoose);
+            const loosePrice = pendingCard.dataset.loosePrice === 'null' ? null : parseFloat(pendingCard.dataset.loosePrice);
+            const looseUnits = parseFloat(pendingCard.dataset.looseUnits);
+
+            addItemToCart(productId, variantId, displayName, size, price, allowLoose, loosePrice, looseUnits);
+            playBeep(800, 100);
+            showBarcodeToast(`Added: ${displayName}`, 'success');
+            clearPendingBarcode();
+            barcodeInput.focus();
+        }
+
         if (barcodeInput) {
             barcodeInput.focus();
-            
-            // Keep input focused when clicking document, unless clicking another input/textarea
+
+            // Keep barcode input focused unless user intentionally clicks another control
             document.addEventListener('click', (e) => {
-                const active = document.activeElement;
-                if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.getAttribute('contenteditable') === 'true')) {
-                    return;
-                }
-                barcodeInput.focus();
+                const clickedEl = e.target;
+                const isOtherInput = clickedEl.tagName === 'INPUT' || clickedEl.tagName === 'TEXTAREA' || clickedEl.tagName === 'SELECT';
+                // Don't steal focus if clicking the pending confirm/cancel buttons
+                if (clickedEl === pendingAdd || clickedEl === pendingCancel || clickedEl.closest('#barcodePendingStrip')) return;
+                if (!isOtherInput) barcodeInput.focus();
             });
 
             barcodeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    clearPendingBarcode();
+                    return;
+                }
+
                 if (e.key === 'Enter') {
                     e.preventDefault();
+
+                    // Step 2: if a product is already pending, confirm-add it on second Enter
+                    if (pendingCard) {
+                        confirmPendingAdd();
+                        return;
+                    }
+
+                    // Step 1: look up barcode and show pending strip
                     const barcodeValue = barcodeInput.value.trim();
                     if (barcodeValue === '') return;
-                    
+
                     const card = document.querySelector(`.prod-card[data-barcode="${barcodeValue}"]`);
                     if (card) {
-                        const productId = parseInt(card.dataset.productId);
-                        const variantId = parseInt(card.dataset.variantId);
+                        pendingCard = card;
                         const displayName = card.dataset.displayName;
-                        const size = card.dataset.size;
                         const price = parseFloat(card.dataset.price);
                         const allowLoose = parseInt(card.dataset.allowLoose);
                         const loosePrice = card.dataset.loosePrice === 'null' ? null : parseFloat(card.dataset.loosePrice);
-                        const looseUnits = parseFloat(card.dataset.looseUnits);
-                        
-                        addItemToCart(productId, variantId, displayName, size, price, allowLoose, loosePrice, looseUnits);
-                        
+                        pendingName.textContent = displayName;
+                        pendingPrice.textContent = allowLoose
+                            ? `Whole: ₹${price.toFixed(2)}  |  Loose: ₹${loosePrice !== null ? loosePrice.toFixed(2) : '—'} per unit`
+                            : `Price: ₹${price.toFixed(2)}`;
+                        pendingStrip.style.display = 'flex';
+                        playBeep(600, 80);
+                        // Clear the raw barcode from input so it's clean
                         barcodeInput.value = '';
-                        playBeep(800, 100);
-                        showBarcodeToast(`Scanned: ${displayName}`, 'success');
+                        barcodeInput.placeholder = 'Press Enter to add, or scan next...';
                     } else {
                         playBeep(220, 250);
                         showBarcodeToast(`Barcode not found: ${barcodeValue}`, 'danger');
@@ -635,6 +702,23 @@ function format_variant_stock_badge($v) {
                     }
                 }
             });
+
+            // Confirm add button
+            if (pendingAdd) {
+                pendingAdd.addEventListener('click', () => {
+                    confirmPendingAdd();
+                    barcodeInput.focus();
+                });
+            }
+
+            // Cancel pending
+            if (pendingCancel) {
+                pendingCancel.addEventListener('click', () => {
+                    clearPendingBarcode();
+                    barcodeInput.placeholder = 'Scan barcode, press Enter...';
+                    barcodeInput.focus();
+                });
+            }
         }
         
         renderCart();
