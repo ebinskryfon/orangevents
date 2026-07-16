@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS `billing_orders` (
     `invoice_number` VARCHAR(50)   NOT NULL UNIQUE,
     `customer_name`  VARCHAR(100)  DEFAULT NULL,
     `customer_phone` VARCHAR(20)   DEFAULT NULL,
+    `customer_address` TEXT        DEFAULT NULL,
     `total_amount`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `discount_amount`DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     `final_amount`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,

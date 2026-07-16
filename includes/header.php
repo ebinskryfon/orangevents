@@ -133,6 +133,13 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                         </li>
                     <?php endif; ?>
                     
+                    <li class="nav-item <?= $current_page == 'migrations.php' ? 'active' : '' ?>">
+                        <a href="migrations.php">
+                            <i class="fa-solid fa-database"></i>
+                            <span>Migrations</span>
+                        </a>
+                    </li>
+                    
                     <li class="nav-item <?= $current_page == 'settings.php' ? 'active' : '' ?>">
                         <a href="settings.php">
                             <i class="fa-solid fa-gears"></i>
