@@ -715,8 +715,15 @@ foreach ($settings_res as $row) {
                                 <td style="text-align: center; color: #6b7280;"><?= $sl++ ?></td>
                                 <td>
                                     <div style="font-weight: 700; color: #1a1a2e;"><?= h($item['product_name']) ?></div>
-                                    <?php if (!empty($item['variant_size'])): ?>
-                                        <div style="font-size: 8.5pt; color: #6b7280; margin-top: 2px;">Size / Variant: <?= h($item['variant_size']) ?></div>
+                                    <?php if (!empty($item['variant_size']) || !empty($item['sell_type'])): ?>
+                                        <div style="font-size: 8.5pt; color: #6b7280; margin-top: 2px;">
+                                            <?php if (!empty($item['variant_size'])): ?>
+                                                Size / Variant: <?= h($item['variant_size']) ?>
+                                            <?php endif; ?>
+                                            <?php if (!empty($item['sell_type'])): ?>
+                                                <?= !empty($item['variant_size']) ? ' | ' : '' ?>Type: <?= h(ucfirst($item['sell_type'])) ?>
+                                            <?php endif; ?>
+                                        </div>
                                     <?php endif; ?>
                                 </td>
                                 <td style="text-align: right;">₹<?= number_format($item['price'], 2) ?></td>
@@ -824,8 +831,15 @@ foreach ($settings_res as $row) {
                             <tr>
                                 <td>
                                     <div><?= h($item['product_name']) ?></div>
-                                    <?php if (!empty($item['variant_size'])): ?>
-                                        <div style="font-size:9px; color:#555555;">Size: <?= h($item['variant_size']) ?></div>
+                                    <?php if (!empty($item['variant_size']) || !empty($item['sell_type'])): ?>
+                                        <div style="font-size:9px; color:#555555;">
+                                            <?php if (!empty($item['variant_size'])): ?>
+                                                Size: <?= h($item['variant_size']) ?>
+                                            <?php endif; ?>
+                                            <?php if (!empty($item['sell_type'])): ?>
+                                                <?= !empty($item['variant_size']) ? ' | ' : '' ?>Type: <?= h(ucfirst($item['sell_type'])) ?>
+                                            <?php endif; ?>
+                                        </div>
                                     <?php endif; ?>
                                 </td>
                                 <td style="text-align:center;"><?= $item['quantity'] ?></td>

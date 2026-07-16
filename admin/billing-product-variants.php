@@ -2,11 +2,11 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/header.php';
 
-$db      = get_db_connection();
+$db = get_db_connection();
 $message = '';
-$error   = '';
+$error = '';
 
-$product_id = (int)($_GET['product_id'] ?? 0);
+$product_id = (int) ($_GET['product_id'] ?? 0);
 
 // Fetch product details
 $stmt = $db->prepare("
@@ -24,48 +24,41 @@ if (!$product) {
     exit;
 }
 
-function get_effective_stock_label($variant, $all_variants) {
-    if (empty($variant['stock_linked_to_variant_id'])) {
-        return '<span class="badge" style="background:rgba(46,213,115,0.12); color:var(--success); font-weight:600;">' . number_format($variant['stock_quantity'], 2) . ' Direct</span>';
+function get_effective_stock_label($variant)
+{
+    $stock = (float)$variant['stock_quantity'];
+    $out = '<span class="badge" style="background:rgba(46,213,115,0.12); color:var(--success); font-weight:600;">' . number_format($stock, 2) . ' Packets</span>';
+    
+    if ($variant['allow_loose']) {
+        $units = (float)$variant['loose_units_per_whole'];
+        $loose_equiv = $stock * $units;
+        $out .= '<div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">' . number_format($loose_equiv, 2) . ' Loose equivalent</div>';
+        $out .= '<div style="font-size:0.7rem; color:var(--text-muted);">(' . number_format($units, 0) . ' units/pack @ ' . format_price($variant['loose_price'] ?: 0) . ')</div>';
     }
     
-    // Find parent
-    $parent = null;
-    foreach ($all_variants as $v) {
-        if ($v['id'] == $variant['stock_linked_to_variant_id']) {
-            $parent = $v;
-            break;
-        }
-    }
-    
-    if ($parent) {
-        $calc_stock = $parent['stock_quantity'] * $variant['units_per_parent'];
-        return '<span class="badge" style="background:rgba(255,107,53,0.12); color:var(--accent-color); font-weight:600;">' . number_format($calc_stock, 2) . ' Linked</span>' .
-               '<div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.25rem;">(' . number_format($variant['units_per_parent'], 2) . ' / ' . h($parent['size']) . ')</div>';
-    }
-    
-    return '<span class="badge" style="background:rgba(255,71,87,0.12); color:var(--danger);">Linked (Orphaned)</span>';
+    return $out;
 }
 
-function generate_unique_barcode($db) {
+function generate_unique_barcode($db)
+{
     do {
         // EAN-13 internal store barcode prefix (200) + 9 random digits
         $barcode = '200' . str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
-        
+
         // EAN-13 checksum digit calculation
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
-            $num = (int)$barcode[$i];
+            $num = (int) $barcode[$i];
             $sum += ($i % 2 === 0) ? $num * 1 : $num * 3;
         }
         $checksum = (10 - ($sum % 10)) % 10;
         $final_barcode = $barcode . $checksum;
-        
+
         // Ensure uniqueness
         $stmt = $db->prepare("SELECT id FROM billing_product_variants WHERE barcode = :barcode");
         $stmt->execute(['barcode' => $final_barcode]);
     } while ($stmt->fetch());
-    
+
     return $final_barcode;
 }
 
@@ -77,14 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── SAVE VARIANT ──────────────────────────────────────
     if ($action === 'save_variant') {
-        $variant_id  = (int)($_POST['variant_id'] ?? 0);
-        $size        = trim($_POST['size'] ?? '');
-        $inherit     = isset($_POST['inherit_price']) ? 1 : 0;
-        $price       = $inherit ? null : (float)($_POST['price'] ?? 0);
-        $barcode     = trim($_POST['barcode'] ?? '');
-        $stock_qty   = (float)($_POST['stock_quantity'] ?? 0);
-        $stock_link  = $_POST['stock_linked_to_variant_id'] !== '' ? (int)$_POST['stock_linked_to_variant_id'] : null;
-        $units_per_p = $_POST['units_per_parent'] !== '' ? (float)$_POST['units_per_parent'] : 1.00;
+        $variant_id = (int) ($_POST['variant_id'] ?? 0);
+        $size = trim($_POST['size'] ?? '');
+        $inherit = isset($_POST['inherit_price']) ? 1 : 0;
+        $price = $inherit ? null : (float) ($_POST['price'] ?? 0);
+        $barcode = trim($_POST['barcode'] ?? '');
+        $stock_qty = (float) ($_POST['stock_quantity'] ?? 0);
+        $allow_loose = isset($_POST['allow_loose']) ? 1 : 0;
+        $loose_price = $_POST['loose_price'] !== '' ? (float) $_POST['loose_price'] : null;
+        $loose_units_per_whole = $_POST['loose_units_per_whole'] !== '' ? (float) $_POST['loose_units_per_whole'] : 1.00;
 
         if (empty($size)) {
             $error = 'Size / Label is required.';
@@ -118,25 +112,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         UPDATE billing_product_variants 
                            SET size = :size, price = :price, barcode = :barcode,
                                stock_quantity = :stock_quantity,
-                               stock_linked_to_variant_id = :stock_linked_to_variant_id,
-                               units_per_parent = :units_per_parent
-                         WHERE id = :id AND product_id = :prod_id
+                               allow_loose = :allow_loose,
+                               loose_price = :loose_price,
+                               loose_units_per_whole = :loose_units_per_whole
+                          WHERE id = :id AND product_id = :prod_id
                     ");
                     $stmt_upd->execute([
                         'size' => $size,
                         'price' => $price,
                         'barcode' => $barcode,
                         'stock_quantity' => $stock_qty,
-                        'stock_linked_to_variant_id' => $stock_link,
-                        'units_per_parent' => $units_per_p,
+                        'allow_loose' => $allow_loose,
+                        'loose_price' => $loose_price,
+                        'loose_units_per_whole' => $loose_units_per_whole,
                         'id' => $variant_id,
                         'prod_id' => $product_id
                     ]);
                     $message = 'Variant updated successfully!';
                 } else {
                     $stmt_ins = $db->prepare("
-                        INSERT INTO billing_product_variants (product_id, size, price, barcode, stock_quantity, stock_linked_to_variant_id, units_per_parent) 
-                        VALUES (:prod, :size, :price, :barcode, :stock_quantity, :stock_linked_to_variant_id, :units_per_parent)
+                        INSERT INTO billing_product_variants (product_id, size, price, barcode, stock_quantity, allow_loose, loose_price, loose_units_per_whole) 
+                        VALUES (:prod, :size, :price, :barcode, :stock_quantity, :allow_loose, :loose_price, :loose_units_per_whole)
                     ");
                     $stmt_ins->execute([
                         'prod' => $product_id,
@@ -144,8 +140,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'price' => $price,
                         'barcode' => $barcode,
                         'stock_quantity' => $stock_qty,
-                        'stock_linked_to_variant_id' => $stock_link,
-                        'units_per_parent' => $units_per_p
+                        'allow_loose' => $allow_loose,
+                        'loose_price' => $loose_price,
+                        'loose_units_per_whole' => $loose_units_per_whole
                     ]);
                     $message = 'Variant added successfully!';
                 }
@@ -155,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── DELETE VARIANT ────────────────────────────────────
     if ($action === 'delete_variant') {
-        $variant_id = (int)($_POST['variant_id'] ?? 0);
+        $variant_id = (int) ($_POST['variant_id'] ?? 0);
         if ($variant_id > 0) {
             try {
                 $stmt_del = $db->prepare("
@@ -192,7 +189,8 @@ $variants = $stmt_vars->fetchAll();
             <a href="billing-products.php" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem;">
                 <i class="fa-solid fa-arrow-left-long"></i> Back
             </a>
-            <span class="badge" style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.75rem; padding:0.2rem 0.5rem;">
+            <span class="badge"
+                style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.75rem; padding:0.2rem 0.5rem;">
                 <?= h($product['category_name']) ?>
             </span>
         </div>
@@ -213,37 +211,44 @@ $variants = $stmt_vars->fetchAll();
 
 <!-- Alerts -->
 <?php if (!empty($message)): ?>
-<div style="background:rgba(46,213,115,0.15);color:var(--success);border:1px solid var(--success);padding:0.75rem 1rem;border-radius:var(--border-radius-sm);margin-bottom:1.5rem;display:flex;align-items:center;gap:0.5rem;">
-    <i class="fa-solid fa-circle-check"></i> <span><?= h($message) ?></span>
-</div>
+    <div
+        style="background:rgba(46,213,115,0.15);color:var(--success);border:1px solid var(--success);padding:0.75rem 1rem;border-radius:var(--border-radius-sm);margin-bottom:1.5rem;display:flex;align-items:center;gap:0.5rem;">
+        <i class="fa-solid fa-circle-check"></i> <span><?= h($message) ?></span>
+    </div>
 <?php endif; ?>
 <?php if (!empty($error)): ?>
-<div style="background:rgba(255,71,87,0.15);color:var(--danger);border:1px solid var(--danger);padding:0.75rem 1rem;border-radius:var(--border-radius-sm);margin-bottom:1.5rem;display:flex;align-items:center;gap:0.5rem;">
-    <i class="fa-solid fa-triangle-exclamation"></i> <span><?= h($error) ?></span>
-</div>
+    <div
+        style="background:rgba(255,71,87,0.15);color:var(--danger);border:1px solid var(--danger);padding:0.75rem 1rem;border-radius:var(--border-radius-sm);margin-bottom:1.5rem;display:flex;align-items:center;gap:0.5rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i> <span><?= h($error) ?></span>
+    </div>
 <?php endif; ?>
 
 <div style="display:grid; grid-template-columns: 280px 1fr; gap:1.5rem; align-items:start;">
     <!-- Product Info Sidebar Card -->
     <div class="card" style="padding:1.25rem; display:flex; flex-direction:column; gap:1rem;">
-        <h3 style="font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; color:var(--text-primary);">
+        <h3
+            style="font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; color:var(--text-primary);">
             Product Details
         </h3>
-        
+
         <!-- Image display -->
         <?php if (!empty($product['image_path'])): ?>
-            <div style="width:100%; height:150px; border-radius:var(--border-radius-sm); overflow:hidden; border:1px solid var(--border-color);">
-                <img src="../<?= h($product['image_path']) ?>" alt="Product Image" style="width:100%; height:100%; object-fit:cover;">
+            <div
+                style="width:100%; height:150px; border-radius:var(--border-radius-sm); overflow:hidden; border:1px solid var(--border-color);">
+                <img src="../<?= h($product['image_path']) ?>" alt="Product Image"
+                    style="width:100%; height:100%; object-fit:cover;">
             </div>
         <?php else: ?>
-            <div style="width:100%; height:150px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color);">
+            <div
+                style="width:100%; height:150px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color);">
                 <i class="fa-solid fa-image" style="font-size:3rem;"></i>
             </div>
         <?php endif; ?>
 
         <div>
             <div style="font-size:0.8rem; color:var(--text-muted);">Base Price</div>
-            <div style="font-size:1.4rem; font-weight:700; color:var(--accent-color);"><?= format_price($product['base_price']) ?></div>
+            <div style="font-size:1.4rem; font-weight:700; color:var(--accent-color);">
+                <?= format_price($product['base_price']) ?></div>
         </div>
 
         <div>
@@ -267,9 +272,11 @@ $variants = $stmt_vars->fetchAll();
 
     <!-- Variants List Table Card -->
     <div class="card" style="padding:1.25rem;">
-        <h3 style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:between;">
+        <h3
+            style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:between;">
             <span>Active Variants</span>
-            <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(<?= count($variants) ?> sizes)</span>
+            <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(<?= count($variants) ?>
+                sizes)</span>
         </h3>
 
         <div class="table-responsive">
@@ -287,44 +294,49 @@ $variants = $stmt_vars->fetchAll();
                     <?php if (empty($variants)): ?>
                         <tr>
                             <td colspan="4" style="text-align:center; padding:3rem; color:var(--text-muted);">
-                                <i class="fa-solid fa-layer-group" style="font-size:2rem; margin-bottom:0.5rem; opacity:0.3; display:block;"></i>
-                                No custom sizes/variants configured. This product will sell at the base price of <?= format_price($product['base_price']) ?>.
+                                <i class="fa-solid fa-layer-group"
+                                    style="font-size:2rem; margin-bottom:0.5rem; opacity:0.3; display:block;"></i>
+                                No custom sizes/variants configured. This product will sell at the base price of
+                                <?= format_price($product['base_price']) ?>.
                             </td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($variants as $v): 
+                        <?php foreach ($variants as $v):
                             $v_price = $v['price'] !== null ? $v['price'] : $product['base_price'];
-                        ?>
+                            ?>
                             <tr>
                                 <td style="font-weight:600; color:var(--text-primary); vertical-align:middle;">
                                     <?= h($v['size']) ?>
                                 </td>
-                                <td style="text-align:center; font-family: monospace; font-size:0.9rem; color:var(--text-secondary); vertical-align:middle;">
+                                <td
+                                    style="text-align:center; font-family: monospace; font-size:0.9rem; color:var(--text-secondary); vertical-align:middle;">
                                     <?= h($v['barcode'] ?: 'N/A') ?>
                                 </td>
                                 <td style="text-align:center; vertical-align:middle;">
-                                    <?= get_effective_stock_label($v, $variants) ?>
+                                     <?= get_effective_stock_label($v) ?>
                                 </td>
-                                <td style="text-align:center; font-weight:700; color:var(--accent-color); vertical-align:middle;">
+                                <td
+                                    style="text-align:center; font-weight:700; color:var(--accent-color); vertical-align:middle;">
                                     <?= format_price($v_price) ?>
                                     <?php if ($v['price'] === null): ?>
-                                        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal; display:block;">(Inherited from Base)</span>
+                                        <span
+                                            style="font-size:0.75rem; color:var(--text-muted); font-weight:normal; display:block;">(Inherited
+                                            from Base)</span>
                                     <?php endif; ?>
                                 </td>
                                 <td style="text-align:right; vertical-align:middle;">
                                     <div style="display:inline-flex; gap:0.35rem;">
-                                        <button
-                                            class="btn btn-secondary"
-                                            style="padding:0.3rem 0.55rem; font-size:0.75rem;"
+                                        <button class="btn btn-secondary" style="padding:0.3rem 0.55rem; font-size:0.75rem;"
                                             onclick='openEditVariantModal(<?= htmlspecialchars(json_encode($v), ENT_QUOTES) ?>)'
-                                            title="Edit Variant"
-                                        >
+                                            title="Edit Variant">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </button>
-                                        <form method="POST" style="margin:0;" onsubmit="return confirm('Delete this variant size option?');">
+                                        <form method="POST" style="margin:0;"
+                                            onsubmit="return confirm('Delete this variant size option?');">
                                             <input type="hidden" name="action" value="delete_variant">
                                             <input type="hidden" name="variant_id" value="<?= $v['id'] ?>">
-                                            <button type="submit" class="btn btn-danger" style="padding:0.3rem 0.55rem; font-size:0.75rem;" title="Delete Variant">
+                                            <button type="submit" class="btn btn-danger"
+                                                style="padding:0.3rem 0.55rem; font-size:0.75rem;" title="Delete Variant">
                                                 <i class="fa-solid fa-trash-can"></i>
                                             </button>
                                         </form>
@@ -354,58 +366,72 @@ $variants = $stmt_vars->fetchAll();
 
             <div class="form-group">
                 <label class="form-label">Size / Variant Label</label>
-                <input type="text" name="size" id="variantSize" class="form-control" placeholder="e.g. Standard, Large, Metallic" required>
+                <input type="text" name="size" id="variantSize" class="form-control"
+                    placeholder="e.g. Standard, Large, Metallic" required>
             </div>
 
             <div class="form-group" style="margin-top:1rem;">
                 <label class="form-label">Barcode (Auto-generated if left blank)</label>
-                <input type="text" name="barcode" id="variantBarcode" class="form-control" placeholder="e.g. 200123456789">
+                <input type="text" name="barcode" id="variantBarcode" class="form-control"
+                    placeholder="e.g. 200123456789">
             </div>
 
             <div class="form-group" style="margin-top:1rem;">
                 <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
-                    <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer;">Inherit Product Base Price (<?= format_price($product['base_price']) ?>)</label>
+                    <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked
+                        style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
+                    <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer;">Inherit Product
+                        Base Price (<?= format_price($product['base_price']) ?>)</label>
                 </div>
             </div>
 
             <div class="form-group" id="variantPriceGroup" style="display:none; margin-top:1rem;">
                 <label class="form-label">Custom Price for this Variant (Rs)</label>
-                <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control" placeholder="<?= $product['base_price'] ?>">
+                <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control"
+                    placeholder="<?= $product['base_price'] ?>">
             </div>
 
             <!-- Stock and Inventory Management section -->
             <div style="margin-top:1.5rem; border-top:1px solid var(--border-color); padding-top:1.25rem;">
-                <h4 style="font-size:0.9rem; margin-bottom:0.75rem; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
-                    <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-color); font-size:0.95rem;"></i> Stock & Inventory
+                <h4
+                    style="font-size:0.9rem; margin-bottom:0.75rem; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+                    <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-color); font-size:0.95rem;"></i>
+                    Stock & Inventory
                 </h4>
-                
+
+                <!-- Stock quantity of whole packets -->
                 <div class="form-group">
-                    <label class="form-label" style="font-size:0.8rem;">Link stock to another variant? (For units/packets conversion)</label>
-                    <select name="stock_linked_to_variant_id" id="variantStockLink" class="form-control" onchange="toggleStockLinkFields()">
-                        <option value="">No, this variant has its own independent stock</option>
-                        <?php foreach ($variants as $other_v): ?>
-                            <option value="<?= $other_v['id'] ?>"><?= h($other_v['size']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">
-                        Use this if selling single/loose items that deduct from a parent packet's stock.
-                    </small>
+                    <label class="form-label" style="font-size:0.8rem;">Stock Quantity (Whole Packets)</label>
+                    <input type="number" step="0.01" name="stock_quantity" id="variantStockQty" class="form-control"
+                        placeholder="0.00" required>
                 </div>
-                
-                <!-- If independent stock -->
-                <div class="form-group" id="variantDirectStockGroup" style="margin-top:1rem;">
-                    <label class="form-label" style="font-size:0.8rem;">Stock Quantity</label>
-                    <input type="number" step="0.01" name="stock_quantity" id="variantStockQty" class="form-control" placeholder="0.00">
+
+                <!-- Toggle to allow loose sales -->
+                <div class="form-group" style="margin-top:1rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <input type="checkbox" id="variantAllowLoose" name="allow_loose" value="1"
+                            style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
+                        <label for="variantAllowLoose" class="form-label" style="margin:0; cursor:pointer; font-size:0.8rem;">
+                            Allow Loose sales from this packet?
+                        </label>
+                    </div>
                 </div>
-                
-                <!-- If linked stock -->
-                <div class="form-group" id="variantLinkedStockGroup" style="margin-top:1rem; display:none;">
-                    <label class="form-label" style="font-size:0.8rem;">Units per Parent packet / item</label>
-                    <input type="number" step="0.01" name="units_per_parent" id="variantUnitsPerParent" class="form-control" placeholder="e.g. 50">
-                    <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">
-                        How many of this variant equal 1 unit of the parent variant? (e.g. if 50 balloons make up 1 packet, enter 50)
-                    </small>
+
+                <!-- Loose sales options -->
+                <div id="variantLooseSalesGroup" style="display:none; margin-top:1rem; padding-left:1.5rem; border-left:2px solid var(--accent-color);">
+                    <div class="form-group">
+                        <label class="form-label" style="font-size:0.8rem;">Loose Item Price (Rs per single unit)</label>
+                        <input type="number" step="0.01" min="0.01" name="loose_price" id="variantLoosePrice" class="form-control"
+                            placeholder="e.g. 3.00">
+                    </div>
+                    <div class="form-group" style="margin-top:0.75rem;">
+                        <label class="form-label" style="font-size:0.8rem;">Quantity of loose units in 1 Whole packet</label>
+                        <input type="number" step="0.01" min="1" name="loose_units_per_whole" id="variantLooseUnitsPerWhole"
+                            class="form-control" placeholder="e.g. 50">
+                        <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">
+                            E.g. if 1 packet has 50 balloons, enter 50
+                        </small>
+                    </div>
                 </div>
             </div>
 
@@ -418,104 +444,97 @@ $variants = $stmt_vars->fetchAll();
 </div>
 
 <script>
-const inheritCheckbox = document.getElementById('variantInherit');
-const priceGroup = document.getElementById('variantPriceGroup');
-const priceInput = document.getElementById('variantPrice');
+    const inheritCheckbox = document.getElementById('variantInherit');
+    const priceGroup = document.getElementById('variantPriceGroup');
+    const priceInput = document.getElementById('variantPrice');
+    const allowLooseCheckbox = document.getElementById('variantAllowLoose');
+    const looseSalesGroup = document.getElementById('variantLooseSalesGroup');
+    const loosePriceInput = document.getElementById('variantLoosePrice');
+    const looseUnitsInput = document.getElementById('variantLooseUnitsPerWhole');
 
-inheritCheckbox.addEventListener('change', function() {
-    if (this.checked) {
-        priceGroup.style.display = 'none';
-        priceInput.removeAttribute('required');
-    } else {
-        priceGroup.style.display = 'block';
-        priceInput.setAttribute('required', 'required');
-    }
-});
-
-function openAddVariantModal() {
-    document.getElementById('variantModalTitle').innerHTML =
-        '<i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant';
-    document.getElementById('variantId').value = '0';
-    document.getElementById('variantSize').value = '';
-    document.getElementById('variantBarcode').value = '';
-    
-    // Enable and show all options in link dropdown
-    const select = document.getElementById('variantStockLink');
-    for (let i = 0; i < select.options.length; i++) {
-        select.options[i].disabled = false;
-        select.options[i].style.display = 'block';
-    }
-    
-    document.getElementById('variantStockLink').value = '';
-    document.getElementById('variantStockQty').value = '0.00';
-    document.getElementById('variantUnitsPerParent').value = '1.00';
-    
-    inheritCheckbox.checked = true;
-    priceGroup.style.display = 'none';
-    priceInput.removeAttribute('required');
-    priceInput.value = '';
-    
-    toggleStockLinkFields();
-    openModal('variantModal');
-}
-
-function openEditVariantModal(v) {
-    document.getElementById('variantModalTitle').innerHTML =
-        '<i class="fa-solid fa-pen-to-square" style="color:var(--accent-color);"></i> Edit Size/Variant';
-    document.getElementById('variantId').value = v.id;
-    document.getElementById('variantSize').value = v.size;
-    document.getElementById('variantBarcode').value = v.barcode || '';
-    
-    // Hide/disable itself in link dropdown
-    const select = document.getElementById('variantStockLink');
-    for (let i = 0; i < select.options.length; i++) {
-        const opt = select.options[i];
-        if (opt.value == v.id) {
-            opt.disabled = true;
-            opt.style.display = 'none';
+    inheritCheckbox.addEventListener('change', function () {
+        if (this.checked) {
+            priceGroup.style.display = 'none';
+            priceInput.removeAttribute('required');
         } else {
-            opt.disabled = false;
-            opt.style.display = 'block';
+            priceGroup.style.display = 'block';
+            priceInput.setAttribute('required', 'required');
         }
-    }
-    
-    document.getElementById('variantStockLink').value = v.stock_linked_to_variant_id || '';
-    document.getElementById('variantStockQty').value = v.stock_quantity || '0.00';
-    document.getElementById('variantUnitsPerParent').value = v.units_per_parent || '1.00';
-    
-    if (v.price === null || v.price === undefined) {
+    });
+
+    allowLooseCheckbox.addEventListener('change', function () {
+        if (this.checked) {
+            looseSalesGroup.style.display = 'block';
+            loosePriceInput.setAttribute('required', 'required');
+            looseUnitsInput.setAttribute('required', 'required');
+        } else {
+            looseSalesGroup.style.display = 'none';
+            loosePriceInput.removeAttribute('required');
+            looseUnitsInput.removeAttribute('required');
+        }
+    });
+
+    function openAddVariantModal() {
+        document.getElementById('variantModalTitle').innerHTML =
+            '<i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant';
+        document.getElementById('variantId').value = '0';
+        document.getElementById('variantSize').value = '';
+        document.getElementById('variantBarcode').value = '';
+        document.getElementById('variantStockQty').value = '0.00';
+        
+        allowLooseCheckbox.checked = false;
+        looseSalesGroup.style.display = 'none';
+        loosePriceInput.value = '';
+        loosePriceInput.removeAttribute('required');
+        looseUnitsInput.value = '';
+        looseUnitsInput.removeAttribute('required');
+
         inheritCheckbox.checked = true;
         priceGroup.style.display = 'none';
         priceInput.removeAttribute('required');
         priceInput.value = '';
-    } else {
-        inheritCheckbox.checked = false;
-        priceGroup.style.display = 'block';
-        priceInput.setAttribute('required', 'required');
-        priceInput.value = v.price;
-    }
-    
-    toggleStockLinkFields();
-    openModal('variantModal');
-}
 
-function toggleStockLinkFields() {
-    const stockLinkVal = document.getElementById('variantStockLink').value;
-    const directGroup = document.getElementById('variantDirectStockGroup');
-    const linkedGroup = document.getElementById('variantLinkedStockGroup');
-    
-    if (stockLinkVal === "") {
-        directGroup.style.display = 'block';
-        linkedGroup.style.display = 'none';
-        document.getElementById('variantStockQty').setAttribute('required', 'required');
-        document.getElementById('variantUnitsPerParent').removeAttribute('required');
-    } else {
-        directGroup.style.display = 'none';
-        linkedGroup.style.display = 'block';
-        document.getElementById('variantStockQty').removeAttribute('required');
-        document.getElementById('variantUnitsPerParent').setAttribute('required', 'required');
+        openModal('variantModal');
     }
-}
+
+    function openEditVariantModal(v) {
+        document.getElementById('variantModalTitle').innerHTML =
+            '<i class="fa-solid fa-pen-to-square" style="color:var(--accent-color);"></i> Edit Size/Variant';
+        document.getElementById('variantId').value = v.id;
+        document.getElementById('variantSize').value = v.size;
+        document.getElementById('variantBarcode').value = v.barcode || '';
+        document.getElementById('variantStockQty').value = v.stock_quantity || '0.00';
+
+        if (parseInt(v.allow_loose) === 1) {
+            allowLooseCheckbox.checked = true;
+            looseSalesGroup.style.display = 'block';
+            loosePriceInput.value = v.loose_price || '';
+            loosePriceInput.setAttribute('required', 'required');
+            looseUnitsInput.value = v.loose_units_per_whole || '';
+            looseUnitsInput.setAttribute('required', 'required');
+        } else {
+            allowLooseCheckbox.checked = false;
+            looseSalesGroup.style.display = 'none';
+            loosePriceInput.value = '';
+            loosePriceInput.removeAttribute('required');
+            looseUnitsInput.value = '';
+            looseUnitsInput.removeAttribute('required');
+        }
+
+        if (v.price === null || v.price === undefined) {
+            inheritCheckbox.checked = true;
+            priceGroup.style.display = 'none';
+            priceInput.removeAttribute('required');
+            priceInput.value = '';
+        } else {
+            inheritCheckbox.checked = false;
+            priceGroup.style.display = 'block';
+            priceInput.setAttribute('required', 'required');
+            priceInput.value = v.price;
+        }
+
+        openModal('variantModal');
+    }
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

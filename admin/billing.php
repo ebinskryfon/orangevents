@@ -313,7 +313,7 @@ function get_variant_effective_stock($v, $all_variants) {
                         <div class="prod-card" 
                              data-category="<?= $p['category_id'] ?>" 
                              data-name="<?= htmlspecialchars(strtolower($p['product_name'] . ' ' . $v['size']), ENT_QUOTES) ?>"
-                             onclick='addItemToCart(<?= $p['id'] ?>, <?= $v['id'] ?>, <?= htmlspecialchars(json_encode($p['product_name'] . ' (' . $v['size'] . ')'), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($v['size']), ENT_QUOTES) ?>, <?= $price ?>)'>
+                             onclick='addItemToCart(<?= $p['id'] ?>, <?= $v['id'] ?>, <?= htmlspecialchars(json_encode($p['product_name'] . ' (' . $v['size'] . ')'), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($v['size']), ENT_QUOTES) ?>, <?= $price ?>, <?= (int)$v['allow_loose'] ?>, <?= $v['loose_price'] !== null ? (float)$v['loose_price'] : 'null' ?>, <?= (float)$v['loose_units_per_whole'] ?>)'>
                             
                             <?php if (!empty($p['image_path'])): ?>
                                 <div style="width:100%; height:90px; border-radius:var(--border-radius-sm); overflow:hidden; border:1px solid var(--border-color); margin-bottom:0.25rem;">
@@ -571,7 +571,7 @@ function get_variant_effective_stock($v, $all_variants) {
         }
     }
 
-    function addItemToCart(productId, variantId, name, size, price) {
+    function addItemToCart(productId, variantId, name, size, price, allowLoose = 0, loosePrice = null, looseUnits = 1) {
         const existingIndex = cart.findIndex(item => 
             item.product_id === productId && 
             item.variant_id === variantId &&
@@ -587,8 +587,13 @@ function get_variant_effective_stock($v, $all_variants) {
                 name: name,
                 size: size,
                 price: price,
+                whole_price: price,
                 quantity: 1,
-                is_custom: false
+                is_custom: false,
+                allow_loose: allowLoose,
+                loose_price: loosePrice,
+                loose_units_per_whole: looseUnits,
+                sell_type: 'whole'
             });
         }
         
@@ -717,12 +722,32 @@ function get_variant_effective_stock($v, $all_variants) {
             const itemTotal = item.price * item.quantity;
             subtotal += itemTotal;
             
+            let sellTypeSelectorHtml = '';
+            if (parseInt(item.allow_loose) === 1) {
+                const loosePriceVal = parseFloat(item.loose_price || 0);
+                const wholePriceVal = parseFloat(item.whole_price || 0);
+                sellTypeSelectorHtml = `
+                    <div style="margin-top: 0.4rem; display: flex; gap: 0.75rem; align-items: center;">
+                        <span style="font-size:0.7rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Sell Type:</span>
+                        <label style="font-size:0.75rem; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0;">
+                            <input type="radio" name="sell_type_${index}" value="whole" ${item.sell_type === 'whole' ? 'checked' : ''} onchange="changeItemSellType(${index}, 'whole')" style="accent-color:var(--accent-color); cursor:pointer;">
+                            Whole Pack (₹${wholePriceVal.toFixed(2)})
+                        </label>
+                        <label style="font-size:0.75rem; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0;">
+                            <input type="radio" name="sell_type_${index}" value="loose" ${item.sell_type === 'loose' ? 'checked' : ''} onchange="changeItemSellType(${index}, 'loose')" style="accent-color:var(--accent-color); cursor:pointer;">
+                            Loose Item (₹${loosePriceVal.toFixed(2)})
+                        </label>
+                    </div>
+                `;
+            }
+
             html += `
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; background:rgba(255,255,255,0.015); border:1px solid var(--border-color); border-radius:var(--border-radius-sm); padding:0.6rem 0.75rem;">
                     <div style="flex-grow:1;">
                         <div style="font-weight:600; font-size:0.9rem; color:var(--text-primary);">${escapeHtml(item.name)}</div>
                         ${item.size ? `<div style="font-size:0.75rem; color:var(--text-muted);">Size: ${escapeHtml(item.size)}</div>` : ''}
                         <div style="font-size:0.85rem; color:var(--accent-color); font-weight:600; margin-top:0.15rem;">₹${item.price.toFixed(2)}</div>
+                        ${sellTypeSelectorHtml}
                     </div>
                     <div style="display:flex; align-items:center; gap:0.5rem;">
                         <button type="button" class="qty-btn" onclick="updateQty(${index}, -1)">-</button>
@@ -738,6 +763,18 @@ function get_variant_effective_stock($v, $all_variants) {
         
         listContainer.innerHTML = html;
         subtotalContainer.innerText = '₹' + subtotal.toFixed(2);
+    }
+
+    function changeItemSellType(index, type) {
+        if (!cart[index]) return;
+        cart[index].sell_type = type;
+        if (type === 'loose') {
+            cart[index].price = parseFloat(cart[index].loose_price);
+        } else {
+            cart[index].price = parseFloat(cart[index].whole_price);
+        }
+        saveCartState();
+        renderCart();
     }
 
     function goToCheckout() {
