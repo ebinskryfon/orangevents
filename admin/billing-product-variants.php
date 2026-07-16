@@ -326,6 +326,9 @@ $variants = $stmt_vars->fetchAll();
                                 </td>
                                 <td style="text-align:right; vertical-align:middle;">
                                     <div style="display:inline-flex; gap:0.35rem;">
+                                        <a href="print-barcode.php?variant_id=<?= $v['id'] ?>" class="btn btn-secondary" style="padding:0.3rem 0.55rem; font-size:0.75rem; background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.15); display:inline-flex; align-items:center;" target="_blank" title="Print Barcode Sticker">
+                                            <i class="fa-solid fa-barcode"></i>
+                                        </a>
                                         <button class="btn btn-secondary" style="padding:0.3rem 0.55rem; font-size:0.75rem;"
                                             onclick='openEditVariantModal(<?= htmlspecialchars(json_encode($v), ENT_QUOTES) ?>)'
                                             title="Edit Variant">

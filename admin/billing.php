@@ -312,9 +312,16 @@ function format_variant_stock_badge($v) {
 <div class="pos-container">
     <!-- Left panel: catalogue -->
     <div class="catalog-panel">
-        <div style="display:flex; gap:0.5rem;">
-            <input type="text" id="searchBar" class="form-control" placeholder="Search products..." style="flex-grow:1;">
-            <button onclick="openModal('customItemModal')" class="btn btn-secondary" style="white-space:nowrap;">
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            <div style="position:relative; flex-grow:1;">
+                <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+                <input type="text" id="searchBar" class="form-control" placeholder="Search products..." style="padding-left:35px; width:100%; height:42px;">
+            </div>
+            <div style="position:relative; width:220px;">
+                <i class="fa-solid fa-barcode" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--accent-color);"></i>
+                <input type="text" id="barcodeInput" class="form-control" placeholder="Scan Barcode..." style="padding-left:35px; width:100%; height:42px; border-color:rgba(255,107,53,0.4);">
+            </div>
+            <button onclick="openModal('customItemModal')" class="btn btn-secondary" style="white-space:nowrap; height:42px; display:inline-flex; align-items:center; gap:0.35rem;">
                 <i class="fa-solid fa-plus-circle"></i> Custom Item
             </button>
         </div>
@@ -339,6 +346,15 @@ function format_variant_stock_badge($v) {
                         <div class="prod-card" 
                              data-category="<?= $p['category_id'] ?>" 
                              data-name="<?= htmlspecialchars(strtolower($p['product_name'] . ' ' . $v['size']), ENT_QUOTES) ?>"
+                             data-barcode="<?= htmlspecialchars($v['barcode'] ?? '', ENT_QUOTES) ?>"
+                             data-product-id="<?= $p['id'] ?>"
+                             data-variant-id="<?= $v['id'] ?>"
+                             data-display-name="<?= htmlspecialchars($p['product_name'] . ' (' . $v['size'] . ')', ENT_QUOTES) ?>"
+                             data-size="<?= htmlspecialchars($v['size'], ENT_QUOTES) ?>"
+                             data-price="<?= $price ?>"
+                             data-allow-loose="<?= (int)$v['allow_loose'] ?>"
+                             data-loose-price="<?= $v['loose_price'] !== null ? (float)$v['loose_price'] : 'null' ?>"
+                             data-loose-units="<?= (float)$v['loose_units_per_whole'] ?>"
                              onclick='addItemToCart(<?= $p['id'] ?>, <?= $v['id'] ?>, <?= htmlspecialchars(json_encode($p['product_name'] . ' (' . $v['size'] . ')'), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($v['size']), ENT_QUOTES) ?>, <?= $price ?>, <?= (int)$v['allow_loose'] ?>, <?= $v['loose_price'] !== null ? (float)$v['loose_price'] : 'null' ?>, <?= (float)$v['loose_units_per_whole'] ?>)'>
                             
                             <?php if (!empty($p['image_path'])): ?>
@@ -491,11 +507,66 @@ function format_variant_stock_badge($v) {
         </div>
     </div>
 </div>
+<div id="barcodeToastContainer" style="position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px;"></div>
 
 <script>
     // POS State
     let cart = [];
     let selectedCategoryId = 0;
+
+    // Audio Feedback & Toasts
+    let audioCtx = null;
+    function playBeep(freq, duration) {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            osc.start();
+            osc.stop(audioCtx.currentTime + (duration / 1000));
+        } catch(e) {
+            console.error("Audio API ignored", e);
+        }
+    }
+
+    function showBarcodeToast(message, type = 'success') {
+        const container = document.getElementById('barcodeToastContainer');
+        const toast = document.createElement('div');
+        toast.style.background = type === 'success' ? '#2ed573' : '#ff4757';
+        toast.style.color = '#ffffff';
+        toast.style.padding = '0.75rem 1.25rem';
+        toast.style.borderRadius = '8px';
+        toast.style.fontSize = '0.9rem';
+        toast.style.fontWeight = '600';
+        toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+        toast.style.display = 'flex';
+        toast.style.alignItems = 'center';
+        toast.style.gap = '0.5rem';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(20px)';
+        toast.style.transition = 'all 0.3s ease';
+        
+        const icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-triangle-exclamation"></i>';
+        toast.innerHTML = `${icon} <span>${message}</span>`;
+        
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        }, 10);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-20px)';
+            setTimeout(() => { toast.remove(); }, 300);
+        }, 3000);
+    }
 
     // Elements
     const searchBar = document.getElementById('searchBar');
@@ -520,6 +591,52 @@ function format_variant_stock_badge($v) {
         
         // Search live filter
         searchBar.addEventListener('input', filterProducts);
+        
+        // Barcode scanning listener
+        const barcodeInput = document.getElementById('barcodeInput');
+        if (barcodeInput) {
+            barcodeInput.focus();
+            
+            // Keep input focused when clicking document, unless clicking another input/textarea
+            document.addEventListener('click', (e) => {
+                const active = document.activeElement;
+                if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.getAttribute('contenteditable') === 'true')) {
+                    return;
+                }
+                barcodeInput.focus();
+            });
+
+            barcodeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const barcodeValue = barcodeInput.value.trim();
+                    if (barcodeValue === '') return;
+                    
+                    const card = document.querySelector(`.prod-card[data-barcode="${barcodeValue}"]`);
+                    if (card) {
+                        const productId = parseInt(card.dataset.productId);
+                        const variantId = parseInt(card.dataset.variantId);
+                        const displayName = card.dataset.displayName;
+                        const size = card.dataset.size;
+                        const price = parseFloat(card.dataset.price);
+                        const allowLoose = parseInt(card.dataset.allowLoose);
+                        const loosePrice = card.dataset.loosePrice === 'null' ? null : parseFloat(card.dataset.loosePrice);
+                        const looseUnits = parseFloat(card.dataset.looseUnits);
+                        
+                        addItemToCart(productId, variantId, displayName, size, price, allowLoose, loosePrice, looseUnits);
+                        
+                        barcodeInput.value = '';
+                        playBeep(800, 100);
+                        showBarcodeToast(`Scanned: ${displayName}`, 'success');
+                    } else {
+                        playBeep(220, 250);
+                        showBarcodeToast(`Barcode not found: ${barcodeValue}`, 'danger');
+                        barcodeInput.value = '';
+                    }
+                }
+            });
+        }
+        
         renderCart();
     });
 
