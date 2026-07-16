@@ -24,6 +24,28 @@ if (!$product) {
     exit;
 }
 
+function generate_unique_barcode($db) {
+    do {
+        // EAN-13 internal store barcode prefix (200) + 9 random digits
+        $barcode = '200' . str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
+        
+        // EAN-13 checksum digit calculation
+        $sum = 0;
+        for ($i = 0; $i < 12; $i++) {
+            $num = (int)$barcode[$i];
+            $sum += ($i % 2 === 0) ? $num * 1 : $num * 3;
+        }
+        $checksum = (10 - ($sum % 10)) % 10;
+        $final_barcode = $barcode . $checksum;
+        
+        // Ensure uniqueness
+        $stmt = $db->prepare("SELECT id FROM billing_product_variants WHERE barcode = :barcode");
+        $stmt->execute(['barcode' => $final_barcode]);
+    } while ($stmt->fetch());
+    
+    return $final_barcode;
+}
+
 // =========================================================
 // POST HANDLERS (Add / Edit / Delete Variant)
 // =========================================================
@@ -36,34 +58,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $size       = trim($_POST['size'] ?? '');
         $inherit    = isset($_POST['inherit_price']) ? 1 : 0;
         $price      = $inherit ? null : (float)($_POST['price'] ?? 0);
+        $barcode    = trim($_POST['barcode'] ?? '');
 
         if (empty($size)) {
             $error = 'Size / Label is required.';
         } else {
-            if ($variant_id > 0) {
-                $stmt_upd = $db->prepare("
-                    UPDATE billing_product_variants 
-                       SET size = :size, price = :price 
-                     WHERE id = :id AND product_id = :prod_id
-                ");
-                $stmt_upd->execute([
-                    'size' => $size,
-                    'price' => $price,
-                    'id' => $variant_id,
-                    'prod_id' => $product_id
-                ]);
-                $message = 'Variant updated successfully!';
+            $barcode_ok = true;
+            if (!empty($barcode)) {
+                $stmt_chk = $db->prepare("SELECT id FROM billing_product_variants WHERE barcode = :barcode AND id != :id");
+                $stmt_chk->execute(['barcode' => $barcode, 'id' => $variant_id]);
+                if ($stmt_chk->fetch()) {
+                    $error = "Barcode '{$barcode}' is already in use by another variant.";
+                    $barcode_ok = false;
+                }
             } else {
-                $stmt_ins = $db->prepare("
-                    INSERT INTO billing_product_variants (product_id, size, price) 
-                    VALUES (:prod, :size, :price)
-                ");
-                $stmt_ins->execute([
-                    'prod' => $product_id,
-                    'size' => $size,
-                    'price' => $price
-                ]);
-                $message = 'Variant added successfully!';
+                if ($variant_id === 0) {
+                    $barcode = generate_unique_barcode($db);
+                } else {
+                    $stmt_cur = $db->prepare("SELECT barcode FROM billing_product_variants WHERE id = :id");
+                    $stmt_cur->execute(['id' => $variant_id]);
+                    $curr_barcode = $stmt_cur->fetchColumn();
+                    if (empty($curr_barcode)) {
+                        $barcode = generate_unique_barcode($db);
+                    } else {
+                        $barcode = $curr_barcode;
+                    }
+                }
+            }
+
+            if ($barcode_ok) {
+                if ($variant_id > 0) {
+                    $stmt_upd = $db->prepare("
+                        UPDATE billing_product_variants 
+                           SET size = :size, price = :price, barcode = :barcode 
+                         WHERE id = :id AND product_id = :prod_id
+                    ");
+                    $stmt_upd->execute([
+                        'size' => $size,
+                        'price' => $price,
+                        'barcode' => $barcode,
+                        'id' => $variant_id,
+                        'prod_id' => $product_id
+                    ]);
+                    $message = 'Variant updated successfully!';
+                } else {
+                    $stmt_ins = $db->prepare("
+                        INSERT INTO billing_product_variants (product_id, size, price, barcode) 
+                        VALUES (:prod, :size, :price, :barcode)
+                    ");
+                    $stmt_ins->execute([
+                        'prod' => $product_id,
+                        'size' => $size,
+                        'price' => $price,
+                        'barcode' => $barcode
+                    ]);
+                    $message = 'Variant added successfully!';
+                }
             }
         }
     }
@@ -191,15 +241,16 @@ $variants = $stmt_vars->fetchAll();
             <table class="table">
                 <thead>
                     <tr>
-                        <th style="width:50%;">Size / Option Name</th>
-                        <th style="width:30%; text-align:center;">Selling Price</th>
-                        <th style="width:20%; text-align:right;">Actions</th>
+                        <th style="width:40%;">Size / Option Name</th>
+                        <th style="width:25%; text-align:center;">Barcode</th>
+                        <th style="width:20%; text-align:center;">Selling Price</th>
+                        <th style="width:15%; text-align:right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($variants)): ?>
                         <tr>
-                            <td colspan="3" style="text-align:center; padding:3rem; color:var(--text-muted);">
+                            <td colspan="4" style="text-align:center; padding:3rem; color:var(--text-muted);">
                                 <i class="fa-solid fa-layer-group" style="font-size:2rem; margin-bottom:0.5rem; opacity:0.3; display:block;"></i>
                                 No custom sizes/variants configured. This product will sell at the base price of <?= format_price($product['base_price']) ?>.
                             </td>
@@ -211,6 +262,9 @@ $variants = $stmt_vars->fetchAll();
                             <tr>
                                 <td style="font-weight:600; color:var(--text-primary); vertical-align:middle;">
                                     <?= h($v['size']) ?>
+                                </td>
+                                <td style="text-align:center; font-family: monospace; font-size:0.9rem; color:var(--text-secondary); vertical-align:middle;">
+                                    <?= h($v['barcode'] ?: 'N/A') ?>
                                 </td>
                                 <td style="text-align:center; font-weight:700; color:var(--accent-color); vertical-align:middle;">
                                     <?= format_price($v_price) ?>
@@ -265,6 +319,11 @@ $variants = $stmt_vars->fetchAll();
             </div>
 
             <div class="form-group" style="margin-top:1rem;">
+                <label class="form-label">Barcode (Auto-generated if left blank)</label>
+                <input type="text" name="barcode" id="variantBarcode" class="form-control" placeholder="e.g. 200123456789">
+            </div>
+
+            <div class="form-group" style="margin-top:1rem;">
                 <div style="display:flex; align-items:center; gap:0.6rem;">
                     <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
                     <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer;">Inherit Product Base Price (<?= format_price($product['base_price']) ?>)</label>
@@ -304,6 +363,7 @@ function openAddVariantModal() {
         '<i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant';
     document.getElementById('variantId').value = '0';
     document.getElementById('variantSize').value = '';
+    document.getElementById('variantBarcode').value = '';
     inheritCheckbox.checked = true;
     priceGroup.style.display = 'none';
     priceInput.removeAttribute('required');
@@ -316,6 +376,7 @@ function openEditVariantModal(v) {
         '<i class="fa-solid fa-pen-to-square" style="color:var(--accent-color);"></i> Edit Size/Variant';
     document.getElementById('variantId').value = v.id;
     document.getElementById('variantSize').value = v.size;
+    document.getElementById('variantBarcode').value = v.barcode || '';
     if (v.price === null || v.price === undefined) {
         inheritCheckbox.checked = true;
         priceGroup.style.display = 'none';

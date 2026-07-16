@@ -167,7 +167,7 @@ $all_products = $db->query("
 ")->fetchAll();
 
 $all_variants = $db->query("
-    SELECT id as variant_id, product_id, size, price
+    SELECT id as variant_id, product_id, size, price, barcode
       FROM billing_product_variants
      ORDER BY id ASC
 ")->fetchAll();
@@ -191,7 +191,8 @@ foreach ($all_products as $p) {
                 'name' => $p['product_name'] . ' (' . $v['size'] . ')',
                 'size' => $v['size'],
                 'price' => $price,
-                'category' => $p['category_name']
+                'category' => $p['category_name'],
+                'barcode' => $v['barcode']
             ];
         }
     } else {
@@ -201,7 +202,8 @@ foreach ($all_products as $p) {
             'name' => $p['product_name'],
             'size' => null,
             'price' => (float)$p['base_price'],
-            'category' => $p['category_name']
+            'category' => $p['category_name'],
+            'barcode' => null
         ];
     }
 }
@@ -654,11 +656,22 @@ function filterSearchProducts() {
     const query = searchInput.value.toLowerCase().trim();
     const suggestionsBox = document.getElementById('productSuggestions');
     
+    // Check for exact barcode scan/match to auto-add immediately
+    if (query.length >= 8) {
+        const exactMatchIndex = selectableItems.findIndex(item => item.barcode && item.barcode.toLowerCase() === query);
+        if (exactMatchIndex !== -1) {
+            selectSuggestion(exactMatchIndex, selectableItems[exactMatchIndex].name);
+            hideSuggestions();
+            return;
+        }
+    }
+    
     filteredSearchItems = [];
     selectableItems.forEach((item, index) => {
         const matchesName = item.name.toLowerCase().includes(query);
         const matchesCategory = item.category.toLowerCase().includes(query);
-        if (matchesName || matchesCategory) {
+        const matchesBarcode = item.barcode ? item.barcode.toLowerCase().includes(query) : false;
+        if (matchesName || matchesCategory || matchesBarcode) {
             filteredSearchItems.push({
                 index: index,
                 item: item
@@ -681,6 +694,7 @@ function filterSearchProducts() {
         const item = entry.item;
         const displayName = highlightMatch(item.name, query);
         const displayCategory = highlightMatch(item.category, query);
+        const displayBarcode = item.barcode ? `<span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.5rem;">[${highlightMatch(item.barcode, query)}]</span>` : '';
         const activeClass = i === activeSearchIndex ? 'active' : '';
         
         html += `
@@ -688,6 +702,7 @@ function filterSearchProducts() {
                 <div style="display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
                     <span class="suggestion-category">${displayCategory}</span>
                     <span style="font-weight: 500; font-size: 0.85rem;">${displayName}</span>
+                    ${displayBarcode}
                 </div>
                 <div class="suggestion-price">₹${item.price.toFixed(2)}</div>
             </div>
