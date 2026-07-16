@@ -9,27 +9,50 @@ if (!isset($_SESSION['admin_id'])) {
 
 $db = get_db_connection();
 $variant_id = (int)($_GET['variant_id'] ?? 0);
+$product_id = (int)($_GET['product_id'] ?? 0);
+$all = (int)($_GET['all'] ?? 0);
 
-$stmt = $db->prepare("
-    SELECT v.*, p.product_name, p.base_price, c.category_name
-      FROM billing_product_variants v
-      JOIN billing_products p ON v.product_id = p.id
-      JOIN billing_categories c ON p.category_id = c.id
-     WHERE v.id = :id
-");
-$stmt->execute(['id' => $variant_id]);
-$v = $stmt->fetch();
+$variants = [];
 
-if (!$v) {
-    die("Variant not found.");
+if ($variant_id > 0) {
+    $stmt = $db->prepare("
+        SELECT v.*, p.product_name, p.base_price, c.category_name
+          FROM billing_product_variants v
+          JOIN billing_products p ON v.product_id = p.id
+          JOIN billing_categories c ON p.category_id = c.id
+         WHERE v.id = :id
+    ");
+    $stmt->execute(['id' => $variant_id]);
+    $res = $stmt->fetch();
+    if ($res) {
+        $variants[] = $res;
+    }
+} elseif ($product_id > 0) {
+    $stmt = $db->prepare("
+        SELECT v.*, p.product_name, p.base_price, c.category_name
+          FROM billing_product_variants v
+          JOIN billing_products p ON v.product_id = p.id
+          JOIN billing_categories c ON p.category_id = c.id
+         WHERE v.product_id = :product_id
+         ORDER BY v.id ASC
+    ");
+    $stmt->execute(['product_id' => $product_id]);
+    $variants = $stmt->fetchAll();
+} elseif ($all > 0) {
+    $stmt = $db->prepare("
+        SELECT v.*, p.product_name, p.base_price, c.category_name
+          FROM billing_product_variants v
+          JOIN billing_products p ON v.product_id = p.id
+          JOIN billing_categories c ON p.category_id = c.id
+         ORDER BY p.product_name ASC, v.id ASC
+    ");
+    $stmt->execute();
+    $variants = $stmt->fetchAll();
 }
 
-$barcode = $v['barcode'];
-if (empty($barcode)) {
-    die("No barcode assigned to this variant.");
+if (empty($variants)) {
+    die("No variants found to print.");
 }
-
-$price = $v['price'] !== null ? $v['price'] : $v['base_price'];
 
 // Function to generate Code 39 barcode SVG
 function generateCode39SVG($text) {
@@ -80,14 +103,24 @@ function generateCode39SVG($text) {
     return "<svg width='{$x}' height='{$height}' viewBox='0 0 {$x} {$height}' xmlns='http://www.w3.org/2000/svg'>{$svg}</svg>";
 }
 
-$barcode_svg = generateCode39SVG($barcode);
+$js_variants = [];
+foreach ($variants as $item) {
+    $price = $item['price'] !== null ? $item['price'] : $item['base_price'];
+    $js_variants[] = [
+        'product_name' => $item['product_name'],
+        'size' => $item['size'],
+        'barcode' => $item['barcode'],
+        'price' => (float)$price,
+        'svg' => generateCode39SVG($item['barcode'])
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Barcode Sticker - <?= htmlspecialchars($barcode) ?></title>
+    <title>Print Barcode Stickers</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -333,21 +366,20 @@ $barcode_svg = generateCode39SVG($barcode);
 
     <div class="control-panel">
         <h2 class="panel-title">
-            <i class="fa-solid fa-print"></i> Barcode Label Generator
+            <i class="fa-solid fa-print"></i> Bulk Barcode Label Generator
         </h2>
         <div style="font-size:0.85rem; color:#94a3b8; line-height:1.4;">
-            Product: <strong><?= htmlspecialchars($v['product_name']) ?> (<?= htmlspecialchars($v['size']) ?>)</strong><br>
-            Barcode: <span style="font-family:monospace;"><?= htmlspecialchars($barcode) ?></span>
+            Printing labels for <strong><?= count($variants) ?></strong> unique variant(s).
         </div>
         
         <div class="form-group">
-            <label class="form-label" for="copies">Number of Copies to Print</label>
-            <input type="number" id="copies" class="form-control" min="1" max="500" value="12" oninput="updateStickerCount()">
+            <label class="form-label" for="copies">Copies per Variant</label>
+            <input type="number" id="copies" class="form-control" min="1" max="100" value="4" oninput="updateStickerCount()">
         </div>
 
         <div class="btn-group">
             <button onclick="window.close()" class="btn btn-secondary">
-                <i class="fa-solid fa-times"></i> Close Window
+                <i class="fa-solid fa-times"></i> Close
             </button>
             <button onclick="window.print()" class="btn btn-primary">
                 <i class="fa-solid fa-print"></i> Print Labels
@@ -360,32 +392,47 @@ $barcode_svg = generateCode39SVG($barcode);
     </div>
 
     <script>
-        const stickerHTML = `
-            <div class="sticker">
-                <div class="sticker-title">Orange Events</div>
-                <div class="sticker-subtitle"><?= htmlspecialchars($v['product_name']) ?> (<?= htmlspecialchars($v['size']) ?>)</div>
-                <div class="barcode-graphic">
-                    <?= $barcode_svg ?>
-                </div>
-                <div class="sticker-footer">
-                    <span class="sticker-code"><?= htmlspecialchars($barcode) ?></span>
-                    <span class="sticker-price">MRP: Rs.<?= number_format($price, 0) ?></span>
-                </div>
-            </div>
-        `;
+        const variants = <?= json_encode($js_variants) ?>;
 
         function updateStickerCount() {
             const copiesInput = document.getElementById('copies');
             let count = parseInt(copiesInput.value) || 1;
             if (count < 1) count = 1;
-            if (count > 500) count = 500;
+            if (count > 100) count = 100;
             
             const container = document.getElementById('stickersContainer');
             container.innerHTML = '';
             
-            for (let i = 0; i < count; i++) {
-                container.innerHTML += stickerHTML;
-            }
+            variants.forEach(v => {
+                const stickerHTML = `
+                    <div class="sticker">
+                        <div class="sticker-title">Orange Events</div>
+                        <div class="sticker-subtitle">${escapeHtml(v.product_name)} (${escapeHtml(v.size)})</div>
+                        <div class="barcode-graphic">
+                            ${v.svg}
+                        </div>
+                        <div class="sticker-footer">
+                            <span class="sticker-code">${escapeHtml(v.barcode)}</span>
+                            <span class="sticker-price">MRP: Rs.${Math.round(v.price)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                for (let i = 0; i < count; i++) {
+                    container.innerHTML += stickerHTML;
+                }
+            });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
         // Initialize copies on load

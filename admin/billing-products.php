@@ -152,7 +152,10 @@ foreach ($all_variants as $v) {
         <h1>Billing Products</h1>
         <p>Manage catalog products, sizes, prices, and upload product images.</p>
     </div>
-    <div>
+    <div style="display:flex; gap:0.5rem;">
+        <a href="print-barcode.php?all=1" class="btn btn-secondary" style="background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.2); display:inline-flex; align-items:center; gap:0.35rem;" target="_blank">
+            <i class="fa-solid fa-barcode"></i> Print All Barcodes
+        </a>
         <button onclick="openAddProductModal()" class="btn btn-primary">
             <i class="fa-solid fa-plus"></i> Add Product
         </button>

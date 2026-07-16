@@ -202,7 +202,10 @@ $variants = $stmt_vars->fetchAll();
             Manage size options and custom price overrides for this product.
         </p>
     </div>
-    <div>
+    <div style="display:flex; gap:0.5rem;">
+        <a href="print-barcode.php?product_id=<?= $product_id ?>" class="btn btn-secondary" style="background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.2); display:inline-flex; align-items:center; gap:0.35rem;" target="_blank">
+            <i class="fa-solid fa-barcode"></i> Bulk Print Stickers
+        </a>
         <button onclick="openAddVariantModal()" class="btn btn-primary">
             <i class="fa-solid fa-plus-circle"></i> Add Size / Variant
         </button>
