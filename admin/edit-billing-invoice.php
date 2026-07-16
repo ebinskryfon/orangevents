@@ -356,61 +356,58 @@ require_once __DIR__ . '/../includes/header.php';
 <form id="editInvoiceForm" method="POST" style="margin: 0;">
     <input type="hidden" id="cartDataInput" name="cart_data">
 
-    <div class="edit-container">
-        <!-- Left Side: Order details & Products selection/table -->
-        <div>
-            <!-- Order & Customer Info Card -->
-            <div class="form-section-card">
-                <h3 style="font-size:1.15rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1.25rem; display:flex; align-items:center; gap:0.5rem;">
-                    <i class="fa-solid fa-circle-info" style="color:var(--accent-color);"></i> Invoice Information
-                </h3>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Invoice Number <span style="color:var(--danger);">*</span></label>
-                        <input type="text" name="invoice_number" class="form-control" value="<?= h($order['invoice_number']) ?>" required placeholder="OE-B-YYYYMMDD-XXXX">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Invoice Date & Time <span style="color:var(--danger);">*</span></label>
-                        <input type="datetime-local" name="created_at" class="form-control" value="<?= date('Y-m-d\TH:i', strtotime($order['created_at'])) ?>" required>
-                    </div>
+    <!-- Invoice/Customer Summary Info Card at Top -->
+    <div class="form-section-card" style="display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; gap: 2.5rem; flex-wrap: wrap; align-items: center;">
+            <!-- Invoice details summary -->
+            <div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Invoice Information</div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                    <span style="font-weight: 700; color: var(--text-primary); font-size: 1.15rem;" id="lblInvoiceNumber"><?= h($order['invoice_number']) ?></span>
+                    <?php
+                    $method = $order['payment_method'];
+                    $bg_color = 'rgba(46, 213, 115, 0.12)';
+                    $text_color = 'var(--success)';
+                    if ($method === 'UPI') {
+                        $bg_color = 'rgba(30, 144, 255, 0.12)';
+                        $text_color = 'var(--info)';
+                    } elseif ($method === 'Card') {
+                        $bg_color = 'rgba(255, 107, 53, 0.12)';
+                        $text_color = 'var(--accent-color)';
+                    }
+                    ?>
+                    <span class="badge" id="lblPaymentMethod" style="background: <?= $bg_color ?>; color: <?= $text_color ?>; font-weight: 600; font-size: 0.75rem; padding: 0.15rem 0.4rem;">
+                        <?= h($method) ?>
+                    </span>
                 </div>
-
-                <div class="form-row" style="margin-top:1.25rem;">
-                    <div class="form-group">
-                        <label class="form-label">Customer Name</label>
-                        <input type="text" name="customer_name" class="form-control" value="<?= h($order['customer_name'] ?? '') ?>" placeholder="Walk-in Client">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Customer Phone</label>
-                        <input type="text" name="customer_phone" class="form-control" value="<?= h($order['customer_phone'] ?? '') ?>" placeholder="e.g. 9946731720">
-                    </div>
-                </div>
-
-                <div class="form-group" style="margin-top:1.25rem;">
-                    <label class="form-label">Customer Address</label>
-                    <textarea name="customer_address" class="form-control" rows="2" placeholder="Address Details..." style="resize:vertical;"><?= h($order['customer_address'] ?? '') ?></textarea>
-                </div>
-
-                <div class="form-group" style="margin-top:1.25rem;">
-                    <label class="form-label">Payment Method</label>
-                    <div style="display:flex; gap:0.75rem;">
-                        <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
-                            <input type="radio" name="payment_method" value="Cash" <?= $order['payment_method'] === 'Cash' ? 'checked' : '' ?>>
-                            <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-money-bill-1-wave" style="color:var(--success); margin-right:0.25rem;"></i> Cash</span>
-                        </label>
-                        <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
-                            <input type="radio" name="payment_method" value="UPI" <?= $order['payment_method'] === 'UPI' ? 'checked' : '' ?>>
-                            <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-qrcode" style="color:var(--info); margin-right:0.25rem;"></i> UPI QR</span>
-                        </label>
-                        <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
-                            <input type="radio" name="payment_method" value="Card" <?= $order['payment_method'] === 'Card' ? 'checked' : '' ?>>
-                            <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-credit-card" style="color:var(--accent-color); margin-right:0.25rem;"></i> Card</span>
-                        </label>
-                    </div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary);" id="lblInvoiceDate">
+                    <i class="fa-regular fa-calendar" style="margin-right: 0.25rem;"></i> <?= date('d M Y, h:i A', strtotime($order['created_at'])) ?>
                 </div>
             </div>
 
+            <!-- Customer summary -->
+            <div style="border-left: 1px solid var(--border-color); padding-left: 2.5rem; min-height: 48px; display: flex; flex-direction: column; justify-content: center;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Customer Details</div>
+                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;" id="lblCustomerName">
+                    <?= h($order['customer_name'] ?: 'Walk-in Client') ?>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap;">
+                    <span id="lblCustomerPhone"><i class="fa-solid fa-phone" style="font-size: 0.75rem; margin-right: 0.25rem;"></i> <?= h($order['customer_phone'] ?: 'N/A') ?></span>
+                    <span id="lblCustomerAddress"><i class="fa-solid fa-location-dot" style="font-size: 0.75rem; margin-right: 0.25rem;"></i> <?= h($order['customer_address'] ? (mb_strimwidth($order['customer_address'], 0, 40, '...')) : 'N/A') ?></span>
+                </div>
+            </div>
+        </div>
+        
+        <div>
+            <button type="button" onclick="openInvoiceDetailsModal()" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.05); border-color: var(--border-color); font-weight: 600; font-size: 0.85rem; height: 38px;">
+                <i class="fa-solid fa-user-gear" style="color: var(--accent-color);"></i> Edit Customer & Info
+            </button>
+        </div>
+    </div>
+
+    <div class="edit-container">
+        <!-- Left Side: Order details & Products selection/table -->
+        <div>
             <!-- Items & Products Selection Card -->
             <div class="form-section-card">
                 <h3 style="font-size:1.15rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1.25rem;">
@@ -526,6 +523,67 @@ require_once __DIR__ . '/../includes/header.php';
         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
             <button type="button" onclick="closeModal('customItemModal')" class="btn btn-secondary">Cancel</button>
             <button type="button" onclick="addCustomItemToArray()" class="btn btn-primary">Add to Invoice</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Customer & Invoice Details (Popup) -->
+<div id="invoiceDetailsModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <button class="modal-close" type="button" onclick="closeInvoiceDetailsModal()">&times;</button>
+        <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-user-gear" style="color: var(--accent-color);"></i> Edit Customer & Invoice Info
+        </h3>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Invoice Number <span style="color:var(--danger);">*</span></label>
+                <input type="text" id="inputInvoiceNumber" name="invoice_number" class="form-control" value="<?= h($order['invoice_number']) ?>" required placeholder="OE-B-YYYYMMDD-XXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Invoice Date & Time <span style="color:var(--danger);">*</span></label>
+                <input type="datetime-local" id="inputInvoiceDate" name="created_at" class="form-control" value="<?= date('Y-m-d\TH:i', strtotime($order['created_at'])) ?>" required>
+            </div>
+        </div>
+
+        <div class="form-row" style="margin-top:1.25rem;">
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" id="inputCustomerName" name="customer_name" class="form-control" value="<?= h($order['customer_name'] ?? '') ?>" placeholder="Walk-in Client">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Phone</label>
+                <input type="text" id="inputCustomerPhone" name="customer_phone" class="form-control" value="<?= h($order['customer_phone'] ?? '') ?>" placeholder="e.g. 9946731720">
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top:1.25rem;">
+            <label class="form-label">Customer Address</label>
+            <textarea id="inputCustomerAddress" name="customer_address" class="form-control" rows="3" placeholder="Address Details..." style="resize:vertical;"><?= h($order['customer_address'] ?? '') ?></textarea>
+        </div>
+
+        <div class="form-group" style="margin-top:1.25rem; margin-bottom: 1rem;">
+            <label class="form-label">Payment Method</label>
+            <div style="display:flex; gap:0.75rem;">
+                <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
+                    <input type="radio" name="payment_method" value="Cash" <?= $order['payment_method'] === 'Cash' ? 'checked' : '' ?>>
+                    <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-money-bill-1-wave" style="color:var(--success); margin-right:0.25rem;"></i> Cash</span>
+                </label>
+                <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
+                    <input type="radio" name="payment_method" value="UPI" <?= $order['payment_method'] === 'UPI' ? 'checked' : '' ?>>
+                    <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-qrcode" style="color:var(--info); margin-right:0.25rem;"></i> UPI QR</span>
+                </label>
+                <label style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
+                    <input type="radio" name="payment_method" value="Card" <?= $order['payment_method'] === 'Card' ? 'checked' : '' ?>>
+                    <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-credit-card" style="color:var(--accent-color); margin-right:0.25rem;"></i> Card</span>
+                </label>
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <button type="button" onclick="applyInvoiceDetails()" class="btn btn-primary" style="padding: 0.6rem 1.5rem; font-weight: 600;">
+                <i class="fa-solid fa-circle-check"></i> Apply Info
+            </button>
         </div>
     </div>
 </div>
@@ -874,6 +932,72 @@ function submitEditForm() {
     
     // Submit form
     document.getElementById('editInvoiceForm').submit();
+}
+
+// Customer/Invoice details popup handlers
+function openInvoiceDetailsModal() {
+    openModal('invoiceDetailsModal');
+}
+
+function closeInvoiceDetailsModal() {
+    closeModal('invoiceDetailsModal');
+}
+
+function applyInvoiceDetails() {
+    const invNo = document.getElementById('inputInvoiceNumber').value.trim();
+    const invDateRaw = document.getElementById('inputInvoiceDate').value;
+    const custName = document.getElementById('inputCustomerName').value.trim();
+    const custPhone = document.getElementById('inputCustomerPhone').value.trim();
+    const custAddr = document.getElementById('inputCustomerAddress').value.trim();
+    
+    let paymentMethod = 'Cash';
+    const radios = document.getElementsByName('payment_method');
+    for (let r of radios) {
+        if (r.checked) {
+            paymentMethod = r.value;
+            break;
+        }
+    }
+    
+    if (invNo === "") {
+        alert("Invoice number cannot be empty.");
+        return;
+    }
+    if (invDateRaw === "") {
+        alert("Invoice date & time is required.");
+        return;
+    }
+    
+    // Update summary card values
+    document.getElementById('lblInvoiceNumber').textContent = invNo;
+    
+    const dateObj = new Date(invDateRaw);
+    if (!isNaN(dateObj)) {
+        const options = { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
+        const formattedDate = dateObj.toLocaleString('en-US', options).replace(/,/g, '');
+        document.getElementById('lblInvoiceDate').innerHTML = `<i class="fa-regular fa-calendar" style="margin-right: 0.25rem;"></i> ` + formattedDate;
+    }
+    
+    const badge = document.getElementById('lblPaymentMethod');
+    badge.textContent = paymentMethod;
+    if (paymentMethod === 'Cash') {
+        badge.style.background = 'rgba(46, 213, 115, 0.12)';
+        badge.style.color = 'var(--success)';
+    } else if (paymentMethod === 'UPI') {
+        badge.style.background = 'rgba(30, 144, 255, 0.12)';
+        badge.style.color = 'var(--info)';
+    } else {
+        badge.style.background = 'rgba(255, 107, 53, 0.12)';
+        badge.style.color = 'var(--accent-color)';
+    }
+    
+    document.getElementById('lblCustomerName').textContent = custName || 'Walk-in Client';
+    document.getElementById('lblCustomerPhone').innerHTML = `<i class="fa-solid fa-phone" style="font-size: 0.75rem; margin-right: 0.25rem;"></i> ` + (custPhone || 'N/A');
+    
+    const truncatedAddr = custAddr ? (custAddr.length > 40 ? custAddr.substring(0, 40) + '...' : custAddr) : 'N/A';
+    document.getElementById('lblCustomerAddress').innerHTML = `<i class="fa-solid fa-location-dot" style="font-size: 0.75rem; margin-right: 0.25rem;"></i> ` + truncatedAddr;
+    
+    closeInvoiceDetailsModal();
 }
 
 function escapeHtml(text) {
