@@ -309,6 +309,48 @@ require_once __DIR__ . '/../includes/header.php';
         color: var(--accent-color);
         margin-top: 0.25rem;
     }
+    
+    /* Autocomplete Search suggestions styling */
+    .suggestion-item {
+        padding: 0.65rem 1rem;
+        cursor: pointer;
+        transition: background 0.15s ease;
+        border-bottom: 1px solid rgba(255,255,255,0.03);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .suggestion-item:last-child {
+        border-bottom: none;
+    }
+    .suggestion-item:hover, .suggestion-item.active {
+        background: rgba(255, 107, 53, 0.12);
+        color: var(--text-primary);
+    }
+    .suggestion-category {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: rgba(255, 107, 53, 0.08);
+        color: var(--accent-color);
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        margin-right: 0.5rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .suggestion-price {
+        font-weight: 700;
+        color: var(--accent-color);
+        font-size: 0.9rem;
+    }
+    .suggestion-match {
+        color: #ffaa66;
+        font-weight: 600;
+        background: rgba(255, 170, 102, 0.08);
+        border-radius: 2px;
+        padding: 0 1px;
+    }
 </style>
 
 <form id="editInvoiceForm" method="POST" style="margin: 0;">
@@ -376,21 +418,25 @@ require_once __DIR__ . '/../includes/header.php';
                 </h3>
 
                 <!-- Product Add Selector Bar -->
-                <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; background:rgba(0,0,0,0.12); padding:1rem; border-radius:var(--border-radius-md); border:1px solid var(--border-color);">
-                    <div style="flex-grow: 1;">
+                <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; background:rgba(0,0,0,0.12); padding:1rem; border-radius:var(--border-radius-md); border:1px solid var(--border-color); position: relative;">
+                    <div style="flex-grow: 1; position: relative;">
                         <label class="form-label" style="font-size:0.75rem; margin-bottom:0.25rem;">Select Product / Variant</label>
-                        <select id="productSelector" class="form-control" style="cursor: pointer;">
-                            <option value="">-- Choose product variant to add --</option>
-                            <?php foreach ($selectable_items as $idx => $item): ?>
-                                <option value="<?= $idx ?>"><?= h($item['category']) ?> » <?= h($item['name']) ?> (₹<?= number_format($item['price'], 2) ?>)</option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div style="position: relative;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.85rem;"></i>
+                            <input type="text" id="productSearchInput" class="form-control" placeholder="Search by name, size or category..." autocomplete="off" style="padding-left: 2.5rem;" onfocus="showSuggestions()" oninput="filterSearchProducts()">
+                        </div>
+                        <input type="hidden" id="productSelector" value="">
+                        
+                        <!-- Suggestions Container -->
+                        <div id="productSuggestions" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-highlight); border-radius: var(--border-radius-md); max-height: 250px; overflow-y: auto; z-index: 1000; box-shadow: var(--box-shadow); margin-top: 0.35rem; padding: 0.25rem 0;">
+                            <!-- Dynamically loaded -->
+                        </div>
                     </div>
-                    <div style="display:flex; gap:0.5rem; margin-top:1.1rem;">
-                        <button type="button" onclick="addProductToInvoice()" class="btn btn-primary" style="white-space: nowrap;">
-                            <i class="fa-solid fa-plus"></i> Add Selected
+                    <div style="display:flex; gap:0.5rem; margin-top:1.1rem; align-items: center;">
+                        <button type="button" onclick="addProductToInvoice()" class="btn btn-primary" style="white-space: nowrap; height: 40px; display: flex; align-items: center; gap: 0.25rem;">
+                            <i class="fa-solid fa-plus"></i> Add
                         </button>
-                        <button type="button" onclick="openCustomItemModal()" class="btn btn-secondary" style="white-space: nowrap;">
+                        <button type="button" onclick="openCustomItemModal()" class="btn btn-secondary" style="white-space: nowrap; height: 40px; display: flex; align-items: center; gap: 0.25rem;">
                             <i class="fa-solid fa-plus-circle"></i> Custom Item
                         </button>
                     </div>
@@ -488,10 +534,143 @@ require_once __DIR__ . '/../includes/header.php';
 // State variable containing invoice items
 let invoiceItems = <?= json_encode($js_items) ?>;
 const selectableItems = <?= json_encode($selectable_items) ?>;
+let activeSearchIndex = -1;
+let filteredSearchItems = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     renderItems();
+    
+    const searchInput = document.getElementById('productSearchInput');
+    const suggestionsBox = document.getElementById('productSuggestions');
+    
+    // Keyboard navigation on suggestions
+    searchInput.addEventListener('keydown', (e) => {
+        const items = suggestionsBox.querySelectorAll('.suggestion-item');
+        
+        if (suggestionsBox.style.display === 'none') {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                showSuggestions();
+            }
+            return;
+        }
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeSearchIndex = (activeSearchIndex + 1) % items.length;
+            updateActiveSuggestion(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeSearchIndex = (activeSearchIndex - 1 + items.length) % items.length;
+            updateActiveSuggestion(items);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (activeSearchIndex >= 0 && activeSearchIndex < items.length) {
+                items[activeSearchIndex].click();
+            } else if (items.length > 0) {
+                items[0].click();
+            }
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+    
+    // Click outside to close suggestion dropdown
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#productSearchInput') && !e.target.closest('#productSuggestions')) {
+            hideSuggestions();
+        }
+    });
 });
+
+function showSuggestions() {
+    filterSearchProducts();
+}
+
+function hideSuggestions() {
+    document.getElementById('productSuggestions').style.display = 'none';
+    activeSearchIndex = -1;
+}
+
+function filterSearchProducts() {
+    const searchInput = document.getElementById('productSearchInput');
+    const query = searchInput.value.toLowerCase().trim();
+    const suggestionsBox = document.getElementById('productSuggestions');
+    
+    filteredSearchItems = [];
+    selectableItems.forEach((item, index) => {
+        const matchesName = item.name.toLowerCase().includes(query);
+        const matchesCategory = item.category.toLowerCase().includes(query);
+        if (matchesName || matchesCategory) {
+            filteredSearchItems.push({
+                index: index,
+                item: item
+            });
+        }
+    });
+    
+    if (filteredSearchItems.length === 0) {
+        suggestionsBox.innerHTML = `
+            <div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem; text-align: center;">
+                No matching product variants found
+            </div>
+        `;
+        suggestionsBox.style.display = 'block';
+        return;
+    }
+    
+    let html = '';
+    filteredSearchItems.forEach((entry, i) => {
+        const item = entry.item;
+        const displayName = highlightMatch(item.name, query);
+        const displayCategory = highlightMatch(item.category, query);
+        const activeClass = i === activeSearchIndex ? 'active' : '';
+        
+        html += `
+            <div class="suggestion-item ${activeClass}" data-index="${entry.index}" onclick="selectSuggestion(${entry.index}, '${escapeJsString(item.name)}')">
+                <div style="display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">
+                    <span class="suggestion-category">${displayCategory}</span>
+                    <span style="font-weight: 500; font-size: 0.85rem;">${displayName}</span>
+                </div>
+                <div class="suggestion-price">₹${item.price.toFixed(2)}</div>
+            </div>
+        `;
+    });
+    
+    suggestionsBox.innerHTML = html;
+    suggestionsBox.style.display = 'block';
+}
+
+function highlightMatch(text, query) {
+    if (!query) return escapeHtml(text);
+    const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    return escapeHtml(text).replace(regex, '<span class="suggestion-match">$1</span>');
+}
+
+function updateActiveSuggestion(items) {
+    items.forEach((item, i) => {
+        if (i === activeSearchIndex) {
+            item.classList.add('active');
+            item.scrollIntoView({ block: 'nearest' });
+        } else {
+            item.classList.remove('active');
+        }
+    });
+}
+
+function selectSuggestion(index, name) {
+    document.getElementById('productSelector').value = index;
+    // Call main handler to add product to array
+    addProductToInvoice();
+    // Clear inputs and hide suggestions
+    document.getElementById('productSearchInput').value = '';
+    document.getElementById('productSelector').value = '';
+    hideSuggestions();
+}
+
+function escapeJsString(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
 
 // Render the items inside the table dynamically
 function renderItems() {
