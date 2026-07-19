@@ -112,10 +112,14 @@ function format_variant_stock_badge($v)
         display: flex;
         gap: 0.5rem;
         overflow-x: auto;
-        padding-bottom: 0.25rem;
+        padding-bottom: 0.5rem;
+        flex-shrink: 0;
     }
 
     .filter-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         padding: 0.5rem 1rem;
         background: var(--bg-control);
         border: 1px solid var(--border-color);
@@ -124,6 +128,7 @@ function format_variant_stock_badge($v)
         font-weight: 500;
         cursor: pointer;
         white-space: nowrap;
+        line-height: 1;
         transition: var(--transition-fast);
     }
 
@@ -336,7 +341,7 @@ function format_variant_stock_badge($v)
 <div class="pos-container">
     <!-- Left panel: catalogue -->
     <div class="catalog-panel">
-        <div style="display:flex; gap:0.5rem; align-items:center;">
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-shrink:0;">
             <div style="position:relative; flex-grow:1;">
                 <i class="fa-solid fa-magnifying-glass"
                     style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
