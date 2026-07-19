@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orange Events - Administrator Login</title>
     <!-- PWA Manifest & Service Worker -->
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

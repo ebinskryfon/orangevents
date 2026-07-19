@@ -15,7 +15,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orange Events - Select Module</title>
     <!-- PWA Manifest & Service Worker -->
-    <link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json" crossorigin="use-credentials">
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
