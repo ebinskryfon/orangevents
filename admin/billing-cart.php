@@ -3,39 +3,43 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-function adjust_variant_stock($db, $variant_id, $quantity, $sell_type, $change_type, $order_id = null, $notes = '') {
-    if (!$variant_id) return;
-    
+function adjust_variant_stock($db, $variant_id, $quantity, $sell_type, $change_type, $order_id = null, $notes = '')
+{
+    if (!$variant_id)
+        return;
+
     // Fetch variant details
     $stmt = $db->prepare("SELECT id, stock_quantity, allow_loose, loose_units_per_whole FROM billing_product_variants WHERE id = :id");
     $stmt->execute(['id' => $variant_id]);
     $var = $stmt->fetch();
-    
-    if (!$var) return;
-    
+
+    if (!$var)
+        return;
+
     // Determine stock deduction multiplier based on change_type
     $is_deduction = in_array($change_type, ['sale_whole', 'sale_loose']);
     $multiplier = $is_deduction ? -1 : 1;
-    
+
     // Calculate stock change in packets (whole units)
     $stock_change = 0.00;
     if ($sell_type === 'loose') {
-        $units_per_whole = (float)$var['loose_units_per_whole'];
-        if ($units_per_whole <= 0) $units_per_whole = 1.00;
+        $units_per_whole = (float) $var['loose_units_per_whole'];
+        if ($units_per_whole <= 0)
+            $units_per_whole = 1.00;
         $stock_change = ($quantity / $units_per_whole) * $multiplier;
     } else {
         $stock_change = $quantity * $multiplier;
     }
-    
+
     // Update variant stock quantity
     $stmt_up = $db->prepare("UPDATE billing_product_variants SET stock_quantity = stock_quantity + :qty WHERE id = :id");
     $stmt_up->execute(['qty' => $stock_change, 'id' => $variant_id]);
-    
+
     // Fetch updated stock for log
     $stmt_stock = $db->prepare("SELECT stock_quantity FROM billing_product_variants WHERE id = :id");
     $stmt_stock->execute(['id' => $variant_id]);
-    $result_stock = (float)$stmt_stock->fetchColumn();
-    
+    $result_stock = (float) $stmt_stock->fetchColumn();
+
     // Log audit
     $stmt_log = $db->prepare("
         INSERT INTO billing_stock_logs (variant_id, order_id, change_type, quantity_changed, result_stock, notes)
@@ -53,7 +57,36 @@ function adjust_variant_stock($db, $variant_id, $quantity, $sell_type, $change_t
 
 check_admin_auth();
 
+if (!has_permission('billing_create')) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest')) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Access denied: You do not have the required permission (billing_create).']);
+        exit;
+    } else {
+        header('Location: index.php');
+        exit;
+    }
+}
+
 $db = get_db_connection();
+
+// Check if cash register session is active for current user
+$user_id = $_SESSION['admin_id'];
+$register_stmt = $db->prepare("SELECT id FROM cash_register_sessions WHERE status = 'open' AND user_id = :user_id LIMIT 1");
+$register_stmt->execute(['user_id' => $user_id]);
+$is_register_open = (bool) $register_stmt->fetch();
+
+if (!$is_register_open) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Cash register is closed. Please open the cash register to process sales.']);
+        exit;
+    } else {
+        header("Location: billing.php");
+        exit;
+    }
+}
+
 
 // =========================================================
 // POST HANDLER (CHECKOUT API)
@@ -189,34 +222,39 @@ $default_upi = $clean_phone . '@upi';
 ?>
 
 <!-- Title & Back Link -->
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
     <div class="header-title">
-        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
-            <a href="billing.php" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem;">
-                <i class="fa-solid fa-arrow-left-long"></i> Add More Items
-            </a>
-        </div>
-        <h1 style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
             <i class="fa-solid fa-cart-shopping" style="color:var(--accent-color);"></i>
             Checkout & Billing
         </h1>
-        <p style="color:var(--text-muted); margin-top:0.25rem;">
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
             Finalize order details, apply discount, and choose payment method.
         </p>
+    </div>
+    <div>
+        <a href="billing.php" id="backToBillingLink" class="btn btn-secondary"
+            style="padding:0.25rem 0.6rem; font-size:0.75rem; height:28px; display:inline-flex; align-items:center; gap:0.3rem; margin:0;">
+            <i class="fa-solid fa-arrow-left-long"></i> Add More Items
+        </a>
     </div>
 </div>
 
 <style>
+
     .checkout-container {
         display: grid;
-        grid-template-columns: 1.3fr 1fr;
-        gap: 1.5rem;
-        align-items: start;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 0.75rem;
+        height: 480px;
+        overflow: hidden;
     }
 
     @media (max-width: 992px) {
         .checkout-container {
             grid-template-columns: 1fr;
+            height: auto;
+            overflow: visible;
         }
     }
 
@@ -224,14 +262,30 @@ $default_upi = $clean_phone . '@upi';
         background: var(--bg-card);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius-lg);
-        padding: 1.25rem;
+        padding: 0.75rem;
         box-shadow: var(--box-shadow);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .checkout-right-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-lg);
+        padding: 0.75rem;
+        box-shadow: var(--box-shadow);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
 
     .payment-options {
         display: flex;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
+        gap: 0.4rem;
+        margin-top: 0.3rem;
     }
 
     .pay-btn {
@@ -239,16 +293,16 @@ $default_upi = $clean_phone . '@upi';
         background: var(--bg-control);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius-md);
-        padding: 0.75rem;
+        padding: 0.4rem;
         text-align: center;
         cursor: pointer;
         transition: var(--transition-fast);
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 0.4rem;
+        gap: 0.2rem;
         font-weight: 600;
-        font-size: 0.85rem;
+        font-size: 0.75rem;
         color: var(--text-secondary);
     }
 
@@ -264,15 +318,15 @@ $default_upi = $clean_phone . '@upi';
     }
 
     .pay-btn i {
-        font-size: 1.25rem;
+        font-size: 1rem;
     }
 
     .qr-container {
         background: rgba(255, 255, 255, 0.02);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius-md);
-        padding: 1rem;
-        margin-top: 1rem;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -282,15 +336,15 @@ $default_upi = $clean_phone . '@upi';
         background: rgba(255, 255, 255, 0.02);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius-md);
-        padding: 1rem;
-        margin-bottom: 1rem;
+        padding: 0.5rem;
+        margin-bottom: 0.25rem;
     }
 
     .summary-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        font-size: 0.8rem;
     }
 
     .summary-row:last-child {
@@ -299,8 +353,8 @@ $default_upi = $clean_phone . '@upi';
 
     .summary-total {
         border-top: 1px dashed var(--border-color);
-        padding-top: 0.5rem;
-        font-size: 1.15rem;
+        padding-top: 0.25rem;
+        font-size: 1rem;
         font-weight: 700;
         color: var(--text-primary);
     }
@@ -310,64 +364,69 @@ $default_upi = $clean_phone . '@upi';
     <!-- Left column: Items in Cart -->
     <div class="cart-summary-table">
         <h3
-            style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
-            <span>Review Selected Items</span>
+            style="font-size:0.95rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+            <span style="display:flex; align-items:center; gap:0.4rem;">
+                Review Selected Items
+                <span id="cartItemCountBadge" style="background:rgba(255, 107, 53, 0.1); color:var(--accent-color); font-size:0.7rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:20px; letter-spacing:0.03em;">0 items</span>
+            </span>
             <button onclick="clearCartAndGoBack()" class="btn btn-secondary"
-                style="padding:0.25rem 0.5rem; font-size:0.75rem; color:var(--danger); border-color:rgba(255, 71, 87, 0.2);">
+                style="padding:0.2rem 0.4rem; font-size:0.7rem; color:var(--danger); border-color:rgba(255, 71, 87, 0.2);">
                 <i class="fa-solid fa-trash-can"></i> Clear Cart
             </button>
         </h3>
 
-        <div id="cartItemsList" style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1rem;">
+        <div id="cartItemsList" style="flex-grow: 1; overflow-y: auto; display:flex; flex-direction:column; gap:0.4rem; margin-bottom:0.5rem; padding-right:0.25rem;">
             <!-- Rendered dynamically -->
         </div>
 
-        <div style="text-align:right;">
-            <a href="billing.php" class="btn btn-secondary" style="font-size:0.85rem;">
+        <div style="text-align:right; flex-shrink:0; border-top:1px solid var(--border-color); padding-top:0.5rem;">
+            <a href="billing.php" id="changeItemsLink" class="btn btn-secondary" style="font-size:0.75rem; padding: 0.25rem 0.5rem;">
                 <i class="fa-solid fa-plus"></i> Add/Change Items
             </a>
         </div>
     </div>
 
     <!-- Right column: Customer details, discount, payment & checkout -->
-    <div class="card" style="padding:1.25rem;">
+    <div class="checkout-right-card">
         <h3
-            style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem;">
+            style="font-size:0.95rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:0.5rem; flex-shrink:0;">
             Order & Payment Details
         </h3>
 
-        <form id="checkoutForm" method="POST" style="margin:0;">
+        <form id="checkoutForm" method="POST" style="margin:0; display:flex; flex-direction:column; flex-grow:1; overflow-y:auto; padding-right:0.25rem; gap:0.5rem;">
             <input type="hidden" name="action" value="checkout">
             <input type="hidden" id="cartDataInput" name="cart_data">
 
-            <!-- Customer Details -->
-            <div class="form-group">
-                <label class="form-label">Customer Name</label>
-                <input type="text" id="customerName" name="customer_name" class="form-control"
-                    placeholder="Walk-in Client">
+            <!-- Customer Details Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; flex-shrink:0;">
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Customer Name</label>
+                    <input type="text" id="customerName" name="customer_name" class="form-control"
+                        placeholder="Walk-in Client" style="height:30px; font-size:0.8rem; padding:0.25rem 0.5rem;">
+                </div>
+
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Customer Phone</label>
+                    <input type="text" id="customerPhone" name="customer_phone" class="form-control"
+                        placeholder="Phone No." style="height:30px; font-size:0.8rem; padding:0.25rem 0.5rem;">
+                </div>
             </div>
 
-            <div class="form-group" style="margin-top:1rem;">
-                <label class="form-label">Customer Phone</label>
-                <input type="text" id="customerPhone" name="customer_phone" class="form-control"
-                    placeholder="Phone No.">
-            </div>
-
-            <div class="form-group" style="margin-top:1rem;">
-                <label class="form-label">Customer Address</label>
+            <div class="form-group" style="margin:0; flex-shrink:0;">
+                <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Customer Address</label>
                 <textarea id="customerAddress" name="customer_address" class="form-control"
-                    placeholder="Customer Address..." rows="2" style="resize:vertical;"></textarea>
+                    placeholder="Customer Address..." rows="1" style="resize:vertical; font-size:0.8rem; padding:0.25rem 0.5rem; min-height:28px;"></textarea>
             </div>
 
             <!-- Discount Input -->
-            <div class="form-group" style="margin-top:1rem;">
-                <label class="form-label">Discount (Flat Rs)</label>
+            <div class="form-group" style="margin:0; flex-shrink:0;">
+                <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Discount (Flat Rs)</label>
                 <input type="number" min="0" value="0" id="discountInput" name="discount_amount" class="form-control"
-                    placeholder="0.00">
+                    placeholder="0.00" style="height:30px; font-size:0.8rem; padding:0.25rem 0.5rem;">
             </div>
 
             <!-- Summary Box -->
-            <div class="summary-box" style="margin-top:1.5rem;">
+            <div class="summary-box" style="margin:0.25rem 0 0 0; flex-shrink:0;">
                 <div class="summary-row">
                     <span>Subtotal</span>
                     <span id="summarySubtotal">₹0.00</span>
@@ -383,8 +442,8 @@ $default_upi = $clean_phone . '@upi';
             </div>
 
             <!-- Payment mode selection -->
-            <div style="margin-top:1rem;">
-                <label class="form-label">Payment Method</label>
+            <div style="margin:0; flex-shrink:0;">
+                <label class="form-label" style="font-size:0.75rem; margin-bottom:0.15rem; display:block;">Payment Method</label>
                 <div class="payment-options">
                     <div class="pay-btn active" id="payCash" onclick="selectPaymentMethod('Cash')">
                         <i class="fa-solid fa-money-bill-1-wave"></i>
@@ -403,26 +462,26 @@ $default_upi = $clean_phone . '@upi';
             </div>
 
             <!-- UPI Payment Area -->
-            <div id="upiPaymentArea" style="display:none; margin-top:1rem;">
+            <div id="upiPaymentArea" style="display:none; margin:0; flex-shrink:0;">
                 <div class="qr-container">
                     <div
-                        style="font-size:0.8rem; color:var(--text-secondary); width:100%; display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
-                        <span style="white-space:nowrap;">UPI VPA / Phone:</span>
+                        style="font-size:0.75rem; color:var(--text-secondary); width:100%; display:flex; align-items:center; gap:0.4rem; margin-bottom:0.25rem;">
+                        <span style="white-space:nowrap;">UPI VPA:</span>
                         <input type="text" id="upiPhoneInput" class="form-control"
-                            style="padding:0.25rem 0.5rem; font-size:0.8rem; height:28px;"
+                            style="padding:0.2rem 0.4rem; font-size:0.75rem; height:24px;"
                             value="<?= h($default_upi) ?>">
                     </div>
                     <img id="upiQRCodeImage" src="" alt="UPI Payment QR Code"
-                        style="background:#fff; border-radius:4px; padding:0.25rem; display:block; width:160px; height:160px;">
-                    <div style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin-top:0.4rem;">
-                        <i class="fa-solid fa-circle-info"></i> Scan with GPay, PhonePe, Paytm etc.
+                        style="background:#fff; border-radius:4px; padding:0.25rem; display:block; width:120px; height:120px;">
+                    <div style="font-size:0.65rem; color:var(--text-muted); text-align:center; margin-top:0.25rem;">
+                        <i class="fa-solid fa-circle-info"></i> Scan with any UPI app.
                     </div>
                 </div>
             </div>
 
             <!-- Submit button -->
             <button type="button" onclick="submitCheckout()" class="btn btn-success"
-                style="width:100%; height:48px; margin-top:1.5rem; font-size:1rem; box-shadow:0 4px 12px rgba(46, 213, 115, 0.2);">
+                style="width:100%; height:38px; margin-top:0.4rem; font-size:0.85rem; font-weight:700; box-shadow:0 4px 12px rgba(46, 213, 115, 0.15); flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:0.3rem;">
                 <i class="fa-solid fa-file-invoice-dollar"></i> Generate & Print Receipt
             </button>
         </form>
@@ -466,9 +525,9 @@ $default_upi = $clean_phone . '@upi';
 
         if (cart.length === 0) {
             container.innerHTML = `
-            <div style="text-align:center; padding:3rem; color:var(--text-muted);">
-                <i class="fa-solid fa-basket-shopping" style="font-size:3rem; opacity:0.3; margin-bottom:1rem; display:block;"></i>
-                Your cart is empty. Please <a href="billing.php" style="color:var(--accent-color); font-weight:600;">go back</a> and add products.
+            <div style="text-align:center; padding:2rem 1rem; color:var(--text-muted); display:flex; flex-direction:column; align-items:center; gap:0.5rem;">
+                <i class="fa-solid fa-basket-shopping" style="font-size:2.2rem; opacity:0.25;"></i>
+                <span style="font-size:0.75rem;">Your cart is empty. Please <a href="billing.php" id="emptyCartBackLink" style="color:var(--accent-color); font-weight:600;">go back</a> and add products.</span>
             </div>
         `;
             return;
@@ -477,46 +536,48 @@ $default_upi = $clean_phone . '@upi';
         let html = '';
         cart.forEach((item, index) => {
             const itemTotal = item.price * item.quantity;
-            
+
             let sellTypeSelectorHtml = '';
             if (parseInt(item.allow_loose) === 1) {
                 const loosePriceVal = parseFloat(item.loose_price || 0);
                 const wholePriceVal = parseFloat(item.whole_price || 0);
                 sellTypeSelectorHtml = `
-                    <div style="margin-top: 0.4rem; display: flex; gap: 0.75rem; align-items: center;">
-                        <span style="font-size:0.7rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Sell Type:</span>
-                        <label style="font-size:0.75rem; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0;">
-                            <input type="radio" name="sell_type_checkout_${index}" value="whole" ${item.sell_type === 'whole' ? 'checked' : ''} onchange="changeItemSellType(${index}, 'whole')" style="accent-color:var(--accent-color); cursor:pointer;">
-                            Whole Pack (₹${wholePriceVal.toFixed(2)})
+                    <div style="margin-top: 0.1rem; display: flex; gap: 0.4rem; align-items: center;">
+                        <span style="font-size:0.65rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Type:</span>
+                        <label style="font-size:0.65rem; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:0.15rem; margin:0;">
+                            <input type="radio" name="sell_type_checkout_${index}" value="whole" ${item.sell_type === 'whole' ? 'checked' : ''} onchange="changeItemSellType(${index}, 'whole')" style="accent-color:var(--accent-color); cursor:pointer; transform: scale(0.85);">
+                            Pack (₹${wholePriceVal.toFixed(2)})
                         </label>
-                        <label style="font-size:0.75rem; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0;">
-                            <input type="radio" name="sell_type_checkout_${index}" value="loose" ${item.sell_type === 'loose' ? 'checked' : ''} onchange="changeItemSellType(${index}, 'loose')" style="accent-color:var(--accent-color); cursor:pointer;">
-                            Loose Item (₹${loosePriceVal.toFixed(2)})
+                        <label style="font-size:0.65rem; color:var(--text-secondary); cursor:pointer; display:inline-flex; align-items:center; gap:0.15rem; margin:0;">
+                            <input type="radio" name="sell_type_checkout_${index}" value="loose" ${item.sell_type === 'loose' ? 'checked' : ''} onchange="changeItemSellType(${index}, 'loose')" style="accent-color:var(--accent-color); cursor:pointer; transform: scale(0.85);">
+                            Loose (₹${loosePriceVal.toFixed(2)})
                         </label>
                     </div>
                 `;
             }
 
             html += `
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; background:rgba(255,255,255,0.015); border:1px solid var(--border-color); border-radius:var(--border-radius-sm); padding:0.75rem 1rem;">
-                <div style="flex-grow:1;">
-                    <div style="font-weight:600; color:var(--text-primary);">${escapeHtml(item.name)}</div>
-                    ${item.size ? `<div style="font-size:0.75rem; color:var(--text-muted);">Size: ${escapeHtml(item.size)}</div>` : ''}
-                    <div style="font-size:0.85rem; color:var(--accent-color); font-weight:600; margin-top:0.25rem;">₹${parseFloat(item.price).toFixed(2)}</div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; background:rgba(255,255,255,0.015); border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:0.3rem 0.5rem;">
+                <div style="flex-grow:1; min-width:0;">
+                    <div style="font-weight:600; font-size:0.8rem; color:var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+                    <div style="display:flex; gap:0.35rem; align-items:center; margin-top:0.1rem;">
+                        ${item.size ? `<span style="font-size:0.65rem; color:var(--text-muted);">Size: ${escapeHtml(item.size)}</span>` : ''}
+                        <span style="font-size:0.7rem; color:var(--accent-color); font-weight:600;">₹${parseFloat(item.price).toFixed(2)}</span>
+                    </div>
                     ${sellTypeSelectorHtml}
                 </div>
                 
-                <div style="display:flex; align-items:center; gap:0.75rem;">
+                <div style="display:flex; align-items:center; gap:0.35rem; flex-shrink:0;">
                     <div style="display:flex; align-items:center; border:1px solid var(--border-color); border-radius:4px; overflow:hidden;">
-                        <button type="button" onclick="updateQty(${index}, -1)" style="border:none; background:var(--bg-control); color:var(--text-primary); width:28px; height:28px; font-weight:bold; cursor:pointer;">-</button>
-                        <span style="width:36px; text-align:center; font-weight:600; font-size:0.9rem;">${item.quantity}</span>
-                        <button type="button" onclick="updateQty(${index}, 1)" style="border:none; background:var(--bg-control); color:var(--text-primary); width:28px; height:28px; font-weight:bold; cursor:pointer;">+</button>
+                        <button type="button" onclick="updateQty(${index}, -1)" style="border:none; background:var(--bg-control); color:var(--text-primary); width:20px; height:20px; font-weight:bold; cursor:pointer; font-size:0.75rem; display:flex; align-items:center; justify-content:center;">-</button>
+                        <span style="width:24px; text-align:center; font-weight:600; font-size:0.75rem; color:var(--text-primary);">${item.quantity}</span>
+                        <button type="button" onclick="updateQty(${index}, 1)" style="border:none; background:var(--bg-control); color:var(--text-primary); width:20px; height:20px; font-weight:bold; cursor:pointer; font-size:0.75rem; display:flex; align-items:center; justify-content:center;">+</button>
                     </div>
                     
-                    <div style="font-weight:700; font-size:0.95rem; width:80px; text-align:right; color:var(--text-primary);">₹${itemTotal.toFixed(2)}</div>
+                    <div style="font-weight:700; font-size:0.8rem; width:60px; text-align:right; color:var(--text-primary);">₹${itemTotal.toFixed(2)}</div>
                     
-                    <button type="button" onclick="removeItem(${index})" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Remove Item">
-                        <i class="fa-solid fa-trash-can" style="font-size:0.9rem;"></i>
+                    <button type="button" onclick="removeItem(${index})" style="background:rgba(255, 71, 87, 0.08); border:none; color:var(--danger); cursor:pointer; padding:4px; width:20px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center;" title="Remove Item">
+                        <i class="fa-solid fa-trash-can" style="font-size:0.65rem;"></i>
                     </button>
                 </div>
             </div>
@@ -559,15 +620,18 @@ $default_upi = $clean_phone . '@upi';
         if (confirm('Are you sure you want to clear your cart?')) {
             cart = [];
             saveCart();
-            window.location.href = 'billing.php';
+            const sourcePage = localStorage.getItem('orange_billing_source') || 'billing.php';
+            window.location.href = sourcePage;
         }
     }
 
     // Calculate Summary Totals
     function updateSummary() {
         let subtotal = 0;
+        let totalItems = 0;
         cart.forEach(item => {
             subtotal += item.price * item.quantity;
+            totalItems += item.quantity;
         });
 
         const discountVal = parseFloat(document.getElementById('discountInput').value) || 0;
@@ -576,6 +640,9 @@ $default_upi = $clean_phone . '@upi';
         document.getElementById('summarySubtotal').innerText = '₹' + subtotal.toFixed(2);
         document.getElementById('summaryDiscount').innerText = '-₹' + discountVal.toFixed(2);
         document.getElementById('summaryTotal').innerText = '₹' + finalTotal.toFixed(2);
+
+        const badge = document.getElementById('cartItemCountBadge');
+        if (badge) badge.innerText = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
 
         if (selectedPaymentMethod === 'UPI') {
             generateUPICode(finalTotal);
@@ -699,6 +766,15 @@ $default_upi = $clean_phone . '@upi';
         if (savedUpiPhone && upiPhoneInput) {
             upiPhoneInput.value = savedUpiPhone;
         }
+
+        // Apply dynamic navigation source page back links
+        const sourcePage = localStorage.getItem('orange_billing_source') || 'billing.php';
+        const backToBillingLink = document.getElementById('backToBillingLink');
+        if (backToBillingLink) backToBillingLink.href = sourcePage;
+        const changeItemsLink = document.getElementById('changeItemsLink');
+        if (changeItemsLink) changeItemsLink.href = sourcePage;
+        const emptyCartBackLink = document.getElementById('emptyCartBackLink');
+        if (emptyCartBackLink) emptyCartBackLink.href = sourcePage;
 
         loadCart();
     });

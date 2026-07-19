@@ -1,8 +1,16 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/header.php';
+require_permission('billing_create');
 
 $db = get_db_connection();
+
+// Check if cash register session is active for current user
+$user_id = $_SESSION['admin_id'];
+$register_stmt = $db->prepare("SELECT id FROM cash_register_sessions WHERE status = 'open' AND user_id = :user_id LIMIT 1");
+$register_stmt->execute(['user_id' => $user_id]);
+$is_register_open = (bool)$register_stmt->fetch();
+
 
 
 
@@ -338,6 +346,18 @@ function format_variant_stock_badge($v)
     }
 </style>
 
+<?php if (!$is_register_open): ?>
+    <div style="background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 2rem 1.5rem; text-align: center; max-width: 440px; margin: 4rem auto; display: flex; flex-direction: column; align-items: center; gap: 1rem; box-shadow: var(--box-shadow);">
+        <i class="fa-solid fa-lock" style="font-size: 3rem; color: var(--text-muted); opacity: 0.4;"></i>
+        <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary); margin: 0;">Register is Closed</h2>
+        <p style="color: var(--text-secondary); line-height: 1.4; margin: 0; font-size: 0.85rem;">
+            You must open the daily cash register and enter the opening balance float before you can access the POS billing terminal and process any transactions.
+        </p>
+        <a href="register-sessions.php" class="btn btn-primary" style="height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0 1.25rem; font-weight: 600; text-decoration: none; font-size: 0.85rem;">
+            <i class="fa-solid fa-cash-register"></i> Go to Register Manager
+        </a>
+    </div>
+<?php else: ?>
 <div class="pos-container">
     <!-- Left panel: catalogue -->
     <div class="catalog-panel">
@@ -640,6 +660,9 @@ function format_variant_stock_badge($v)
     // INITIALIZATION & LOCALSTORAGE RESTORATION
     // =========================================================
     window.addEventListener('DOMContentLoaded', () => {
+        // Save current page as source for checkout back links
+        localStorage.setItem('orange_billing_source', 'billing.php');
+
         // Restore cart
         const savedCart = localStorage.getItem('orange_billing_cart');
         if (savedCart) {
@@ -1033,5 +1056,7 @@ function format_variant_stock_badge($v)
             .replace(/'/g, "&#039;");
     }
 </script>
+
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

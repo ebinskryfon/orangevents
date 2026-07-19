@@ -9,7 +9,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // Determine active module
 $event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
 $rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
-$billing_pages = ['billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php'];
+$billing_pages = ['billing.php', 'barcode-billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php', 'billing-cart.php', 'register-sessions.php', 'register-history.php'];
 
 if (isset($_GET['module'])) {
     $_SESSION['current_module'] = $_GET['module'];
@@ -46,14 +46,122 @@ $current_module = $_SESSION['current_module'] ?? 'event';
     <link rel="stylesheet" href="../assets/css/style.css">
     <!-- Template Stylesheet (For previews) -->
     <link rel="stylesheet" href="../assets/css/templates.css">
+    <style>
+        /* Collapsible Sidebar Styles */
+        .sidebar {
+            transition: transform var(--transition-normal);
+        }
+        
+        .main-content {
+            transition: margin-left var(--transition-normal);
+        }
+        
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 20px;
+            left: 205px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: var(--box-shadow);
+            transition: left var(--transition-normal), transform var(--transition-normal), background-color var(--transition-fast);
+            padding: 0;
+            outline: none;
+        }
+        
+        .sidebar-toggle-btn:hover {
+            background-color: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+        
+        /* Collapsed state rules */
+        .sidebar-collapsed .sidebar {
+            transform: translateX(-220px);
+        }
+        
+        .sidebar-collapsed .main-content {
+            margin-left: 0;
+        }
+        
+        .sidebar-collapsed .sidebar-toggle-btn {
+            left: 15px;
+        }
+
+        /* Prevent layout flash on initial page load */
+        .sidebar-collapsed-init .sidebar {
+            transform: translateX(-220px) !important;
+            transition: none !important;
+        }
+        
+        .sidebar-collapsed-init .main-content {
+            margin-left: 0 !important;
+            transition: none !important;
+        }
+        
+        .sidebar-collapsed-init .sidebar-toggle-btn {
+            left: 15px !important;
+            transition: none !important;
+        }
+    </style>
     <script>
         // Check for saved theme preference or use default (dark)
         const savedTheme = localStorage.getItem('theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
+
+        function toggleSidebar() {
+            const container = document.getElementById('appContainer');
+            const icon = document.getElementById('sidebarToggleIcon');
+            if (!container) return;
+            
+            container.classList.toggle('sidebar-collapsed');
+            const isCollapsed = container.classList.contains('sidebar-collapsed');
+            localStorage.setItem('sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            
+            if (icon) {
+                icon.className = isCollapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-left';
+            }
+        }
+
+        // Apply saved sidebar preference immediately to avoid layout flash
+        (function() {
+            const savedCollapsed = localStorage.getItem('sidebar_collapsed');
+            if (savedCollapsed === 'true') {
+                document.documentElement.classList.add('sidebar-collapsed-init');
+            }
+        })();
+
+        // Match classes on DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('appContainer');
+            const icon = document.getElementById('sidebarToggleIcon');
+            
+            if (document.documentElement.classList.contains('sidebar-collapsed-init')) {
+                if (container) {
+                    container.classList.add('sidebar-collapsed');
+                }
+                if (icon) {
+                    icon.className = 'fa-solid fa-chevron-right';
+                }
+                document.documentElement.classList.remove('sidebar-collapsed-init');
+            }
+        });
     </script>
 </head>
 <body>
-    <div class="app-container">
+    <div class="app-container" id="appContainer">
+        <!-- Sidebar Toggle Button -->
+        <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Toggle Sidebar">
+            <i class="fa-solid fa-chevron-left" id="sidebarToggleIcon"></i>
+        </button>
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="brand">
@@ -124,6 +232,12 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                                 <span>POS Terminal</span>
                             </a>
                         </li>
+                        <li class="nav-item <?= $current_page == 'barcode-billing.php' ? 'active' : '' ?>">
+                            <a href="barcode-billing.php">
+                                <i class="fa-solid fa-barcode"></i>
+                                <span>Barcode Billing</span>
+                            </a>
+                        </li>
                         <li class="nav-item <?= $current_page == 'billing-categories.php' ? 'active' : '' ?>">
                             <a href="billing-categories.php">
                                 <i class="fa-solid fa-folder-tree"></i>
@@ -142,6 +256,27 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                                 <span>POS Invoices</span>
                             </a>
                         </li>
+                        <li class="nav-item <?= $current_page == 'register-sessions.php' ? 'active' : '' ?>">
+                            <a href="register-sessions.php">
+                                <i class="fa-solid fa-cash-register"></i>
+                                <span>Cash Register</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'register-history.php' ? 'active' : '' ?>">
+                            <a href="register-history.php">
+                                <i class="fa-solid fa-receipt"></i>
+                                <span>Register History</span>
+                            </a>
+                        </li>
+                    <?php endif; ?>
+                    
+                    <?php if (has_permission('user_manage')): ?>
+                    <li class="nav-item <?= $current_page == 'users.php' ? 'active' : '' ?>">
+                        <a href="users.php">
+                            <i class="fa-solid fa-users-gear"></i>
+                            <span>User Manager</span>
+                        </a>
+                    </li>
                     <?php endif; ?>
                     
                     <li class="nav-item <?= $current_page == 'migrations.php' ? 'active' : '' ?>">
@@ -185,12 +320,12 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                         <p><?= h(ucfirst($_SESSION['admin_role'])) ?></p>
                     </div>
                 </div>
-                <div style="display: flex; gap: 0.5rem;">
-                    <a href="../select-module.php" class="btn-logout" style="flex: 1; text-align: center; justify-content: center; background-color: rgba(56, 182, 255, 0.1); color: #38b6ff; border: 1px solid rgba(56, 182, 255, 0.2); text-decoration: none;">
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    <a href="../select-module.php" class="btn-logout" style="text-align: center; justify-content: center; background-color: rgba(56, 182, 255, 0.1); color: #38b6ff; border: 1px solid rgba(56, 182, 255, 0.2); text-decoration: none;">
                         <i class="fa-solid fa-layer-group"></i>
                         <span>Modules</span>
                     </a>
-                    <form action="../logout.php" method="POST" style="flex: 1; margin: 0;">
+                    <form action="../logout.php" method="POST" style="margin: 0;">
                         <button type="submit" class="btn-logout" style="width: 100%; justify-content: center;">
                             <i class="fa-solid fa-right-from-bracket"></i>
                             <span>Logout</span>

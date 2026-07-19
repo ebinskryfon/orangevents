@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 check_admin_auth();
+require_permission('billing_read');
 
 $db = get_db_connection();
 $id = (int)($_GET['id'] ?? $_GET['order_id'] ?? 0);
@@ -464,9 +465,11 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
     <div style="display:flex; gap:0.5rem;">
+        <?php if (has_permission('billing_update')): ?>
         <a href="edit-billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary" style="background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15); font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
             <i class="fa-solid fa-pen-to-square"></i> Edit
         </a>
+        <?php endif; ?>
         <button onclick="shareWhatsApp()" class="btn btn-success" style="background-color: #25d366; border-color: #25d366; color: #ffffff;">
             <i class="fa-brands fa-whatsapp"></i> Share WhatsApp
         </button>

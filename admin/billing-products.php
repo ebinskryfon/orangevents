@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/header.php';
+require_permission('billing_update');
 
 $db      = get_db_connection();
 $message = '';
@@ -92,21 +93,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── DELETE PRODUCT ────────────────────────────────────
     if ($action === 'delete_product') {
-        $prod_id = (int)($_POST['product_id'] ?? 0);
-        if ($prod_id > 0) {
-            try {
-                // Delete image file first
-                $stmt_img = $db->prepare("SELECT image_path FROM billing_products WHERE id = :id");
-                $stmt_img->execute(['id' => $prod_id]);
-                $img = $stmt_img->fetchColumn();
-                if ($img && file_exists(__DIR__ . '/../' . $img)) {
-                    @unlink(__DIR__ . '/../' . $img);
-                }
+        if (!has_permission('billing_delete')) {
+            $error = 'Access denied: You do not have the required permission (billing_delete) to delete products.';
+        } else {
+            $prod_id = (int)($_POST['product_id'] ?? 0);
+            if ($prod_id > 0) {
+                try {
+                    // Delete image file first
+                    $stmt_img = $db->prepare("SELECT image_path FROM billing_products WHERE id = :id");
+                    $stmt_img->execute(['id' => $prod_id]);
+                    $img = $stmt_img->fetchColumn();
+                    if ($img && file_exists(__DIR__ . '/../' . $img)) {
+                        @unlink(__DIR__ . '/../' . $img);
+                    }
 
-                $db->prepare("DELETE FROM billing_products WHERE id = :id")->execute(['id' => $prod_id]);
-                $message = 'Product deleted.';
-            } catch (PDOException $e) {
-                $error = 'Cannot delete product. It may be referenced in past orders.';
+                    $db->prepare("DELETE FROM billing_products WHERE id = :id")->execute(['id' => $prod_id]);
+                    $message = 'Product deleted.';
+                } catch (PDOException $e) {
+                    $error = 'Cannot delete product. It may be referenced in past orders.';
+                }
             }
         }
     }
@@ -146,20 +151,31 @@ foreach ($all_variants as $v) {
 }
 ?>
 
+<style>
+    .table th, .table td { padding: 0.4rem 0.65rem; font-size: 0.8rem; }
+    .card { padding: 0.85rem !important; }
+    .card-title { font-size: 0.9rem !important; margin-bottom: 0.5rem !important; padding-bottom: 0.5rem !important; }
+</style>
+
 <!-- Page Header -->
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
     <div class="header-title">
-        <h1>Billing Products</h1>
-        <p>Manage catalog products, sizes, prices, and upload product images.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-color);"></i>
+            Billing Products
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Manage catalog products, sizes, prices, and upload product images.
+        </p>
     </div>
-    <div style="display:flex; gap:0.5rem;">
-        <a href="print-barcode.php?all=1" class="btn btn-secondary" style="background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.2); display:inline-flex; align-items:center; gap:0.35rem;" target="_blank">
-            <i class="fa-solid fa-barcode"></i> Print All Barcodes
-        </a>
-        <button onclick="openAddProductModal()" class="btn btn-primary">
-            <i class="fa-solid fa-plus"></i> Add Product
-        </button>
-    </div>
+</div>
+<div style="display:flex; justify-content:flex-end; gap:0.4rem; margin-bottom:0.75rem;">
+    <a href="print-barcode.php?all=1" class="btn btn-secondary" style="background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.2); display:inline-flex; align-items:center; gap:0.3rem; height:32px; font-size:0.8rem; padding:0 0.75rem;" target="_blank">
+        <i class="fa-solid fa-barcode"></i> Print All Barcodes
+    </a>
+    <button onclick="openAddProductModal()" class="btn btn-primary" style="height:32px; font-size:0.8rem; padding:0 0.85rem;">
+        <i class="fa-solid fa-plus"></i> Add Product
+    </button>
 </div>
 
 <!-- Alerts -->
@@ -174,15 +190,15 @@ foreach ($all_variants as $v) {
 </div>
 <?php endif; ?>
 <!-- Catalog Search -->
-<div class="card" style="padding:1rem; margin-bottom:1.5rem;">
-    <div style="position:relative; max-width:450px;">
-        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:1rem; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:0.9rem;"></i>
-        <input type="text" id="catalogSearch" class="form-control" placeholder="Search products or variants..." style="padding-left:2.5rem; margin:0;">
+<div class="card" style="padding:0.6rem 0.85rem !important; margin-bottom:0.75rem;">
+    <div style="position:relative; max-width:400px;">
+        <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:0.8rem;"></i>
+        <input type="text" id="catalogSearch" class="form-control" placeholder="Search products or variants..." style="padding-left:2.25rem; margin:0; height:32px; font-size:0.8rem;">
     </div>
 </div>
 
 <!-- Products Grid by Category -->
-<div style="display:flex; flex-direction:column; gap:2rem;">
+<div style="display:flex; flex-direction:column; gap:0.75rem;">
     <?php if (empty($categories)): ?>
         <div class="card" style="text-align:center; padding:3rem; color:var(--text-muted);">
             <i class="fa-solid fa-box-open" style="font-size:3rem; margin-bottom:1rem; opacity:0.4;"></i>

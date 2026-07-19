@@ -120,10 +120,10 @@ a {
 
 /* Sidebar Styling */
 .sidebar {
-    width: 260px;
+    width: 220px;
     background-color: var(--bg-secondary);
     border-right: 1px solid var(--border-color);
-    padding: 2rem 1.5rem;
+    padding: 1rem 1rem;
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -135,11 +135,11 @@ a {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin-bottom: 3rem;
+    margin-bottom: 1.25rem;
 }
 
 .brand-logo {
-    font-size: 2rem;
+    font-size: 1.5rem;
     color: var(--accent-color);
     font-weight: 800;
     font-family: 'Outfit', sans-serif;
@@ -152,26 +152,54 @@ a {
     color: var(--text-primary);
 }
 
+.nav-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: rgba(255, 107, 53, 0.3) transparent; /* Firefox */
+}
+
+.nav-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nav-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.nav-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 107, 53, 0.25);
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+.nav-container::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color);
+}
+
 .nav-links {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.2rem;
 }
 
 .nav-item a {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.85rem 1rem;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
     color: var(--text-secondary);
-    border-radius: var(--border-radius-md);
+    border-radius: var(--border-radius-sm);
     font-weight: 500;
+    font-size: 0.82rem;
     transition: var(--transition-normal);
 }
 
 .nav-item a i {
-    font-size: 1.2rem;
+    font-size: 1rem;
     width: 20px;
     text-align: center;
 }
@@ -190,43 +218,45 @@ a {
 .sidebar-footer {
     margin-top: auto;
     border-top: 1px solid var(--border-color);
-    padding-top: 1.5rem;
+    padding-top: 0.75rem;
 }
 
 .user-info {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
 }
 
 .user-avatar {
-    width: 38px;
-    height: 38px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: var(--accent-gradient);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
+    font-size: 0.8rem;
     color: white;
 }
 
 .user-details h4 {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
 }
 
 .user-details p {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
 }
 
 .btn-logout {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.6rem;
+    gap: 0.35rem;
+    padding: 0.45rem 0.5rem;
+    font-size: 0.75rem;
     width: 100%;
     background: rgba(255, 71, 87, 0.1);
     color: var(--danger);
@@ -244,7 +274,7 @@ a {
 
 /* Main Content Area */
 .main-content {
-    margin-left: 260px;
+    margin-left: 220px;
     flex: 1;
     padding: 2.5rem;
     background-color: var(--bg-primary);
@@ -677,7 +707,7 @@ select.form-control option {
 
 /* --- Theme Switcher Capsule & Segment Styling --- */
 .theme-switch-wrapper {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.75rem;
     padding: 0 0.25rem;
 }
 
@@ -696,9 +726,9 @@ select.form-control option {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.55rem 0;
-    font-size: 0.85rem;
+    gap: 0.35rem;
+    padding: 0.4rem 0;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-secondary);
     background: none;
@@ -710,7 +740,7 @@ select.form-control option {
 }
 
 .theme-switch-option i {
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     transition: transform var(--transition-normal);
 }
 

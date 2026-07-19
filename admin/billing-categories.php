@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/header.php';
+require_permission('billing_update');
 
 $db      = get_db_connection();
 $message = '';
@@ -50,13 +51,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── DELETE CATEGORY ───────────────────────────────────
     if ($action === 'delete_category') {
-        $cat_id = (int)($_POST['category_id'] ?? 0);
-        if ($cat_id > 0) {
-            try {
-                $db->prepare("DELETE FROM billing_categories WHERE id = :id")->execute(['id' => $cat_id]);
-                $message = 'Category deleted.';
-            } catch (PDOException $e) {
-                $error = 'Cannot delete category as it contains products that are referenced in previous orders.';
+        if (!has_permission('billing_delete')) {
+            $error = 'Access denied: You do not have the required permission (billing_delete) to delete categories.';
+        } else {
+            $cat_id = (int)($_POST['category_id'] ?? 0);
+            if ($cat_id > 0) {
+                try {
+                    $db->prepare("DELETE FROM billing_categories WHERE id = :id")->execute(['id' => $cat_id]);
+                    $message = 'Category deleted.';
+                } catch (PDOException $e) {
+                    $error = 'Cannot delete category as it contains products that are referenced in previous orders.';
+                }
             }
         }
     }
@@ -72,17 +77,28 @@ $categories = $db->query(
 )->fetchAll();
 ?>
 
+<style>
+    .table th, .table td { padding: 0.45rem 0.75rem; font-size: 0.82rem; }
+    .card { padding: 0.85rem !important; }
+    .card-title { font-size: 0.95rem !important; margin-bottom: 0.6rem !important; }
+</style>
+
 <!-- Page Header -->
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
     <div class="header-title">
-        <h1>Billing Categories</h1>
-        <p>Organize birthday and event items into custom categories.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-folder-open" style="color:var(--accent-color);"></i>
+            Billing Categories
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Organize birthday and event items into custom categories.
+        </p>
     </div>
-    <div>
-        <button onclick="openModal('addCategoryModal')" class="btn btn-primary">
-            <i class="fa-solid fa-folder-plus"></i> New Category
-        </button>
-    </div>
+</div>
+<div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem;">
+    <button onclick="openModal('addCategoryModal')" class="btn btn-primary" style="height:32px; font-size:0.8rem; padding:0 0.85rem;">
+        <i class="fa-solid fa-folder-plus"></i> New Category
+    </button>
 </div>
 
 <!-- Alerts -->
@@ -127,7 +143,7 @@ $categories = $db->query(
                             </td>
                             <td style="text-align:center;"><?= $cat['display_order'] ?></td>
                             <td style="text-align:center;">
-                                <span style="display:inline-block;padding:0.2rem 0.6rem;background:rgba(255,107,53,0.12);color:var(--accent-color);font-weight:600;border-radius:50px;font-size:0.85rem;">
+                                <span style="display:inline-block;padding:0.1rem 0.5rem;background:rgba(255,107,53,0.12);color:var(--accent-color);font-weight:600;border-radius:50px;font-size:0.75rem;">
                                     <?= $cat['product_count'] ?> items
                                 </span>
                             </td>

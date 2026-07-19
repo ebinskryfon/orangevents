@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/header.php';
+require_permission('billing_update');
 
 $db = get_db_connection();
 $message = '';
@@ -152,20 +153,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── DELETE VARIANT ────────────────────────────────────
     if ($action === 'delete_variant') {
-        $variant_id = (int) ($_POST['variant_id'] ?? 0);
-        if ($variant_id > 0) {
-            try {
-                $stmt_del = $db->prepare("
-                    DELETE FROM billing_product_variants 
-                     WHERE id = :id AND product_id = :prod_id
-                ");
-                $stmt_del->execute([
-                    'id' => $variant_id,
-                    'prod_id' => $product_id
-                ]);
-                $message = 'Variant deleted.';
-            } catch (PDOException $e) {
-                $error = 'Cannot delete variant. It may be referenced in past orders.';
+        if (!has_permission('billing_delete')) {
+            $error = 'Access denied: You do not have the required permission (billing_delete) to delete variants.';
+        } else {
+            $variant_id = (int) ($_POST['variant_id'] ?? 0);
+            if ($variant_id > 0) {
+                try {
+                    $stmt_del = $db->prepare("
+                        DELETE FROM billing_product_variants 
+                         WHERE id = :id AND product_id = :prod_id
+                    ");
+                    $stmt_del->execute([
+                        'id' => $variant_id,
+                        'prod_id' => $product_id
+                    ]);
+                    $message = 'Variant deleted.';
+                } catch (PDOException $e) {
+                    $error = 'Cannot delete variant. It may be referenced in past orders.';
+                }
             }
         }
     }
@@ -182,32 +187,34 @@ $stmt_vars->execute(['prod_id' => $product_id]);
 $variants = $stmt_vars->fetchAll();
 ?>
 
+<style>
+    .table th, .table td { padding: 0.4rem 0.65rem; font-size: 0.8rem; }
+    .card { padding: 0.85rem !important; }
+</style>
+
 <!-- Back Button and Title -->
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); display:flex; justify-content:space-between; align-items:flex-start;">
     <div class="header-title">
-        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
-            <a href="billing-products.php" class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem;">
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+            <a href="billing-products.php" class="btn btn-secondary" style="padding:0.2rem 0.55rem; font-size:0.75rem; height:26px; display:inline-flex; align-items:center; gap:0.25rem;">
                 <i class="fa-solid fa-arrow-left-long"></i> Back
             </a>
-            <span class="badge"
-                style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.75rem; padding:0.2rem 0.5rem;">
+            <span class="badge" style="background:rgba(255,107,53,0.08); color:var(--accent-color); font-size:0.7rem; padding:0.15rem 0.45rem;">
                 <?= h($product['category_name']) ?>
             </span>
         </div>
-        <h1 style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
             <i class="fa-solid fa-layer-group" style="color:var(--accent-color);"></i>
-            Variants of <?= h($product['product_name']) ?>
+            <?= h($product['product_name']) ?> — Variants
         </h1>
-        <p style="color:var(--text-muted); margin-top:0.25rem;">
-            Manage size options and custom price overrides for this product.
-        </p>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">Manage size options and custom price overrides for this product.</p>
     </div>
-    <div style="display:flex; gap:0.5rem;">
-        <a href="print-barcode.php?product_id=<?= $product_id ?>" class="btn btn-secondary" style="background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.2); display:inline-flex; align-items:center; gap:0.35rem;" target="_blank">
-            <i class="fa-solid fa-barcode"></i> Bulk Print Stickers
+    <div style="display:flex; gap:0.4rem; flex-shrink:0;">
+        <a href="print-barcode.php?product_id=<?= $product_id ?>" class="btn btn-secondary" style="background:rgba(255, 107, 53, 0.12); color:var(--accent-color); border-color:rgba(255,107,53,0.2); display:inline-flex; align-items:center; gap:0.3rem; height:32px; font-size:0.8rem; padding:0 0.75rem;" target="_blank">
+            <i class="fa-solid fa-barcode"></i> Print Stickers
         </a>
-        <button onclick="openAddVariantModal()" class="btn btn-primary">
-            <i class="fa-solid fa-plus-circle"></i> Add Size / Variant
+        <button onclick="openAddVariantModal()" class="btn btn-primary" style="height:32px; font-size:0.8rem; padding:0 0.85rem;">
+            <i class="fa-solid fa-plus-circle"></i> Add Variant
         </button>
     </div>
 </div>
@@ -226,60 +233,53 @@ $variants = $stmt_vars->fetchAll();
     </div>
 <?php endif; ?>
 
-<div style="display:grid; grid-template-columns: 280px 1fr; gap:1.5rem; align-items:start;">
+<div style="display:grid; grid-template-columns: 220px 1fr; gap:0.75rem; align-items:start;">
     <!-- Product Info Sidebar Card -->
-    <div class="card" style="padding:1.25rem; display:flex; flex-direction:column; gap:1rem;">
-        <h3
-            style="font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; color:var(--text-primary);">
+    <div class="card" style="display:flex; flex-direction:column; gap:0.65rem;">
+        <h3 style="font-size:0.88rem; border-bottom:1px solid var(--border-color); padding-bottom:0.4rem; color:var(--text-primary); margin:0;">
             Product Details
         </h3>
 
         <!-- Image display -->
         <?php if (!empty($product['image_path'])): ?>
-            <div
-                style="width:100%; height:150px; border-radius:var(--border-radius-sm); overflow:hidden; border:1px solid var(--border-color);">
-                <img src="../<?= h($product['image_path']) ?>" alt="Product Image"
-                    style="width:100%; height:100%; object-fit:cover;">
+            <div style="width:100%; height:110px; border-radius:var(--border-radius-sm); overflow:hidden; border:1px solid var(--border-color);">
+                <img src="../<?= h($product['image_path']) ?>" alt="Product Image" style="width:100%; height:100%; object-fit:cover;">
             </div>
         <?php else: ?>
-            <div
-                style="width:100%; height:150px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color);">
-                <i class="fa-solid fa-image" style="font-size:3rem;"></i>
+            <div style="width:100%; height:80px; border-radius:var(--border-radius-sm); background:var(--bg-control); display:flex; align-items:center; justify-content:center; color:var(--text-muted); border:1px solid var(--border-color);">
+                <i class="fa-solid fa-image" style="font-size:2rem;"></i>
             </div>
         <?php endif; ?>
 
         <div>
-            <div style="font-size:0.8rem; color:var(--text-muted);">Base Price</div>
-            <div style="font-size:1.4rem; font-weight:700; color:var(--accent-color);">
-                <?= format_price($product['base_price']) ?></div>
+            <div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Base Price</div>
+            <div style="font-size:1.15rem; font-weight:700; color:var(--accent-color);"><?= format_price($product['base_price']) ?></div>
         </div>
 
         <div>
-            <div style="font-size:0.8rem; color:var(--text-muted);">Description</div>
-            <div style="font-size:0.85rem; color:var(--text-secondary); line-height:1.4; margin-top:0.25rem;">
-                <?= h($product['description'] ?: 'No description provided.') ?>
+            <div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Description</div>
+            <div style="font-size:0.78rem; color:var(--text-secondary); line-height:1.4; margin-top:0.15rem;">
+                <?= h($product['description'] ?: 'No description.') ?>
             </div>
         </div>
 
         <div>
-            <div style="font-size:0.8rem; color:var(--text-muted);">Status</div>
-            <div style="margin-top:0.25rem;">
+            <div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em;">Status</div>
+            <div style="margin-top:0.2rem;">
                 <?php if ($product['is_active']): ?>
-                    <span class="badge badge-confirmed">Active in POS</span>
+                    <span class="badge badge-confirmed" style="font-size:0.7rem;">Active in POS</span>
                 <?php else: ?>
-                    <span class="badge badge-cancelled">Inactive</span>
+                    <span class="badge badge-cancelled" style="font-size:0.7rem;">Inactive</span>
                 <?php endif; ?>
             </div>
         </div>
     </div>
 
     <!-- Variants List Table Card -->
-    <div class="card" style="padding:1.25rem;">
-        <h3
-            style="font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:between;">
+    <div class="card">
+        <h3 style="font-size:0.95rem; border-bottom:1px solid var(--border-color); padding-bottom:0.4rem; margin-bottom:0.5rem; display:flex; align-items:center; gap:0.4rem;">
             <span>Active Variants</span>
-            <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">(<?= count($variants) ?>
-                sizes)</span>
+            <span style="background:rgba(255,107,53,0.1); color:var(--accent-color); font-size:0.7rem; font-weight:700; padding:0.1rem 0.45rem; border-radius:20px;"><?= count($variants) ?> sizes</span>
         </h3>
 
         <div class="table-responsive">

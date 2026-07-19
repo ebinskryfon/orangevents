@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 check_admin_auth();
+require_permission('billing_read');
 
 $db = get_db_connection();
 
@@ -58,8 +59,12 @@ function adjust_variant_stock($db, $variant_id, $quantity, $sell_type, $change_t
 $msg = '';
 $msg_type = 'success';
 if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
-    $order_id = (int) $_GET['id'];
-    try {
+    if (!has_permission('billing_delete')) {
+        $msg = 'Access denied: You do not have the required permission (billing_delete) to delete invoices.';
+        $msg_type = 'danger';
+    } else {
+        $order_id = (int) $_GET['id'];
+        try {
         // Fetch order details for notification
         $stmt = $db->prepare("SELECT invoice_number FROM billing_orders WHERE id = :id");
         $stmt->execute(['id' => $order_id]);
@@ -84,6 +89,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])
     } catch (PDOException $e) {
         $msg = 'Error deleting invoice: ' . $e->getMessage();
         $msg_type = 'danger';
+    }
     }
 }
 
@@ -118,13 +124,17 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 <?php endif; ?>
 
-<div class="content-header">
+<!-- Compact Header -->
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
     <div class="header-title">
-        <h1>POS Invoice Archives</h1>
-        <p>Manage sales history, view printable thermal receipts, track payment methods, and monitor sales revenue.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-receipt" style="color: var(--accent-color);"></i>
+            POS Invoice Archives
+        </h1>
+        <p style="color: var(--text-secondary); margin: 0.15rem 0 0; font-size: 0.75rem;">Manage sales history, view printable thermal receipts, track payment methods, and monitor sales revenue.</p>
     </div>
     <div>
-        <a href="billing.php" class="btn btn-primary">
+        <a href="billing.php" class="btn btn-primary" style="height: 34px; padding: 0 0.75rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
             <i class="fa-solid fa-calculator"></i> POS Terminal
         </a>
     </div>
@@ -132,98 +142,98 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Stats Grid -->
 <div
-    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
     <!-- Total Sales -->
-    <div class="card" style="display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem;">
+    <div class="card" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem;">
         <div
-            style="width: 50px; height: 50px; border-radius: 12px; background: rgba(46, 213, 115, 0.1); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+            style="width: 40px; height: 40px; border-radius: 8px; background: rgba(46, 213, 115, 0.1); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             <i class="fa-solid fa-chart-line"></i>
         </div>
         <div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Total
+            <p style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; margin-bottom: 0.15rem; margin-top: 0;">Total
                 POS Sales</p>
-            <h3 id="statTotalSales" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">
+            <h3 id="statTotalSales" style="font-size: 1.25rem; margin: 0; font-family: 'Outfit', sans-serif;">
                 ₹<?= number_format($total_sales, 2) ?></h3>
         </div>
     </div>
 
     <!-- Total Orders -->
-    <div class="card" style="display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem;">
+    <div class="card" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem;">
         <div
-            style="width: 50px; height: 50px; border-radius: 12px; background: rgba(255, 107, 53, 0.1); color: var(--accent-color); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+            style="width: 40px; height: 40px; border-radius: 8px; background: rgba(255, 107, 53, 0.1); color: var(--accent-color); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             <i class="fa-solid fa-receipt"></i>
         </div>
         <div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Total
+            <p style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; margin-bottom: 0.15rem; margin-top: 0;">Total
                 Invoices</p>
-            <h3 id="statTotalCount" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">
+            <h3 id="statTotalCount" style="font-size: 1.25rem; margin: 0; font-family: 'Outfit', sans-serif;">
                 <?= $total_count ?></h3>
         </div>
     </div>
 
     <!-- Avg Order Value -->
-    <div class="card" style="display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem;">
+    <div class="card" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem;">
         <div
-            style="width: 50px; height: 50px; border-radius: 12px; background: rgba(30, 144, 255, 0.1); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+            style="width: 40px; height: 40px; border-radius: 8px; background: rgba(30, 144, 255, 0.1); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             <i class="fa-solid fa-scale-balanced"></i>
         </div>
         <div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">
+            <p style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; margin-bottom: 0.15rem; margin-top: 0;">
                 Average Ticket</p>
-            <h3 id="statAvgTicket" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">
+            <h3 id="statAvgTicket" style="font-size: 1.25rem; margin: 0; font-family: 'Outfit', sans-serif;">
                 ₹<?= number_format($avg_order, 2) ?></h3>
         </div>
     </div>
 
     <!-- Total Discounts -->
-    <div class="card" style="display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem;">
+    <div class="card" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem;">
         <div
-            style="width: 50px; height: 50px; border-radius: 12px; background: rgba(255, 71, 87, 0.1); color: var(--danger); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+            style="width: 40px; height: 40px; border-radius: 8px; background: rgba(255, 71, 87, 0.1); color: var(--danger); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
             <i class="fa-solid fa-tags"></i>
         </div>
         <div>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem;">Total
+            <p style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; margin-bottom: 0.15rem; margin-top: 0;">Total
                 Discounts</p>
-            <h3 id="statTotalDiscount" style="font-size: 1.5rem; margin: 0; font-family: 'Outfit', sans-serif;">
+            <h3 id="statTotalDiscount" style="font-size: 1.25rem; margin: 0; font-family: 'Outfit', sans-serif;">
                 ₹<?= number_format($total_discount, 2) ?></h3>
         </div>
     </div>
 </div>
 
 <!-- Filter Bar -->
-<div class="card" style="padding: 1.25rem; margin-bottom: 1.5rem;">
-    <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
-        <div style="display: flex; flex-wrap: wrap; flex-grow: 1; gap: 0.75rem; min-width: 280px; align-items: center;">
+<div class="card" style="padding: 1rem; margin-bottom: 1rem;">
+    <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;">
+        <div style="display: flex; flex-wrap: wrap; flex-grow: 1; gap: 0.5rem; min-width: 280px; align-items: center;">
             <div style="position: relative; flex-grow: 2; min-width: 200px;">
                 <i class="fa-solid fa-magnifying-glass"
-                    style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                    style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem;"></i>
                 <input type="text" id="invoiceSearch" class="form-control"
                     placeholder="Search by Invoice No, Customer Name or Phone..."
-                    style="padding-left: 2.75rem; width: 100%;" onkeyup="filterInvoices()">
+                    style="padding-left: 2.2rem; width: 100%; height: 34px; font-size: 0.8rem; padding-top: 0.25rem; padding-bottom: 0.25rem;" onkeyup="filterInvoices()">
             </div>
-            <select id="paymentFilter" class="form-control" style="width: 140px; cursor: pointer; flex-grow: 0;"
+            <select id="paymentFilter" class="form-control" style="width: 130px; cursor: pointer; flex-grow: 0; height: 34px; font-size: 0.8rem; padding: 0.25rem 0.5rem;"
                 onchange="filterInvoices()">
                 <option value="">All Payments</option>
                 <option value="Cash">Cash</option>
                 <option value="UPI">UPI</option>
                 <option value="Card">Card</option>
             </select>
-            <div style="display: flex; align-items: center; gap: 0.35rem; flex-grow: 0;">
-                <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">From:</span>
+            <div style="display: flex; align-items: center; gap: 0.25rem; flex-grow: 0;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">From:</span>
                 <input type="date" id="dateFrom" class="form-control"
-                    style="width: 135px; cursor: pointer; padding: 0.375rem 0.5rem;" onchange="filterInvoices()">
+                    style="width: 125px; cursor: pointer; padding: 0.25rem 0.5rem; height: 34px; font-size: 0.8rem;" onchange="filterInvoices()">
             </div>
-            <div style="display: flex; align-items: center; gap: 0.35rem; flex-grow: 0;">
-                <span style="font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">To:</span>
+            <div style="display: flex; align-items: center; gap: 0.25rem; flex-grow: 0;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">To:</span>
                 <input type="date" id="dateTo" class="form-control"
-                    style="width: 135px; cursor: pointer; padding: 0.375rem 0.5rem;" onchange="filterInvoices()">
+                    style="width: 125px; cursor: pointer; padding: 0.25rem 0.5rem; height: 34px; font-size: 0.8rem;" onchange="filterInvoices()">
             </div>
             <button onclick="clearDateFilters()" class="btn btn-secondary"
-                style="padding: 0.375rem 0.75rem; font-size: 0.85rem;" title="Reset Date Filters">
+                style="height: 34px; padding: 0 0.75rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Reset Date Filters">
                 <i class="fa-solid fa-rotate-left"></i> Reset
             </button>
         </div>
-        <div style="color: var(--text-muted); font-size: 0.9rem;">
+        <div style="color: var(--text-muted); font-size: 0.8rem;">
             Showing <strong id="visibleCount" style="color: var(--text-primary);"><?= count($orders) ?></strong> of
             <strong><?= count($orders) ?></strong> records
         </div>
@@ -231,25 +241,25 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- Invoices Table -->
-<div class="card">
+<div class="card" style="padding: 0; overflow: hidden;">
     <div class="table-responsive">
-        <table class="table" id="invoicesTable">
+        <table class="table" id="invoicesTable" style="margin: 0; font-size: 0.8rem;">
             <thead>
                 <tr>
-                    <th style="width: 14%;">Invoice No</th>
-                    <th style="width: 18%;">Date & Time</th>
-                    <th style="width: 25%;">Customer Details</th>
-                    <th style="width: 15%;">Total Amount</th>
-                    <th style="width: 10%;">Method</th>
-                    <th style="text-align: right; width: 18%;">Actions</th>
+                    <th style="padding: 0.5rem 0.75rem; width: 14%;">Invoice No</th>
+                    <th style="padding: 0.5rem 0.75rem; width: 18%;">Date & Time</th>
+                    <th style="padding: 0.5rem 0.75rem; width: 25%;">Customer Details</th>
+                    <th style="padding: 0.5rem 0.75rem; width: 15%;">Total Amount</th>
+                    <th style="padding: 0.5rem 0.75rem; width: 10%;">Method</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 18%;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($orders)): ?>
                     <tr class="no-data-row">
-                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 4rem 0;">
+                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem 0;">
                             <i class="fa-solid fa-folder-open"
-                                style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem; display: block;"></i>
+                                style="font-size: 2.2rem; color: var(--text-muted); margin-bottom: 0.75rem; display: block; opacity: 0.3;"></i>
                             No sales invoices found. Launch the POS terminal to execute checkout.
                         </td>
                     </tr>
@@ -261,54 +271,53 @@ require_once __DIR__ . '/../includes/header.php';
                             data-method="<?= h(strtolower($ord['payment_method'])) ?>"
                             data-date="<?= date('Y-m-d', strtotime($ord['created_at'])) ?>"
                             data-amount="<?= (float) $ord['final_amount'] ?>"
-                            data-discount="<?= (float) $ord['discount_amount'] ?>">
-                            <td style="font-weight: 700; color: var(--text-primary);"><?= h($ord['invoice_number']) ?></td>
-                            <td style="color: var(--text-secondary);"><?= date('d M Y, h:i A', strtotime($ord['created_at'])) ?>
-                            </td>
-                            <td>
+                            data-discount="<?= (float) $ord['discount_amount'] ?>"
+                            style="transition: background 0.15s;">
+                            <td style="padding: 0.5rem 0.75rem; font-weight: 700; color: var(--text-primary);"><?= h($ord['invoice_number']) ?></td>
+                            <td style="padding: 0.5rem 0.75rem; color: var(--text-secondary);"><?= date('d M Y, h:i A', strtotime($ord['created_at'])) ?></td>
+                            <td style="padding: 0.5rem 0.75rem;">
                                 <?php if (!empty($ord['customer_name']) || !empty($ord['customer_phone'])): ?>
-                                    <div style="font-weight: 600; color: var(--text-primary);">
-                                        <?= h($ord['customer_name'] ?: 'N/A') ?></div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-phone"
-                                            style="font-size: 0.7rem;"></i> <?= h($ord['customer_phone'] ?: 'N/A') ?></div>
+                                    <div style="font-weight: 600; color: var(--text-primary);"><?= h($ord['customer_name'] ?: 'N/A') ?></div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fa-solid fa-phone" style="font-size: 0.65rem;"></i> <?= h($ord['customer_phone'] ?: 'N/A') ?></div>
                                 <?php else: ?>
                                     <span style="color: var(--text-muted); font-style: italic;">Walk-in Customer</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
-                                <div style="font-weight: 700; color: var(--accent-color);">
-                                    ₹<?= number_format($ord['final_amount'], 2) ?></div>
+                            <td style="padding: 0.5rem 0.75rem;">
+                                <div style="font-weight: 700; color: var(--accent-color);">₹<?= number_format($ord['final_amount'], 2) ?></div>
                                 <?php if ($ord['discount_amount'] > 0): ?>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">
-                                        Subtotal: ₹<?= number_format($ord['total_amount'], 2) ?><br>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.15rem;">
+                                        Sub: ₹<?= number_format($ord['total_amount'], 2) ?><br>
                                         Disc: -₹<?= number_format($ord['discount_amount'], 2) ?>
                                     </div>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="padding: 0.5rem 0.75rem;">
                                 <span class="badge"
-                                    style="background: <?= $ord['payment_method'] === 'Cash' ? 'rgba(46, 213, 115, 0.12)' : ($ord['payment_method'] === 'UPI' ? 'rgba(30, 144, 255, 0.12)' : 'rgba(255, 107, 53, 0.12)') ?>; color: <?= $ord['payment_method'] === 'Cash' ? 'var(--success)' : ($ord['payment_method'] === 'UPI' ? 'var(--info)' : 'var(--accent-color)') ?>; font-weight: 600;">
+                                    style="background: <?= $ord['payment_method'] === 'Cash' ? 'rgba(46, 213, 115, 0.12)' : ($ord['payment_method'] === 'UPI' ? 'rgba(30, 144, 255, 0.12)' : 'rgba(255, 107, 53, 0.12)') ?>; color: <?= $ord['payment_method'] === 'Cash' ? 'var(--success)' : ($ord['payment_method'] === 'UPI' ? 'var(--info)' : 'var(--accent-color)') ?>; font-weight: 600; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem;">
                                     <?= h($ord['payment_method']) ?>
                                 </span>
                             </td>
-                            <td style="text-align: right;">
-                                <div style="display: flex; gap: 0.35rem; justify-content: flex-end;">
+                            <td style="padding: 0.5rem 0.75rem; text-align: right;">
+                                <div style="display: flex; gap: 0.3rem; justify-content: flex-end;">
                                     <a href="billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary"
-                                        style="padding: 0.4rem 0.5rem; font-size: 0.75rem;" title="View Thermal Receipt">
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem;" title="View Thermal Receipt">
                                         <i class="fa-solid fa-eye"></i> View
                                     </a>
+                                    <?php if (has_permission('billing_update')): ?>
                                     <a href="edit-billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary"
-                                        style="padding: 0.4rem 0.5rem; font-size: 0.75rem; background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15);"
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15);"
                                         title="Edit Invoice">
                                         <i class="fa-solid fa-pen-to-square"></i> Edit
                                     </a>
+                                    <?php endif; ?>
                                     <a href="billing-invoice.php?id=<?= $ord['id'] ?>&print=1" class="btn btn-primary"
-                                        style="padding: 0.4rem 0.5rem; font-size: 0.75rem; background: var(--accent-gradient);"
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: var(--accent-gradient);"
                                         title="Print Receipt">
                                         <i class="fa-solid fa-print"></i> Print
                                     </a>
                                     <a href="?action=delete&id=<?= $ord['id'] ?>" class="btn btn-danger"
-                                        style="padding: 0.4rem 0.5rem; font-size: 0.75rem; background: rgba(255, 71, 87, 0.1); border-color: rgba(255, 71, 87, 0.15); color: var(--danger);"
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: rgba(255, 71, 87, 0.1); border-color: rgba(255, 71, 87, 0.15); color: var(--danger);"
                                         onclick="return confirm('Are you sure you want to delete invoice <?= $ord['invoice_number'] ?>? This action is permanent.');"
                                         title="Delete Invoice">
                                         <i class="fa-solid fa-trash"></i>

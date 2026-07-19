@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 check_admin_auth();
+require_permission('billing_update');
 
 $db = get_db_connection();
 
@@ -317,28 +318,29 @@ foreach ($items as $item) {
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="content-header">
-    <div class="header-title">
-        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
-            <a href="billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary"
-                style="padding:0.4rem 0.8rem; font-size:0.85rem;">
+<!-- Compact Header -->
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color);">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div>
+            <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                <i class="fa-solid fa-pen-to-square" style="color: var(--warning);"></i>
+                Edit POS Invoice
+            </h1>
+            <p style="color: var(--text-secondary); margin: 0.15rem 0 0; font-size: 0.8rem;">
+                Update line items, discount, and details for <?= h($order['invoice_number']) ?>
+            </p>
+        </div>
+        <div>
+            <a href="billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
                 <i class="fa-solid fa-arrow-left-long"></i> Back to Invoice
             </a>
         </div>
-        <h1 style="display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
-            <i class="fa-solid fa-pen-to-square" style="color:var(--warning);"></i>
-            Edit POS Invoice
-        </h1>
-        <p style="color:var(--text-muted); margin-top:0.25rem;">
-            Modify details, update line items, change dates, and recalculate financials for
-            <?= h($order['invoice_number']) ?>.
-        </p>
     </div>
 </div>
 
 <?php if ($error): ?>
     <div
-        style="background-color: var(--danger); color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
+        style="background-color: var(--danger); color: #ffffff; padding: 0.6rem 1.25rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 0.85rem;">
         <span><i class="fa-solid fa-circle-exclamation"></i> <?= h($error) ?></span>
         <button onclick="this.parentElement.style.display='none'"
             style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
@@ -349,7 +351,7 @@ require_once __DIR__ . '/../includes/header.php';
     .edit-container {
         display: grid;
         grid-template-columns: 1.4fr 1fr;
-        gap: 1.5rem;
+        gap: 1rem;
         align-items: start;
     }
 
@@ -362,15 +364,15 @@ require_once __DIR__ . '/../includes/header.php';
     .form-section-card {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
-        border-radius: var(--border-radius-lg);
-        padding: 1.5rem;
+        border-radius: var(--border-radius-md);
+        padding: 1rem;
         box-shadow: var(--box-shadow);
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
 
     .qty-edit-btn {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
         border-radius: 4px;
         background: var(--bg-control);
         border: 1px solid var(--border-color);
@@ -380,6 +382,7 @@ require_once __DIR__ . '/../includes/header.php';
         justify-content: center;
         cursor: pointer;
         font-weight: bold;
+        font-size: 0.8rem;
         transition: var(--transition-fast);
     }
 
@@ -392,33 +395,38 @@ require_once __DIR__ . '/../includes/header.php';
     .summary-sticky-card {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
-        border-radius: var(--border-radius-lg);
-        padding: 1.5rem;
+        border-radius: var(--border-radius-md);
+        padding: 1rem;
         box-shadow: var(--box-shadow);
         position: sticky;
-        top: 2rem;
+        top: 1rem;
     }
 
     .billing-summary-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 0.75rem;
-        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
         color: var(--text-secondary);
     }
 
     .billing-summary-total {
         border-top: 1px dashed var(--border-color);
-        padding-top: 0.75rem;
-        font-size: 1.3rem;
+        padding-top: 0.5rem;
+        font-size: 1.15rem;
         font-weight: 800;
         color: var(--accent-color);
         margin-top: 0.25rem;
     }
 
+    .table th, .table td {
+        padding: 0.5rem 0.6rem !important;
+        font-size: 0.82rem;
+    }
+
     /* Autocomplete Search suggestions styling */
     .suggestion-item {
-        padding: 0.65rem 1rem;
+        padding: 0.5rem 0.75rem;
         cursor: pointer;
         transition: background 0.15s ease;
         border-bottom: 1px solid rgba(255, 255, 255, 0.03);
@@ -438,12 +446,12 @@ require_once __DIR__ . '/../includes/header.php';
     }
 
     .suggestion-category {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         background: rgba(255, 107, 53, 0.08);
         color: var(--accent-color);
-        padding: 0.15rem 0.4rem;
+        padding: 0.1rem 0.35rem;
         border-radius: 4px;
         margin-right: 0.5rem;
         font-weight: 600;
@@ -453,7 +461,7 @@ require_once __DIR__ . '/../includes/header.php';
     .suggestion-price {
         font-weight: 700;
         color: var(--accent-color);
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
 
     .suggestion-match {
@@ -470,15 +478,15 @@ require_once __DIR__ . '/../includes/header.php';
 
     <!-- Invoice/Customer Summary Info Card at Top -->
     <div class="form-section-card"
-        style="display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
-        <div style="display: flex; gap: 2.5rem; flex-wrap: wrap; align-items: center;">
+        style="display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+        <div style="display: flex; gap: 2rem; flex-wrap: wrap; align-items: center;">
             <!-- Invoice details summary -->
             <div>
                 <div
-                    style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+                    style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">
                     Invoice Information</div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                    <span style="font-weight: 700; color: var(--text-primary); font-size: 1.15rem;"
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.15rem;">
+                    <span style="font-weight: 700; color: var(--text-primary); font-size: 1rem;"
                         id="lblInvoiceNumber"><?= h($order['invoice_number']) ?></span>
                     <?php
                     $method = $order['payment_method'];
@@ -493,11 +501,11 @@ require_once __DIR__ . '/../includes/header.php';
                     }
                     ?>
                     <span class="badge" id="lblPaymentMethod"
-                        style="background: <?= $bg_color ?>; color: <?= $text_color ?>; font-weight: 600; font-size: 0.75rem; padding: 0.15rem 0.4rem;">
+                        style="background: <?= $bg_color ?>; color: <?= $text_color ?>; font-weight: 600; font-size: 0.7rem; padding: 0.1rem 0.35rem;">
                         <?= h($method) ?>
                     </span>
                 </div>
-                <div style="font-size: 0.85rem; color: var(--text-secondary);" id="lblInvoiceDate">
+                <div style="font-size: 0.8rem; color: var(--text-secondary);" id="lblInvoiceDate">
                     <i class="fa-regular fa-calendar" style="margin-right: 0.25rem;"></i>
                     <?= date('d M Y, h:i A', strtotime($order['created_at'])) ?>
                 </div>
@@ -505,20 +513,20 @@ require_once __DIR__ . '/../includes/header.php';
 
             <!-- Customer summary -->
             <div
-                style="border-left: 1px solid var(--border-color); padding-left: 2.5rem; min-height: 48px; display: flex; flex-direction: column; justify-content: center;">
+                style="border-left: 1px solid var(--border-color); padding-left: 2rem; min-height: 40px; display: flex; flex-direction: column; justify-content: center;">
                 <div
-                    style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+                    style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">
                     Customer Details</div>
-                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem;" id="lblCustomerName">
+                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.15rem; font-size: 0.9rem;" id="lblCustomerName">
                     <?= h($order['customer_name'] ?: 'Walk-in Client') ?>
                 </div>
                 <div
-                    style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap;">
+                    style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                     <span id="lblCustomerPhone"><i class="fa-solid fa-phone"
-                            style="font-size: 0.75rem; margin-right: 0.25rem;"></i>
+                            style="font-size: 0.7rem; margin-right: 0.25rem;"></i>
                         <?= h($order['customer_phone'] ?: 'N/A') ?></span>
                     <span id="lblCustomerAddress"><i class="fa-solid fa-location-dot"
-                            style="font-size: 0.75rem; margin-right: 0.25rem;"></i>
+                            style="font-size: 0.7rem; margin-right: 0.25rem;"></i>
                         <?= h($order['customer_address'] ? (mb_strimwidth($order['customer_address'], 0, 40, '...')) : 'N/A') ?></span>
                 </div>
             </div>
@@ -526,7 +534,7 @@ require_once __DIR__ . '/../includes/header.php';
 
         <div>
             <button type="button" onclick="openInvoiceDetailsModal()" class="btn btn-secondary"
-                style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.05); border-color: var(--border-color); font-weight: 600; font-size: 0.85rem; height: 38px;">
+                style="display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(255, 255, 255, 0.05); border-color: var(--border-color); font-weight: 600; font-size: 0.8rem; height: 32px; padding: 0.35rem 0.75rem;">
                 <i class="fa-solid fa-user-gear" style="color: var(--accent-color);"></i> Edit Customer & Info
             </button>
         </div>
@@ -538,22 +546,21 @@ require_once __DIR__ . '/../includes/header.php';
             <!-- Items & Products Selection Card -->
             <div class="form-section-card">
                 <h3
-                    style="font-size:1.15rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1.25rem;">
+                    style="font-size:0.95rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:0.75rem; font-weight: 700;">
                     Invoice Line Items
                 </h3>
 
                 <!-- Product Add Selector Bar -->
                 <div
-                    style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; background:rgba(0,0,0,0.12); padding:1rem; border-radius:var(--border-radius-md); border:1px solid var(--border-color); position: relative;">
+                    style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; background:rgba(0,0,0,0.12); padding:0.5rem 0.75rem; border-radius:var(--border-radius-md); border:1px solid var(--border-color); position: relative;">
                     <div style="flex-grow: 1; position: relative;">
-                        <label class="form-label" style="font-size:0.75rem; margin-bottom:0.25rem;">Select Product /
-                            Variant</label>
+                        <label class="form-label" style="font-size:0.7rem; margin-bottom:0.15rem; font-weight: 600;">Select Product / Variant</label>
                         <div style="position: relative;">
                             <i class="fa-solid fa-magnifying-glass"
-                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.85rem;"></i>
+                                style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem;"></i>
                             <input type="text" id="productSearchInput" class="form-control"
                                 placeholder="Search by name, size or category..." autocomplete="off"
-                                style="padding-left: 2.5rem;" onfocus="showSuggestions()"
+                                style="padding-left: 2rem; height: 32px; font-size: 0.8rem;" onfocus="showSuggestions()"
                                 oninput="filterSearchProducts()">
                         </div>
                         <input type="hidden" id="productSelector" value="">
@@ -564,13 +571,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <!-- Dynamically loaded -->
                         </div>
                     </div>
-                    <div style="display:flex; gap:0.5rem; margin-top:1.1rem; align-items: center;">
+                    <div style="display:flex; gap:0.35rem; margin-top:0.95rem; align-items: center;">
                         <button type="button" onclick="addProductToInvoice()" class="btn btn-primary"
-                            style="white-space: nowrap; height: 40px; display: flex; align-items: center; gap: 0.25rem;">
+                            style="white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; padding: 0.25rem 0.65rem;">
                             <i class="fa-solid fa-plus"></i> Add
                         </button>
                         <button type="button" onclick="openCustomItemModal()" class="btn btn-secondary"
-                            style="white-space: nowrap; height: 40px; display: flex; align-items: center; gap: 0.25rem;">
+                            style="white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; padding: 0.25rem 0.65rem;">
                             <i class="fa-solid fa-plus-circle"></i> Custom Item
                         </button>
                     </div>
@@ -600,7 +607,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div>
             <div class="summary-sticky-card">
                 <h3
-                    style="font-size:1.15rem; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1.25rem;">
+                    style="font-size:0.95rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:0.75rem; font-weight: 700;">
                     Billing Summary
                 </h3>
 
@@ -614,11 +621,11 @@ require_once __DIR__ . '/../includes/header.php';
                     <span id="summarySubtotal" style="font-weight: 600; color:var(--text-primary);">₹0.00</span>
                 </div>
 
-                <div class="form-group" style="margin: 1rem 0;">
-                    <label class="form-label" style="font-size:0.85rem;">Apply Discount (Flat Rs)</label>
+                <div class="form-group" style="margin: 0.75rem 0;">
+                    <label class="form-label" style="font-size:0.75rem; margin-bottom:0.25rem; font-weight: 600;">Apply Discount (Flat Rs)</label>
                     <input type="number" min="0" step="0.01" id="discountInput" name="discount_amount"
                         class="form-control" value="<?= (float) $order['discount_amount'] ?>" placeholder="0.00"
-                        oninput="recalcTotals()">
+                        oninput="recalcTotals()" style="height: 32px; font-size: 0.8rem;">
                 </div>
 
                 <div class="billing-summary-row billing-summary-total">
@@ -626,20 +633,20 @@ require_once __DIR__ . '/../includes/header.php';
                     <span id="summaryPayable">₹0.00</span>
                 </div>
 
-                <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
                     <button type="button" onclick="submitEditForm()" class="btn btn-success"
-                        style="width:100%; height:46px; font-size:0.95rem; font-weight:600; box-shadow: 0 4px 12px rgba(46, 213, 115, 0.2);">
+                        style="width:100%; height:36px; font-size:0.85rem; font-weight:600; box-shadow: 0 4px 12px rgba(46, 213, 115, 0.2); display: flex; align-items: center; justify-content: center; gap: 0.35rem;">
                         <i class="fa-solid fa-file-shield"></i> Save & Commit Changes
                     </button>
                     <a href="billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary"
-                        style="text-align:center; height:40px; display:flex; align-items:center; justify-content:center; font-weight:600;">
+                        style="text-align:center; height:32px; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:0.8rem; padding: 0.25rem 0.5rem;">
                         Cancel
                     </a>
                 </div>
             </div>
         </div>
     </div>
-</form>
+
 
 <!-- Modal: Add Custom / Extra Billing Item -->
 <div id="customItemModal" class="modal">
@@ -746,6 +753,7 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
     </div>
 </div>
+</form>
 
 <script>
     // State variable containing invoice items
