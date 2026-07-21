@@ -228,8 +228,8 @@ try {
 
         $stmt_restock = $db->prepare("
             UPDATE billing_product_variants
-               SET stock_qty = stock_qty + :qty
-             WHERE id = :variant_id AND is_stock_managed = 1
+               SET stock_quantity = stock_quantity + :qty
+             WHERE id = :variant_id
         ");
 
         foreach ($processed_items as $p_item) {
