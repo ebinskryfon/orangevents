@@ -173,6 +173,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         $order_id = $db->lastInsertId();
 
+        // Sync customer profile to customers table
+        if (!empty($customer_phone)) {
+            try {
+                $stmt_cust = $db->prepare("
+                    INSERT INTO customers (name, phone, address, total_orders, total_spent)
+                    VALUES (:name, :phone, :address, 1, :final_amount)
+                    ON DUPLICATE KEY UPDATE
+                        name = IF(VALUES(name) != '', VALUES(name), name),
+                        address = IF(VALUES(address) != '', VALUES(address), address),
+                        total_orders = total_orders + 1,
+                        total_spent = total_spent + VALUES(total_spent)
+                ");
+                $stmt_cust->execute([
+                    'name'         => !empty($customer_name) ? $customer_name : 'Walk-in Client',
+                    'phone'        => $customer_phone,
+                    'address'      => !empty($customer_address) ? $customer_address : null,
+                    'final_amount' => $final_amount
+                ]);
+            } catch (Exception $e) {
+                // Ignore non-critical customer sync errors
+            }
+        }
+
         $stmt_item = $db->prepare(
             "INSERT INTO billing_order_items (order_id, product_id, variant_id, product_name, variant_size, price, quantity, total_price, sell_type)
              VALUES (:order_id, :prod_id, :var_id, :prod_name, :size, :price, :qty, :total_price, :sell_type)"
@@ -464,18 +487,21 @@ $default_upi = $clean_phone . '@upi';
             <input type="hidden" name="action" value="checkout">
             <input type="hidden" id="cartDataInput" name="cart_data">
 
+            <!-- Customer Live Profile Badge -->
+            <div id="customerBadgeContainer" style="display:none; margin-bottom:0.25rem;"></div>
+
             <!-- Customer Details Grid -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; flex-shrink:0;">
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Customer Phone</label>
+                    <input type="text" id="customerPhone" name="customer_phone" class="form-control"
+                        placeholder="Phone No." style="height:30px; font-size:0.8rem; padding:0.25rem 0.5rem;" oninput="handleCustomerPhoneAutoFetch()">
+                </div>
+
                 <div class="form-group" style="margin:0;">
                     <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Customer Name</label>
                     <input type="text" id="customerName" name="customer_name" class="form-control"
                         placeholder="Walk-in Client" style="height:30px; font-size:0.8rem; padding:0.25rem 0.5rem;">
-                </div>
-
-                <div class="form-group" style="margin:0;">
-                    <label class="form-label" style="font-size:0.75rem; margin-bottom:0.2rem;">Customer Phone</label>
-                    <input type="text" id="customerPhone" name="customer_phone" class="form-control"
-                        placeholder="Phone No." style="height:30px; font-size:0.8rem; padding:0.25rem 0.5rem;">
                 </div>
             </div>
 
@@ -605,6 +631,60 @@ $default_upi = $clean_phone . '@upi';
 <script>
     let cart = [];
     let selectedPaymentMethod = 'Cash';
+    let customerAutoFetchTimer = null;
+
+    function handleCustomerPhoneAutoFetch() {
+        clearTimeout(customerAutoFetchTimer);
+        const phoneInput = document.getElementById('customerPhone');
+        const badgeBox = document.getElementById('customerBadgeContainer');
+        if (!phoneInput) return;
+
+        const val = phoneInput.value.trim();
+        if (val.length < 3) {
+            if (badgeBox) badgeBox.style.display = 'none';
+            return;
+        }
+
+        customerAutoFetchTimer = setTimeout(() => {
+            const apiPath = window.location.pathname.includes('/admin/') ? '../api/search-customer.php' : 'api/search-customer.php';
+            fetch(`${apiPath}?phone=${encodeURIComponent(val)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.found && data.customer) {
+                        const cust = data.customer;
+                        document.getElementById('customerName').value = cust.name;
+                        if (cust.address) document.getElementById('customerAddress').value = cust.address;
+
+                        if (badgeBox) {
+                            badgeBox.className = 'badge';
+                            badgeBox.style.display = 'block';
+                            badgeBox.style.background = 'rgba(46, 213, 115, 0.12)';
+                            badgeBox.style.color = '#2ed573';
+                            badgeBox.style.border = '1px solid rgba(46, 213, 115, 0.3)';
+                            badgeBox.style.padding = '0.35rem 0.6rem';
+                            badgeBox.style.borderRadius = '6px';
+                            badgeBox.style.fontSize = '0.72rem';
+                            badgeBox.style.fontWeight = '600';
+                            badgeBox.innerHTML = `
+                                <i class="fa-solid fa-user-check"></i> Returning Client: <strong>${escapeHtml(cust.name)}</strong> 
+                                • 🛍️ ${cust.total_orders} Orders 
+                                • 💰 Spent ₹${cust.total_spent.toFixed(2)}
+                            `;
+                        }
+                    } else if (badgeBox) {
+                        badgeBox.style.display = 'block';
+                        badgeBox.style.background = 'rgba(255, 107, 53, 0.1)';
+                        badgeBox.style.color = 'var(--accent-color)';
+                        badgeBox.style.border = '1px solid rgba(255, 107, 53, 0.2)';
+                        badgeBox.style.padding = '0.3rem 0.5rem';
+                        badgeBox.style.borderRadius = '6px';
+                        badgeBox.style.fontSize = '0.7rem';
+                        badgeBox.innerHTML = `<i class="fa-solid fa-sparkles"></i> New Client Profile (Auto-saved on checkout)`;
+                    }
+                })
+                .catch(() => {});
+        }, 300);
+    }
 
     // Initialize Cart from LocalStorage
     function loadCart() {
