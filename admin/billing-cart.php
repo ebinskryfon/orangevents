@@ -358,6 +358,39 @@ $default_upi = $clean_phone . '@upi';
         font-weight: 700;
         color: var(--text-primary);
     }
+
+    .pos-hotkey-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-md);
+        padding: 0.35rem 0.75rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .pos-hotkey-bar kbd {
+        background: var(--bg-control);
+        border: 1px solid var(--border-color);
+        border-bottom: 2px solid var(--border-highlight);
+        border-radius: 4px;
+        padding: 0.1rem 0.35rem;
+        font-family: monospace;
+        font-weight: 700;
+        color: var(--accent-color);
+        font-size: 0.7rem;
+    }
+
+    .pos-hotkey-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
 </style>
 
 <div class="checkout-container">
@@ -486,6 +519,18 @@ $default_upi = $clean_phone . '@upi';
             </button>
         </form>
     </div>
+</div>
+
+<!-- POS Keyboard Shortcut Legend Bar -->
+<div class="pos-hotkey-bar">
+    <span style="font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 0.3rem;">
+        <i class="fa-solid fa-keyboard" style="color: var(--accent-color);"></i> Shortcuts:
+    </span>
+    <span class="pos-hotkey-item"><kbd>F2</kbd> Customer Field</span>
+    <span class="pos-hotkey-item"><kbd>F8</kbd> Discount Field</span>
+    <span class="pos-hotkey-item"><kbd>F9</kbd> Cash & Print</span>
+    <span class="pos-hotkey-item"><kbd>F10</kbd> Complete Order</span>
+    <span class="pos-hotkey-item"><kbd>ESC</kbd> Back to POS</span>
 </div>
 
 <script>
@@ -775,6 +820,56 @@ $default_upi = $clean_phone . '@upi';
         if (changeItemsLink) changeItemsLink.href = sourcePage;
         const emptyCartBackLink = document.getElementById('emptyCartBackLink');
         if (emptyCartBackLink) emptyCartBackLink.href = sourcePage;
+
+        // Keyboard Shortcuts Handler (Phase 1)
+        document.addEventListener('keydown', (e) => {
+            // F2: Focus Customer Name
+            if (e.key === 'F2') {
+                e.preventDefault();
+                if (customerName) {
+                    customerName.focus();
+                    customerName.select();
+                }
+                return;
+            }
+
+            // F8: Focus Discount input
+            if (e.key === 'F8') {
+                e.preventDefault();
+                if (discountInput) {
+                    discountInput.focus();
+                    discountInput.select();
+                }
+                return;
+            }
+
+            // F9: Quick Cash & Print
+            if (e.key === 'F9') {
+                e.preventDefault();
+                selectPaymentMethod('Cash');
+                submitCheckout();
+                return;
+            }
+
+            // F10 or Ctrl+Enter: Submit checkout with current payment method
+            if (e.key === 'F10' || (e.ctrlKey && e.key === 'Enter')) {
+                e.preventDefault();
+                submitCheckout();
+                return;
+            }
+
+            // ESC: Return back to POS terminal page
+            if (e.key === 'Escape') {
+                const active = document.activeElement;
+                if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+                    active.blur();
+                } else {
+                    const sourcePage = localStorage.getItem('orange_billing_source') || 'billing.php';
+                    window.location.href = sourcePage;
+                }
+                return;
+            }
+        });
 
         loadCart();
     });

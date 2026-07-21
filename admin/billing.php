@@ -344,6 +344,39 @@ function format_variant_stock_badge($v)
         padding: 0.75rem;
         margin: 0.5rem 0;
     }
+
+    .pos-hotkey-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-md);
+        padding: 0.35rem 0.75rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .pos-hotkey-bar kbd {
+        background: var(--bg-control);
+        border: 1px solid var(--border-color);
+        border-bottom: 2px solid var(--border-highlight);
+        border-radius: 4px;
+        padding: 0.1rem 0.35rem;
+        font-family: monospace;
+        font-weight: 700;
+        color: var(--accent-color);
+        font-size: 0.7rem;
+    }
+
+    .pos-hotkey-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
 </style>
 
 <?php if (!$is_register_open): ?>
@@ -488,8 +521,19 @@ function format_variant_stock_badge($v)
             <?php endforeach; ?>
         </div>
     </div>
-
 </div>
+
+<!-- POS Keyboard Shortcut Legend Bar -->
+<div class="pos-hotkey-bar">
+    <span style="font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 0.3rem;">
+        <i class="fa-solid fa-keyboard" style="color: var(--accent-color);"></i> Shortcuts:
+    </span>
+    <span class="pos-hotkey-item"><kbd>F2</kbd> Focus Search</span>
+    <span class="pos-hotkey-item"><kbd>F4</kbd> Custom Item</span>
+    <span class="pos-hotkey-item"><kbd>F8</kbd> Clear Cart</span>
+    <span class="pos-hotkey-item"><kbd>F9</kbd> Cash Checkout</span>
+    <span class="pos-hotkey-item"><kbd>F10</kbd> Open Cart</span>
+    <span class="pos-hotkey-item"><kbd>ESC</kbd> Cancel / Focus</span>
 </div>
 
 <!-- Floating Cart Button -->
@@ -761,6 +805,77 @@ function format_variant_stock_badge($v)
             });
         }
 
+        // Keyboard Shortcuts Handler (Phase 1)
+        document.addEventListener('keydown', (e) => {
+            const active = document.activeElement;
+            const isCustomInput = active && (
+                active.tagName === 'INPUT' ||
+                active.tagName === 'TEXTAREA' ||
+                active.tagName === 'SELECT'
+            ) && active.id !== 'searchBar' && active.id !== 'barcodeInput';
+
+            // F2 to focus Search / Scanner
+            if (e.key === 'F2') {
+                e.preventDefault();
+                if (searchBar) {
+                    searchBar.focus();
+                    searchBar.select();
+                }
+                return;
+            }
+
+            // ESC to close modal or clear search
+            if (e.key === 'Escape') {
+                const openModalEl = document.querySelector('.modal.active, .modal[style*="display: block"]');
+                if (openModalEl) {
+                    e.preventDefault();
+                    if (typeof closeModal === 'function' && openModalEl.id) {
+                        closeModal(openModalEl.id);
+                    }
+                    if (searchBar) searchBar.focus();
+                } else if (searchBar) {
+                    searchBar.value = '';
+                    filterProducts();
+                    searchBar.focus();
+                }
+                return;
+            }
+
+            if (isCustomInput) return;
+
+            // F4 to open Custom Item modal
+            if (e.key === 'F4') {
+                e.preventDefault();
+                openModal('customItemModal');
+                setTimeout(() => {
+                    const customName = document.getElementById('customItemName');
+                    if (customName) customName.focus();
+                }, 100);
+            }
+
+            // F8 to clear cart
+            if (e.key === 'F8') {
+                e.preventDefault();
+                clearCart();
+            }
+
+            // F9 for Quick Cash Checkout
+            if (e.key === 'F9') {
+                e.preventDefault();
+                if (cart.length === 0) {
+                    showBarcodeToast('Cart is empty', 'danger');
+                    return;
+                }
+                localStorage.setItem('orange_billing_payment_method', 'Cash');
+                goToCheckout();
+            }
+
+            // F10 or Ctrl+Enter to open cart or checkout
+            if (e.key === 'F10' || (e.ctrlKey && e.key === 'Enter')) {
+                e.preventDefault();
+                openCartModal();
+            }
+        });
 
         renderCart();
     });
