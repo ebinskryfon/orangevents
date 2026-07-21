@@ -18,7 +18,13 @@ $db = get_db_connection();
 $user_id = $_SESSION['admin_id'];
 $username = $_SESSION['admin_username'] ?? 'Cashier';
 
-$action = $_REQUEST['action'] ?? '';
+$raw_input = file_get_contents('php://input');
+$json_data = !empty($raw_input) ? json_decode($raw_input, true) : [];
+if (!is_array($json_data)) {
+    $json_data = [];
+}
+
+$action = $_REQUEST['action'] ?? ($json_data['action'] ?? '');
 
 try {
     if ($action === 'lookup') {
@@ -112,11 +118,7 @@ try {
         exit;
 
     } elseif ($action === 'process') {
-        $raw_input = file_get_contents('php://input');
-        $data = json_decode($raw_input, true);
-        if (!$data) {
-            $data = $_POST;
-        }
+        $data = !empty($json_data) ? $json_data : $_POST;
 
         $order_id = (int)($data['order_id'] ?? 0);
         $refund_method = trim($data['refund_method'] ?? 'Cash');
