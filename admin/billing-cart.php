@@ -280,8 +280,9 @@ $default_upi = $clean_phone . '@upi';
         display: grid;
         grid-template-columns: 1.2fr 1fr;
         gap: 0.75rem;
-        height: 480px;
-        overflow: hidden;
+        align-items: start;
+        height: auto;
+        overflow: visible;
     }
 
     @media (max-width: 992px) {
@@ -298,10 +299,9 @@ $default_upi = $clean_phone . '@upi';
         border-radius: var(--border-radius-lg);
         padding: 0.75rem;
         box-shadow: var(--box-shadow);
-        height: 100%;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        height: fit-content;
     }
 
     .checkout-right-card {
@@ -310,10 +310,10 @@ $default_upi = $clean_phone . '@upi';
         border-radius: var(--border-radius-lg);
         padding: 0.75rem;
         box-shadow: var(--box-shadow);
-        height: 100%;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        height: auto;
+        overflow: visible;
     }
 
     .payment-options {
@@ -442,7 +442,7 @@ $default_upi = $clean_phone . '@upi';
             </button>
         </h3>
 
-        <div id="cartItemsList" style="flex-grow: 1; overflow-y: auto; display:flex; flex-direction:column; gap:0.4rem; margin-bottom:0.5rem; padding-right:0.25rem;">
+        <div id="cartItemsList" style="max-height: 480px; overflow-y: auto; display:flex; flex-direction:column; gap:0.4rem; margin-bottom:0.5rem; padding-right:0.25rem;">
             <!-- Rendered dynamically -->
         </div>
 
@@ -460,7 +460,7 @@ $default_upi = $clean_phone . '@upi';
             Order & Payment Details
         </h3>
 
-        <form id="checkoutForm" method="POST" style="margin:0; display:flex; flex-direction:column; flex-grow:1; overflow-y:auto; padding-right:0.25rem; gap:0.5rem;">
+        <form id="checkoutForm" method="POST" style="margin:0; display:flex; flex-direction:column; gap:0.5rem;">
             <input type="hidden" name="action" value="checkout">
             <input type="hidden" id="cartDataInput" name="cart_data">
 

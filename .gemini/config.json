@@ -1,0 +1,18 @@
+{
+  "name": "orange-events",
+  "version": "1.0.0",
+  "description": "Orange Events & Catering Management System",
+  "rules": [
+    ".gemini/rules.md"
+  ],
+  "skills": [
+    ".gemini/skills/db-migration/SKILL.md",
+    ".gemini/skills/api-endpoint/SKILL.md",
+    ".gemini/skills/security-audit/SKILL.md"
+  ],
+  "ignore": [
+    "uploads/*",
+    "vendor/*",
+    "*.log"
+  ]
+}
