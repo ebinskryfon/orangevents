@@ -32,13 +32,14 @@ try {
         $stmt = $db->prepare("
             SELECT id, name, phone, email, address, city, gstin, total_orders, total_spent, notes
               FROM customers
-             WHERE phone = :p OR phone LIKE :p_like
-          ORDER BY (phone = :p) DESC, id DESC
+             WHERE phone = :p_exact OR phone LIKE :p_like
+          ORDER BY (phone = :p_order) DESC, id DESC
              LIMIT 1
         ");
         $stmt->execute([
-            'p'      => $clean_digits,
-            'p_like' => '%' . $clean_digits . '%'
+            'p_exact' => $clean_digits,
+            'p_like'  => '%' . $clean_digits . '%',
+            'p_order' => $clean_digits
         ]);
         $customer = $stmt->fetch(PDO::FETCH_ASSOC);
     }
