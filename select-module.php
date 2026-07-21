@@ -34,8 +34,14 @@ try {
 // Check open cash register session
 $active_register = null;
 try {
-    $stmt_reg = $db->query("SELECT * FROM cash_register_sessions WHERE status = 'open' ORDER BY id DESC LIMIT 1");
-    $active_register = $stmt_reg->fetch();
+    $stmt_reg = $db->query("
+        SELECT s.*, u.username as opened_by 
+        FROM cash_register_sessions s 
+        LEFT JOIN users u ON s.user_id = u.id 
+        WHERE s.status = 'open' 
+        ORDER BY s.id DESC LIMIT 1
+    ");
+    $active_register = $stmt_reg->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
 ?>
@@ -349,7 +355,7 @@ try {
             <div class="register-status-bar">
                 <div style="display:flex; align-items:center; gap:0.6rem; font-size:0.85rem;">
                     <span style="width:10px; height:10px; border-radius:50%; background:var(--success); display:inline-block; box-shadow:0 0 10px var(--success);"></span>
-                    <span>Till Register #<?= (int)$active_register['id'] ?> is currently <strong>OPEN</strong> (Opened by <?= h($active_register['opened_by']) ?> with ₹<?= number_format($active_register['opening_float'], 2) ?> float)</span>
+                    <span>Till Register #<?= (int)$active_register['id'] ?> is currently <strong>OPEN</strong> (Opened by <?= h(ucfirst($active_register['opened_by'] ?? 'Cashier')) ?> with ₹<?= number_format((float)($active_register['opening_balance'] ?? 0), 2) ?> float)</span>
                 </div>
                 <a href="admin/register-sessions.php?module=billing" class="btn btn-secondary" style="height:28px; font-size:0.75rem; padding:0 0.6rem;">
                     <i class="fa-solid fa-cash-register"></i> Manage Till
