@@ -1,7 +1,6 @@
 <!-- POS Return & Item Exchange Modal -->
-<div id="posReturnModal" class="modal" tabindex="-1" style="display:none; position:fixed; z-index:1050; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.6); backdrop-filter:blur(3px);">
-    <div class="modal-dialog" style="max-width:680px; margin:2.5rem auto;">
-        <div class="modal-content" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); box-shadow:0 10px 30px rgba(0,0,0,0.4); color:var(--text-primary); padding:1.25rem;">
+<div id="posReturnModal" class="modal" tabindex="-1" style="z-index:1050;">
+    <div class="modal-content" style="max-width:680px; padding:1.25rem;">
             
             <!-- Modal Header -->
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem;">
@@ -112,9 +111,6 @@
                         </button>
                     </div>
                 </div>
-            </div>
-
-        </div>
     </div>
 </div>
 
@@ -124,11 +120,12 @@ let currentLoadedReturnOrder = null;
 function openPosReturnModal(initialQuery = '') {
     const modal = document.getElementById('posReturnModal');
     if (modal) {
-        modal.style.display = 'block';
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
         const input = document.getElementById('returnInvoiceSearchInput');
         if (input) {
             if (initialQuery) input.value = initialQuery;
-            input.focus();
+            setTimeout(() => input.focus(), 100);
             if (initialQuery) searchReturnInvoice();
         }
     }
@@ -136,7 +133,10 @@ function openPosReturnModal(initialQuery = '') {
 
 function closePosReturnModal() {
     const modal = document.getElementById('posReturnModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
 }
 
 function searchReturnInvoice() {
