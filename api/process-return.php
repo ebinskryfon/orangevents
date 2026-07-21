@@ -32,11 +32,11 @@ try {
         $stmt = $db->prepare("
             SELECT id, invoice_number, customer_name, customer_phone, total_amount, discount_amount, final_amount, payment_method, created_at
               FROM billing_orders
-             WHERE invoice_number = :q OR customer_phone = :q
+             WHERE invoice_number = :inv OR customer_phone = :phone
           ORDER BY id DESC
              LIMIT 1
         ");
-        $stmt->execute(['q' => $query]);
+        $stmt->execute(['inv' => $query, 'phone' => $query]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$order) {

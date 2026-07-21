@@ -19,7 +19,7 @@
                     Scan Receipt Barcode or Enter Invoice / Phone Number
                 </label>
                 <div style="display:flex; gap:0.4rem;">
-                    <input type="text" id="returnInvoiceSearchInput" class="form-control" placeholder="e.g. OE-B-20260721-0001 or Phone No." style="height:36px; font-size:0.85rem;" onkeypress="if(event.key === 'Enter'){ event.preventDefault(); searchReturnInvoice(); }">
+                    <input type="text" id="returnInvoiceSearchInput" class="form-control" placeholder="e.g. OE-B-20260721-0001 or Phone No." style="height:36px; font-size:0.85rem;" oninput="handleReturnAutoFetch()" onkeypress="if(event.key === 'Enter'){ event.preventDefault(); searchReturnInvoice(); }">
                     <button type="button" onclick="searchReturnInvoice()" class="btn btn-primary" style="height:36px; font-size:0.8rem; padding:0 1rem; display:inline-flex; align-items:center; gap:0.4rem;">
                         <i class="fa-solid fa-magnifying-glass"></i> Find Bill
                     </button>
@@ -139,26 +139,44 @@ function closePosReturnModal() {
     }
 }
 
-function searchReturnInvoice() {
+let returnAutoFetchTimer = null;
+
+function handleReturnAutoFetch() {
+    clearTimeout(returnAutoFetchTimer);
+    const query = document.getElementById('returnInvoiceSearchInput').value.trim();
+    if (query.length >= 3) {
+        returnAutoFetchTimer = setTimeout(() => {
+            searchReturnInvoice(true);
+        }, 300);
+    }
+}
+
+function searchReturnInvoice(isAutoFetch = false) {
     const query = document.getElementById('returnInvoiceSearchInput').value.trim();
     const alertBox = document.getElementById('returnModalAlert');
     const orderArea = document.getElementById('returnOrderDetailsArea');
 
     if (!query) {
-        showReturnAlert('Please enter an invoice or phone number to search.', 'warning');
+        if (!isAutoFetch) {
+            showReturnAlert('Please enter an invoice or phone number to search.', 'warning');
+        }
         return;
     }
 
-    alertBox.style.display = 'none';
-    orderArea.style.display = 'none';
+    if (!isAutoFetch) {
+        alertBox.style.display = 'none';
+    }
 
     fetch(`../api/process-return.php?action=lookup&query=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
             if (!data.success) {
-                showReturnAlert(data.error || 'Invoice not found.', 'danger');
+                if (!isAutoFetch) {
+                    showReturnAlert(data.error || 'Invoice not found.', 'danger');
+                }
                 return;
             }
+            alertBox.style.display = 'none';
             renderReturnOrderData(data);
         })
         .catch(err => {
@@ -167,13 +185,18 @@ function searchReturnInvoice() {
                 .then(res => res.json())
                 .then(data => {
                     if (!data.success) {
-                        showReturnAlert(data.error || 'Invoice not found.', 'danger');
+                        if (!isAutoFetch) {
+                            showReturnAlert(data.error || 'Invoice not found.', 'danger');
+                        }
                         return;
                     }
+                    alertBox.style.display = 'none';
                     renderReturnOrderData(data);
                 })
                 .catch(e => {
-                    showReturnAlert('Failed to connect to API endpoint: ' + e.message, 'danger');
+                    if (!isAutoFetch) {
+                        showReturnAlert('Failed to connect to API endpoint: ' + e.message, 'danger');
+                    }
                 });
         });
 }
