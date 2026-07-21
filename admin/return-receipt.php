@@ -35,6 +35,13 @@ if (!$return_data) {
 $stmt_items = $db->prepare("SELECT * FROM billing_return_items WHERE return_id = :return_id");
 $stmt_items->execute(['return_id' => $return_id]);
 $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
+
+// Fetch settings
+$settings_res = $db->query("SELECT * FROM settings")->fetchAll();
+$settings = [];
+foreach ($settings_res as $row) {
+    $settings[$row['key']] = $row['value'];
+}
 ?>
 
 <style>
@@ -44,7 +51,7 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
     align-items: center;
     padding: 1.5rem 0;
 }
-.thermal-receipt, .thermal-receipt h2, .thermal-receipt p, .thermal-receipt span, .thermal-receipt strong, .thermal-receipt div, .thermal-receipt td, .thermal-receipt th {
+.thermal-receipt, .thermal-receipt h2, .thermal-receipt p, .thermal-receipt span, .thermal-receipt strong, .thermal-receipt td, .thermal-receipt th {
     color: #000000 !important;
 }
 .thermal-receipt {
@@ -75,9 +82,9 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
     font-size: 11px;
     color: #000000 !important;
 }
-.receipt-badge {
+.receipt-badge, div.receipt-badge, .thermal-receipt .receipt-badge {
     display: inline-block;
-    background: #000000 !important;
+    background-color: #000000 !important;
     color: #ffffff !important;
     font-size: 11px;
     font-weight: bold;
@@ -180,8 +187,11 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
 <div class="receipt-wrapper">
     <div class="thermal-receipt">
         <div class="receipt-header">
-            <h2>ORANGE EVENTS</h2>
-            <p>Catering & Event Management</p>
+            <div style="text-align: center; margin-bottom: 8px;">
+                <img src="../assets/images/logo.png" alt="Orange Events Logo" style="max-height: 45px; width: auto; filter: grayscale(100%); display: inline-block;">
+            </div>
+            <h2><?= h($settings['company_name'] ?? 'ORANGE EVENTS') ?></h2>
+            <p><?= h($settings['company_subtitle'] ?? 'Catering & Event Management') ?></p>
             <div class="receipt-badge">RETURN CREDIT NOTE</div>
         </div>
 
