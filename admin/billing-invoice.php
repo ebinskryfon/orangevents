@@ -44,6 +44,8 @@ $settings = [];
 foreach ($settings_res as $row) {
     $settings[$row['key']] = $row['value'];
 }
+$is_upi_secure = is_upi_secure_and_valid();
+$upi_payment_url = $is_upi_secure ? generate_upi_payment_url($net_invoice_amount, $order['invoice_number']) : false;
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -624,11 +626,26 @@ require_once __DIR__ . '/../includes/header.php';
 
             <!-- Summary Box & T&C -->
             <div class="ri-bottom-grid">
-                <div style="font-size: 8.5pt; color: #6b7280; line-height: 1.6; padding-top: 10px;">
-                    <strong>Terms & Conditions:</strong><br>
-                    1. This is a computer generated invoice and requires no physical signature.<br>
-                    2. Goods once sold are not returnable or exchangeable.<br>
-                    3. For support or queries, contact us at <?= h($settings['company_phone'] ?? '9946731720') ?>.
+                <div>
+                    <div style="font-size: 8.5pt; color: #6b7280; line-height: 1.6; padding-top: 10px;">
+                        <strong>Terms & Conditions:</strong><br>
+                        1. This is a computer generated invoice and requires no physical signature.<br>
+                        2. Goods once sold are not returnable or exchangeable.<br>
+                        3. For support or queries, contact us at <?= h($settings['company_phone'] ?? '9946731720') ?>.
+                    </div>
+                    <?php if ($is_upi_secure && !empty($upi_payment_url)): ?>
+                        <div style="margin-top:10px; display:flex; align-items:center; gap:10px; background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px;">
+                            <div id="a4UpiQr" style="width:72px; height:72px; background:#fff; padding:2px; border:1px solid #cbd5e1; border-radius:4px; display:flex; align-items:center; justify-content:center;"></div>
+                            <div style="font-size:8pt; color:#334155;">
+                                <div style="font-weight:700; color:#0f172a; text-transform:uppercase; display:flex; align-items:center; gap:4px;">
+                                    <i class="fa-solid fa-qrcode" style="color:#0284c7;"></i> Scan & Pay via UPI
+                                </div>
+                                <div style="font-weight:700; color:#ff6b35; margin-top:2px; font-family:monospace;"><?= h($settings['company_upi_id']) ?></div>
+                                <div style="color:#64748b; font-size:7.5pt; margin-top:1px;">GPay, PhonePe, Paytm or any UPI app</div>
+                                <div style="font-weight:800; color:#16a34a; margin-top:2px;">Payable: ₹<?= number_format($net_invoice_amount, 2) ?></div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <div>
                     <div class="ri-summary-box">
@@ -806,6 +823,17 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
             </div>
 
+            <?php if ($is_upi_secure && !empty($upi_payment_url)): ?>
+                <div style="text-align:center; margin:8px 0;">
+                    <div style="font-weight:bold; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;">Scan to Pay via UPI</div>
+                    <div style="display:flex; justify-content:center; margin:4px 0;">
+                        <div id="thermalUpiQr" style="padding:4px; background:#fff; border:1px solid #000; display:inline-block;"></div>
+                    </div>
+                    <div style="font-size:9px; font-weight:bold; font-family:monospace;"><?= h($settings['company_upi_id']) ?></div>
+                    <div style="font-size:9px; font-weight:bold;">Payable: ₹<?= number_format($net_invoice_amount, 2) ?></div>
+                </div>
+            <?php endif; ?>
+
             <div class="receipt-divider"></div>
 
             <!-- Footer -->
@@ -819,8 +847,41 @@ require_once __DIR__ . '/../includes/header.php';
 
 </div>
 
-<!-- html2pdf JS library from CDN -->
+<!-- html2pdf & QRCode JS libraries from CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<?php if ($is_upi_secure && !empty($upi_payment_url)): ?>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const upiUrl = <?= json_encode($upi_payment_url) ?>;
+    
+    const a4El = document.getElementById("a4UpiQr");
+    if (a4El) {
+        new QRCode(a4El, {
+            text: upiUrl,
+            width: 68,
+            height: 68,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.M
+        });
+    }
+
+    const thermalEl = document.getElementById("thermalUpiQr");
+    if (thermalEl) {
+        new QRCode(thermalEl, {
+            text: upiUrl,
+            width: 80,
+            height: 80,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.M
+        });
+    }
+});
+</script>
+<?php endif; ?>
 
 <script>
     let activeView = 'a4';

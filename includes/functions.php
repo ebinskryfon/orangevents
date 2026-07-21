@@ -210,3 +210,63 @@ function get_setting($key, $default = '') {
     $settings = get_settings();
     return isset($settings[$key]) ? $settings[$key] : $default;
 }
+
+/**
+ * Calculate HMAC security checksum for Store Payment UPI VPA ID
+ */
+function get_upi_checksum($upi_id) {
+    $salt = 'ORANGE_EVENTS_UPI_SECURE_SALT_2026';
+    return hash_hmac('sha256', strtolower(trim($upi_id)), $salt);
+}
+
+/**
+ * Validate and verify security checksum of configured Store UPI ID
+ */
+function is_upi_secure_and_valid() {
+    $settings = get_settings();
+    $upi_id = trim($settings['company_upi_id'] ?? '');
+    if (empty($upi_id)) return false;
+    
+    // Check format
+    if (!preg_match('/^[a-zA-Z0-9\.\-_]{2,256}@[a-zA-Z0-9]{2,64}$/', $upi_id)) {
+        return false;
+    }
+    
+    // Check security HMAC checksum (if stored)
+    $stored_checksum = $settings['company_upi_checksum'] ?? '';
+    if (!empty($stored_checksum)) {
+        $expected_checksum = get_upi_checksum($upi_id);
+        if (!hash_equals($expected_checksum, $stored_checksum)) {
+            return false; // Security mismatch / tampered database!
+        }
+    }
+    return true;
+}
+
+/**
+ * Generate UPI payment string for QR code
+ */
+function generate_upi_payment_url($amount, $invoice_number, $note = '') {
+    $settings = get_settings();
+    $upi_id = trim($settings['company_upi_id'] ?? '');
+    $merchant_name = trim($settings['company_name'] ?? 'Orange Events');
+    
+    if (empty($upi_id) || !is_upi_secure_and_valid()) {
+        return false;
+    }
+    
+    $clean_amount = number_format((float)$amount, 2, '.', '');
+    $clean_note = !empty($note) ? $note : "Invoice-{$invoice_number}";
+    
+    $params = [
+        'pa' => $upi_id,
+        'pn' => $merchant_name,
+        'am' => $clean_amount,
+        'tr' => $invoice_number,
+        'tn' => $clean_note,
+        'cu' => 'INR'
+    ];
+    
+    return 'upi://pay?' . http_build_query($params);
+}
+
