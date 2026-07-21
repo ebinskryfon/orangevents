@@ -241,13 +241,15 @@ $settings = get_settings();
     .print-control-bar {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
-        padding: 1.25rem 2rem;
+        padding: 0.75rem 1rem;
         border-radius: var(--border-radius-lg);
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 2rem;
-        gap: 1rem;
+        margin-bottom: 1rem;
+        gap: 0.75rem;
+        box-shadow: var(--box-shadow);
     }
 
     @media print {
@@ -428,41 +430,41 @@ $settings = get_settings();
         </label>
     </div>
 
-    <div style="display: flex; gap: 0.5rem;">
+    <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
         <?php if ($invoice['status'] === 'draft'): ?>
             <form action="" method="POST" style="margin: 0;"
                 onsubmit="return confirm('Finalizing will lock details and mark the event Confirmed. Proceed?');">
                 <input type="hidden" name="action" value="finalize">
-                <button type="submit" class="btn btn-success">
+                <button type="submit" class="btn btn-success" style="height:32px; font-size:0.75rem;">
                     <i class="fa-solid fa-lock"></i> Finalize Package
                 </button>
             </form>
         <?php endif; ?>
 
         <?php if ($invoice['status'] === 'finalized'): ?>
-            <button id="openPaymentModalBtn" class="btn btn-success">
+            <button id="openPaymentModalBtn" class="btn btn-success" style="height:32px; font-size:0.75rem;">
                 <i class="fa-solid fa-circle-check"></i> Mark as Paid
             </button>
         <?php endif; ?>
 
-        <button id="downloadImageBtn" class="btn btn-secondary">
-            <i class="fa-solid fa-image"></i> Save as Image
+        <button id="downloadImageBtn" class="btn btn-secondary" style="height:32px; font-size:0.75rem;">
+            <i class="fa-solid fa-image"></i> Save Image
         </button>
 
-        <button id="whatsappShareBtn" class="btn" style="background-color: #25D366; border-color: #25D366; color: white; font-weight: 600;">
-            <i class="fa-brands fa-whatsapp"></i> WhatsApp Share
+        <button id="whatsappShareBtn" class="btn" style="background-color: #25D366; border-color: #25D366; color: white; font-weight: 600; height:32px; font-size:0.75rem;">
+            <i class="fa-brands fa-whatsapp"></i> WhatsApp
         </button>
 
-        <button onclick="window.print()" class="btn btn-primary">
-            <i class="fa-solid fa-print"></i> Print / Save PDF
+        <button onclick="window.print()" class="btn btn-primary" style="height:32px; font-size:0.75rem;">
+            <i class="fa-solid fa-print"></i> Print / PDF
         </button>
 
-        <button id="deleteInvoiceBtn" class="btn btn-danger" style="background-color: #dc2626; border-color: #dc2626;">
-            <i class="fa-solid fa-trash-can"></i> Delete Invoice
+        <button id="deleteInvoiceBtn" class="btn btn-danger" style="background-color: #dc2626; border-color: #dc2626; height:32px; font-size:0.75rem;">
+            <i class="fa-solid fa-trash-can"></i>
         </button>
 
         <a href="edit-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-secondary"
-            style="background-color: var(--bg-body); border-color: var(--border-color); color: var(--text-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+            style="height:32px; font-size:0.75rem; display: inline-flex; align-items: center; gap: 0.35rem;">
             <i class="fa-solid fa-pen-to-square"></i> Edit Details
         </a>
     </div>
