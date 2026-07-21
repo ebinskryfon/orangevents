@@ -98,7 +98,7 @@ try {
 
         .select-container {
             width: 100%;
-            max-width: 1100px;
+            max-width: 1350px;
             text-align: center;
             position: relative;
             z-index: 1;
@@ -140,11 +140,11 @@ try {
             margin-top: 0.5rem;
         }
 
-        /* Modules Grid Layout */
+        /* Modules Grid Layout - Single Row (4 Columns) */
         .modules-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
             margin-bottom: 2.5rem;
         }
 
@@ -334,6 +334,17 @@ try {
             background: rgba(255, 255, 255, 0.1);
             color: white;
             border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        @media (max-width: 1200px) {
+            .modules-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        @media (max-width: 640px) {
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
