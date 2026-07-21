@@ -329,7 +329,7 @@ foreach ($variants_res as $row) {
 <?php else: ?>
     <!-- Page Header Info -->
     <div class="content-header"
-        style="margin-bottom: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
+        style="margin-bottom: 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display:flex; justify-content:space-between; align-items:center;">
         <div class="header-title">
             <h1
                 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
@@ -339,6 +339,14 @@ foreach ($variants_res as $row) {
             <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
                 Supermarket-style billing interface optimized for rapid hand-held barcode scanning.
             </p>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button onclick="openPosReturnModal()" class="btn btn-secondary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
+                <i class="fa-solid fa-rotate-left" style="color:var(--accent-color);"></i> Return / Exchange (F7)
+            </button>
+            <a href="pos-returns.php" class="btn btn-secondary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
+                <i class="fa-solid fa-list-check"></i> Returns Log
+            </a>
         </div>
     </div>
 
@@ -501,6 +509,8 @@ foreach ($variants_res as $row) {
 
     <div id="barcodeToastContainer"
         style="position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px;"></div>
+
+    <?php include_once __DIR__ . '/../includes/return-modal.php'; ?>
 
     <script>
         // Load local barcode dictionary compiled in PHP

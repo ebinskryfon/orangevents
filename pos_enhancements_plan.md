@@ -11,8 +11,8 @@ This document outlines the roadmap and detailed technical specifications for int
 - [ ] **Phase 3: Quick Preset Discounts & Coupon Chips**
 - [x] **Phase 4: Split Payment Support (Multi-Tender)** (Completed)
 - [ ] **Phase 5: Direct WhatsApp & Digital Receipt Sharing**
-- [ ] **Phase 6: Shift Petty Cash (Cash-In / Cash-Out Log)**
-- [ ] **Phase 7: Return & Item Exchange Terminal**
+- [x] **Phase 6: Shift Petty Cash (Cash-In / Cash-Out Log)** (Completed)
+- [x] **Phase 7: Return & Item Exchange Terminal** (Completed)
 
 ---
 

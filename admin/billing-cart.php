@@ -593,11 +593,14 @@ $default_upi = $clean_phone . '@upi';
         <i class="fa-solid fa-keyboard" style="color: var(--accent-color);"></i> Shortcuts:
     </span>
     <span class="pos-hotkey-item"><kbd>F2</kbd> Customer Field</span>
+    <span class="pos-hotkey-item"><kbd>F7</kbd> Return Terminal</span>
     <span class="pos-hotkey-item"><kbd>F8</kbd> Discount Field</span>
     <span class="pos-hotkey-item"><kbd>F9</kbd> Cash & Print</span>
     <span class="pos-hotkey-item"><kbd>F10</kbd> Complete Order</span>
     <span class="pos-hotkey-item"><kbd>ESC</kbd> Back to POS</span>
 </div>
+
+<?php include_once __DIR__ . '/../includes/return-modal.php'; ?>
 
 <script>
     let cart = [];

@@ -9,7 +9,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 // Determine active module
 $event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
 $rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
-$billing_pages = ['billing.php', 'barcode-billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php', 'billing-cart.php', 'register-sessions.php', 'register-history.php'];
+$billing_pages = ['billing.php', 'barcode-billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php', 'billing-cart.php', 'register-sessions.php', 'register-history.php', 'pos-returns.php', 'return-receipt.php'];
 
 if (isset($_GET['module'])) {
     $_SESSION['current_module'] = $_GET['module'];
@@ -254,6 +254,12 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                             <a href="billing-invoices.php">
                                 <i class="fa-solid fa-file-invoice-dollar"></i>
                                 <span>POS Invoices</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= in_array($current_page, ['pos-returns.php', 'return-receipt.php']) ? 'active' : '' ?>">
+                            <a href="pos-returns.php">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                <span>Returns & Exchanges</span>
                             </a>
                         </li>
                         <li class="nav-item <?= $current_page == 'register-sessions.php' ? 'active' : '' ?>">
