@@ -48,7 +48,7 @@ $event_invoices = $stmt_events->fetchAll(PDO::FETCH_ASSOC);
 // Fetch Rental Orders for this customer
 $stmt_rentals = $db->prepare("
     SELECT * FROM rental_orders
-     WHERE customer_phone = :phone OR customer_name = :name
+     WHERE client_phone = :phone OR client_name = :name
   ORDER BY id DESC
 ");
 $stmt_rentals->execute(['phone' => $customer['phone'], 'name' => $customer['name']]);

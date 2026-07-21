@@ -89,6 +89,32 @@ return [
             $count++;
         }
 
+        // Backfill unique customers from rental_orders table
+        echo "Migration 23 — Backfilling customer records from rental_orders...\n";
+        $stmt_r = $db->query("
+            SELECT client_name, client_phone, client_address, COUNT(*) as order_count, SUM(total_amount) as spent_sum
+              FROM rental_orders
+             WHERE client_phone IS NOT NULL AND TRIM(client_phone) != ''
+          GROUP BY client_phone
+        ");
+        $rental_customers = $stmt_r->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rental_customers as $cust) {
+            $phone = trim($cust['client_phone']);
+            $name = trim($cust['client_name']);
+            if (empty($name)) {
+                $name = 'Client (' . $phone . ')';
+            }
+            $stmt_ins->execute([
+                'name'         => $name,
+                'phone'        => $phone,
+                'address'      => $cust['client_address'],
+                'total_orders' => (int)$cust['order_count'],
+                'total_spent'  => (float)$cust['spent_sum']
+            ]);
+            $count++;
+        }
+
         echo "Success: Backfilled $count unique customer profiles into database.\n";
     }
 ];
