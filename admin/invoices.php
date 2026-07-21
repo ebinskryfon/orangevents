@@ -22,83 +22,93 @@ $sql = "SELECT i.*, e.title, e.client_name, e.event_date, e.venue
 $invoices = $db->query($sql)->fetchAll();
 ?>
 
-<?php if (isset($_GET['deleted'])): ?>
-    <div style="background-color: #ef4444; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
-        <span><i class="fa-solid fa-circle-check"></i> Invoice deleted successfully. The event booking status has been reset to draft.</span>
-        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
-    </div>
-<?php endif; ?>
-
-<div class="content-header">
+<!-- Compact Header -->
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
     <div class="header-title">
-        <h1>Invoice Archives</h1>
-        <p>Review draft layouts, finalize bookings, track client payments, and print menu sheets.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-file-invoice-dollar" style="color:var(--accent-color);"></i>
+            Event Invoices Archive
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Review draft layouts, finalize event bookings, track advances and balances, and print menu quotes.
+        </p>
     </div>
     <div>
-        <a href="event-form.php" class="btn btn-primary">
-            <i class="fa-solid fa-plus"></i> Add New Booking
+        <a href="event-form.php" class="btn btn-primary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
+            <i class="fa-solid fa-plus"></i> New Event Booking
         </a>
     </div>
 </div>
 
-<div class="card">
-    <h3 class="card-title" style="margin-bottom: 1.5rem;">
-        <span><i class="fa-solid fa-file-invoice-dollar" style="color: var(--accent-color); margin-right: 0.5rem;"></i> Active System Invoices</span>
-    </h3>
-    
+<?php if (isset($_GET['deleted'])): ?>
+    <div class="alert alert-success" style="font-size:0.85rem; padding:0.6rem 1rem; margin-bottom:1rem;">
+        <i class="fa-solid fa-circle-check"></i> Invoice deleted successfully. Event booking status reset to draft.
+    </div>
+<?php endif; ?>
+
+<div class="card" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; box-shadow:var(--box-shadow);">
     <div class="table-responsive">
-        <table class="table">
-            <thead>
+        <table class="table" style="width:100%; margin:0; font-size:0.8rem;">
+            <thead style="background:var(--bg-control); border-bottom:1px solid var(--border-color);">
                 <tr>
-                    <th style="width: 15%;">Invoice No</th>
-                    <th style="width: 25%;">Client / Event</th>
-                    <th style="width: 15%;">Event Date</th>
-                    <th style="width: 15%;">Grand Total</th>
-                    <th style="width: 15%;">Status</th>
-                    <th style="width: 15%; text-align: right;">Actions</th>
+                    <th style="padding:0.6rem 0.75rem;">Invoice No.</th>
+                    <th style="padding:0.6rem 0.75rem;">Client & Event</th>
+                    <th style="padding:0.6rem 0.75rem;">Event Date & Venue</th>
+                    <th style="padding:0.6rem 0.75rem; text-align:right;">Grand Total</th>
+                    <th style="padding:0.6rem 0.75rem; text-align:center;">Status</th>
+                    <th style="padding:0.6rem 0.75rem; text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($invoices)): ?>
                     <tr>
-                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 3rem 0;">
+                        <td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                            <i class="fa-solid fa-file-excel" style="font-size:2rem; margin-bottom:0.5rem; display:block;"></i>
                             No invoices generated yet. Create a booking to compile a draft invoice.
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($invoices as $inv): ?>
-                        <tr>
-                            <td style="font-weight: 600; color: var(--text-primary);"><?= h($inv['invoice_number']) ?></td>
-                            <td>
-                                <div style="font-weight: 600;"><?= h($inv['client_name']) ?></div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);"><?= h($inv['title']) ?></div>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:0.6rem 0.75rem; font-weight:700; color:var(--text-primary);">
+                                <a href="view-invoice.php?event_id=<?= $inv['event_id'] ?>" style="color:var(--accent-color); text-decoration:none;">
+                                    <?= h($inv['invoice_number']) ?>
+                                </a>
                             </td>
-                            <td>
-                                <div><?= format_date($inv['event_date']) ?></div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);"><?= h($inv['venue']) ?></div>
+                            <td style="padding:0.6rem 0.75rem;">
+                                <div style="font-weight:700; color:var(--text-primary);"><?= h($inv['client_name']) ?></div>
+                                <div style="font-size:0.75rem; color:var(--text-secondary);"><?= h($inv['title']) ?></div>
                             </td>
-                            <td>
-                                <div style="font-weight: 600; color: var(--accent-color);"><?= format_price($inv['final_total']) ?></div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">
-                                    Paid: <span style="color: #16a34a; font-weight: 500;"><?= format_price($inv['advance_received'] + $inv['balance_received']) ?></span><br>
-                                    Rest: <span style="color: #dc2626; font-weight: 500;"><?= format_price($inv['final_total'] - ($inv['advance_received'] + $inv['balance_received'])) ?></span>
+                            <td style="padding:0.6rem 0.75rem; color:var(--text-secondary);">
+                                <div style="font-weight:600; color:var(--text-primary);"><?= format_date($inv['event_date']) ?></div>
+                                <div style="font-size:0.75rem; color:var(--text-muted);"><?= h($inv['venue']) ?></div>
+                            </td>
+                            <td style="padding:0.6rem 0.75rem; text-align:right;">
+                                <div style="font-weight:800; color:var(--accent-color);">₹<?= number_format($inv['final_total'], 2) ?></div>
+                                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
+                                    Paid: <span style="color:var(--success); font-weight:600;">₹<?= number_format($inv['advance_received'] + $inv['balance_received'], 2) ?></span>
+                                    • Due: <span style="color:var(--danger); font-weight:600;">₹<?= number_format(max(0, $inv['final_total'] - ($inv['advance_received'] + $inv['balance_received'])), 2) ?></span>
                                 </div>
                             </td>
-                            <td>
-                                <span class="badge badge-<?= h($inv['status']) ?>"><?= h($inv['status']) ?></span>
+                            <td style="padding:0.6rem 0.75rem; text-align:center;">
+                                <span class="badge" style="background:rgba(255,107,53,0.1); color:var(--accent-color); padding:2px 8px; border-radius:10px; font-weight:700; text-transform:uppercase; font-size:0.68rem;">
+                                    <?= h($inv['status']) ?>
+                                </span>
                             </td>
-                            <td style="text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem;">
-                                <a href="view-invoice.php?event_id=<?= $inv['event_id'] ?>" class="btn btn-primary" style="padding: 0.35rem 0.6rem; font-size: 0.75rem; background: var(--accent-gradient);">
-                                    <i class="fa-solid fa-eye"></i> View Menu & Quote
-                                </a>
-                                <a href="edit-invoice.php?event_id=<?= $inv['event_id'] ?>" class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
-                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
-                                </a>
-                                <?php if ($inv['status'] === 'finalized'): ?>
-                                    <a href="?action=pay&id=<?= $inv['id'] ?>" class="btn btn-success" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
-                                        <i class="fa-solid fa-hand-holding-dollar"></i> Mark Paid
+                            <td style="padding:0.6rem 0.75rem; text-align:right;">
+                                <div style="display:inline-flex; gap:0.25rem;">
+                                    <a href="view-invoice.php?event_id=<?= $inv['event_id'] ?>" class="btn btn-primary" style="padding:0.2rem 0.45rem; font-size:0.7rem;">
+                                        <i class="fa-solid fa-eye"></i> Quote
                                     </a>
-                                <?php endif; ?>
+                                    <a href="edit-invoice.php?event_id=<?= $inv['event_id'] ?>" class="btn btn-secondary" style="padding:0.2rem 0.45rem; font-size:0.7rem;">
+                                        <i class="fa-solid fa-pen"></i> Edit
+                                    </a>
+                                    <?php if ($inv['status'] === 'finalized'): ?>
+                                        <a href="?action=pay&id=<?= $inv['id'] ?>" class="btn btn-success" style="padding:0.2rem 0.45rem; font-size:0.7rem;">
+                                            <i class="fa-solid fa-check"></i> Pay
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -108,6 +118,4 @@ $invoices = $db->query($sql)->fetchAll();
     </div>
 </div>
 
-<?php
-require_once __DIR__ . '/../includes/footer.php';
-?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>

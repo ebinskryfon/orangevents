@@ -302,14 +302,19 @@ foreach ($all_dishes as $dish) {
 }
 ?>
 
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
     <div class="header-title">
-        <h1><?= $is_edit ? 'Modify Booking: ' . h($event_data['title']) : 'New Booking Event Planner' ?></h1>
-        <p>Register client details, plan catering menus, customize stage decor costs, and review live calculations.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-calendar-plus" style="color:var(--accent-color);"></i>
+            <?= $is_edit ? 'Modify Booking: ' . h($event_data['title']) : 'New Booking Event Planner' ?>
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Register client details, plan catering menus, customize stage decor costs, and review calculations.
+        </p>
     </div>
     <div>
-        <a href="index.php" class="btn btn-secondary">
-            <i class="fa-solid fa-chevron-left"></i> Back to Dashboard
+        <a href="index.php" class="btn btn-secondary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
         </a>
     </div>
 </div>
@@ -326,8 +331,8 @@ foreach ($all_dishes as $dish) {
 <?php endif; ?>
 
 <?php if (!empty($error)): ?>
-    <div style="background: rgba(255, 71, 87, 0.15); color: var(--danger); border: 1px solid var(--danger); padding: 0.75rem 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-        <i class="fa-solid fa-triangle-exclamation"></i> <span><?= h($error) ?></span>
+    <div class="alert alert-danger" style="font-size:0.85rem; padding:0.6rem 1rem; margin-bottom:1rem;">
+        <i class="fa-solid fa-circle-exclamation"></i> <?= h($error) ?>
     </div>
 <?php endif; ?>
 
@@ -350,10 +355,10 @@ foreach ($all_dishes as $dish) {
 </div>
 
 <form action="" method="POST" id="eventForm">
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start;">
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">
         
         <!-- Left Side: Detail Forms -->
-        <div style="display: flex; flex-direction: column; gap: 2rem;">
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
             
             <!-- SECTION 1: Logistics & Booking Details -->
             <div class="card">
@@ -393,12 +398,12 @@ foreach ($all_dishes as $dish) {
                 <h3 class="card-title"><i class="fa-solid fa-user-tie" style="color: var(--accent-color);"></i> Client Details</h3>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="client_name" class="form-label">Client Name *</label>
-                        <input type="text" id="client_name" name="client_name" class="form-control" placeholder="Jerry George" value="<?= h($event_data['client_name']) ?>" required>
+                        <label for="client_phone" class="form-label">Client Contact Mob *</label>
+                        <input type="text" id="client_phone" name="client_phone" class="form-control" placeholder="9876543210" value="<?= h($event_data['client_phone']) ?>" required oninput="handleEventClientPhoneFetch()">
                     </div>
                     <div class="form-group">
-                        <label for="client_phone" class="form-label">Client Contact Mob *</label>
-                        <input type="text" id="client_phone" name="client_phone" class="form-control" placeholder="9876543210" value="<?= h($event_data['client_phone']) ?>" required>
+                        <label for="client_name" class="form-label">Client Name *</label>
+                        <input type="text" id="client_name" name="client_name" class="form-control" placeholder="Jerry George" value="<?= h($event_data['client_name']) ?>" required>
                     </div>
                     <div class="form-group">
                         <label for="client_email" class="form-label">Client Email Address</label>
@@ -888,6 +893,29 @@ function restoreDraft() {
 function discardDraft() {
     localStorage.removeItem(DRAFT_KEY);
     document.getElementById('draftNotification').style.display = 'none';
+}
+
+let eventClientFetchTimer = null;
+function handleEventClientPhoneFetch() {
+    clearTimeout(eventClientFetchTimer);
+    const phoneInput = document.getElementById('client_phone');
+    if (!phoneInput) return;
+    const val = phoneInput.value.trim();
+    if (val.length < 3) return;
+
+    eventClientFetchTimer = setTimeout(() => {
+        fetch(`../api/search-customer.php?phone=${encodeURIComponent(val)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.found && data.customer) {
+                    const cust = data.customer;
+                    const nameInput = document.getElementById('client_name');
+                    const emailInput = document.getElementById('client_email');
+                    if (nameInput && !nameInput.value) nameInput.value = cust.name;
+                    if (emailInput && !emailInput.value && cust.email) emailInput.value = cust.email;
+                }
+            }).catch(() => {});
+    }, 300);
 }
 
 // Attach event listeners for initial triggers

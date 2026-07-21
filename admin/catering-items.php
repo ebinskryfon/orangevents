@@ -104,16 +104,21 @@ foreach ($dishes as $dish) {
 }
 ?>
 
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
     <div class="header-title">
-        <h1>Catering Dishes Catalog</h1>
-        <p>Manage categories and items for welcome drinks, starters, and menus.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-utensils" style="color:var(--accent-color);"></i>
+            Catering Dishes & Menu Catalog
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Manage categories and menu choices for welcome drinks, main courses, and live counters.
+        </p>
     </div>
-    <div style="display: flex; gap: 0.5rem;">
-        <button onclick="openModal('addCategoryModal')" class="btn btn-secondary">
+    <div style="display: flex; gap: 0.4rem;">
+        <button onclick="openModal('addCategoryModal')" class="btn btn-secondary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
             <i class="fa-solid fa-folder-plus"></i> New Category
         </button>
-        <button onclick="openModal('addDishModal')" class="btn btn-primary">
+        <button onclick="openModal('addDishModal')" class="btn btn-primary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
             <i class="fa-solid fa-plus"></i> Add New Dish
         </button>
     </div>

@@ -49,65 +49,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stage_items = $db->query("SELECT * FROM stage_items ORDER BY default_price DESC, item_name ASC")->fetchAll();
 ?>
 
-<div class="content-header">
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
     <div class="header-title">
-        <h1>Stage Work & Decors</h1>
-        <p>Manage default stage props, generators, light, sound systems, and fabric rates.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-holly-berry" style="color:var(--accent-color);"></i>
+            Stage Work & Decor Services
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Manage default stage props, generator power, light, sound systems, and decoration rates.
+        </p>
     </div>
     <div>
-        <button onclick="openAddModal()" class="btn btn-primary">
+        <button onclick="openAddModal()" class="btn btn-primary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
             <i class="fa-solid fa-plus"></i> Add Stage Item
         </button>
     </div>
 </div>
 
 <?php if (!empty($message)): ?>
-    <div style="background: rgba(46, 213, 115, 0.15); color: var(--success); border: 1px solid var(--success); padding: 0.75rem 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-        <i class="fa-solid fa-circle-check"></i> <span><?= h($message) ?></span>
+    <div class="alert alert-success" style="font-size:0.85rem; padding:0.6rem 1rem; margin-bottom:1rem;">
+        <i class="fa-solid fa-circle-check"></i> <?= h($message) ?>
     </div>
 <?php endif; ?>
 
 <?php if (!empty($error)): ?>
-    <div style="background: rgba(255, 71, 87, 0.15); color: var(--danger); border: 1px solid var(--danger); padding: 0.75rem 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-        <i class="fa-solid fa-triangle-exclamation"></i> <span><?= h($error) ?></span>
+    <div class="alert alert-danger" style="font-size:0.85rem; padding:0.6rem 1rem; margin-bottom:1rem;">
+        <i class="fa-solid fa-circle-exclamation"></i> <?= h($error) ?>
     </div>
 <?php endif; ?>
 
-<div class="card">
+<div class="card" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); overflow:hidden; box-shadow:var(--box-shadow);">
     <div class="table-responsive">
-        <table class="table">
-            <thead>
+        <table class="table" style="width:100%; margin:0; font-size:0.8rem;">
+            <thead style="background:var(--bg-control); border-bottom:1px solid var(--border-color);">
                 <tr>
-                    <th style="width: 40%;">Decoration Item</th>
-                    <th style="width: 15%;">Default Rate</th>
-                    <th style="width: 25%;">Description</th>
-                    <th style="width: 20%; text-align: right;">Actions</th>
+                    <th style="padding:0.6rem 0.75rem;">Decoration Item</th>
+                    <th style="padding:0.6rem 0.75rem;">Default Rate</th>
+                    <th style="padding:0.6rem 0.75rem;">Description</th>
+                    <th style="padding:0.6rem 0.75rem; text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($stage_items)): ?>
                     <tr>
-                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 3rem 0;">
+                        <td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                            <i class="fa-solid fa-holly-berry" style="font-size:2rem; margin-bottom:0.5rem; display:block;"></i>
                             No stage items in database. Click "Add Stage Item" to create one.
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($stage_items as $item): ?>
-                        <tr>
-                            <td style="font-weight: 600; color: var(--text-primary);"><?= h($item['item_name']) ?></td>
-                            <td style="font-weight: 600; color: var(--accent-color);"><?= format_price($item['default_price']) ?></td>
-                            <td style="color: var(--text-secondary); font-size: 0.85rem;"><?= h($item['description']) ?></td>
-                            <td style="text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem;">
-                                <button onclick="openEditModal(<?= htmlspecialchars(json_encode($item)) ?>)" class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
-                                    <i class="fa-solid fa-pen-to-square"></i> Edit
-                                </button>
-                                <form action="" method="POST" onsubmit="return confirm('Are you sure you want to delete this item?');" style="display: inline-block;">
-                                    <input type="hidden" name="action" value="delete_item">
-                                    <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
-                                    <button type="submit" class="btn btn-danger" style="padding: 0.35rem 0.6rem; font-size: 0.75rem;">
-                                        <i class="fa-solid fa-trash-can"></i> Delete
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:0.6rem 0.75rem; font-weight:700; color:var(--text-primary);"><?= h($item['item_name']) ?></td>
+                            <td style="padding:0.6rem 0.75rem; font-weight:700; color:var(--accent-color);">₹<?= number_format($item['default_price'], 2) ?></td>
+                            <td style="padding:0.6rem 0.75rem; color:var(--text-secondary);"><?= h($item['description']) ?></td>
+                            <td style="padding:0.6rem 0.75rem; text-align:right;">
+                                <div style="display:inline-flex; gap:0.25rem;">
+                                    <button type="button" class="btn btn-secondary" style="padding:0.2rem 0.45rem; font-size:0.7rem;" onclick='openEditModal(<?= json_encode($item) ?>)'>
+                                        <i class="fa-solid fa-pen"></i> Edit
                                     </button>
-                                </form>
+                                    <form action="" method="POST" style="margin:0; display:inline;" onsubmit="return confirm('Are you sure you want to delete this stage item?');">
+                                        <input type="hidden" name="action" value="delete_item">
+                                        <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
+                                        <button type="submit" class="btn btn-danger" style="padding:0.2rem 0.45rem; font-size:0.7rem;">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>

@@ -5,23 +5,15 @@ require_once __DIR__ . '/../includes/header.php';
 $db = get_db_connection();
 
 // 1. Fetch dashboard statistics
-// Total Events
 $total_events = $db->query("SELECT COUNT(*) FROM events")->fetchColumn();
-
-// Total Confirmed Bookings
 $confirmed_events = $db->query("SELECT COUNT(*) FROM events WHERE status = 'confirmed'")->fetchColumn();
-
-// Pending Draft Invoices
 $pending_invoices = $db->query("SELECT COUNT(*) FROM invoices WHERE status = 'draft'")->fetchColumn();
-
-// Total Revenue (Finalized & Paid Invoices)
 $total_revenue = $db->query("SELECT SUM(final_total) FROM invoices WHERE status != 'draft'")->fetchColumn() ?? 0.00;
 
 // 2. Setup Calendar Month and Year
 $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('m');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 
-// Wrap around for month navigation
 if ($month < 1) {
     $month = 12;
     $year--;
@@ -32,10 +24,9 @@ if ($month < 1) {
 
 $first_day_of_month = mktime(0, 0, 0, $month, 1, $year);
 $days_in_month = date('t', $first_day_of_month);
-$day_of_week = date('w', $first_day_of_month); // 0 (Sunday) to 6 (Saturday)
+$day_of_week = date('w', $first_day_of_month);
 $month_name = date('F', $first_day_of_month);
 
-// Fetch events for this specific month/year
 $start_date = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-01";
 $end_date = "$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-$days_in_month";
 
@@ -43,14 +34,13 @@ $stmt = $db->prepare("SELECT id, title, event_date, event_time, venue, status FR
 $stmt->execute(['start_date' => $start_date, 'end_date' => $end_date]);
 $monthly_events = $stmt->fetchAll();
 
-// Group events by day number
 $events_by_day = [];
 foreach ($monthly_events as $ev) {
     $day_num = (int)date('d', strtotime($ev['event_date']));
     $events_by_day[$day_num][] = $ev;
 }
 
-// 3. Fetch upcoming events (next 5) for the table
+// 3. Fetch upcoming events (next 5)
 $stmt_upcoming = $db->prepare("
     SELECT e.id, e.title, e.client_name, e.client_phone, e.event_date, e.venue, e.status,
            (SELECT COUNT(*) FROM invoices WHERE event_id = e.id) as has_invoice
@@ -63,89 +53,95 @@ $stmt_upcoming->execute(['today' => date('Y-m-d')]);
 $upcoming_events = $stmt_upcoming->fetchAll();
 ?>
 
-<!-- Header Section -->
-<div class="content-header">
+<!-- Compact POS-Style Header -->
+<div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
     <div class="header-title">
-        <h1>Dashboard</h1>
-        <p>Overview of scheduling, bookings, and catering revenues.</p>
+        <h1 style="display:flex; align-items:center; gap:0.5rem; font-size:1.4rem; font-weight:800; color:var(--text-primary); margin:0;">
+            <i class="fa-solid fa-calendar-check" style="color:var(--accent-color);"></i>
+            Event Catering & Stage Decor Manager
+        </h1>
+        <p style="color:var(--text-secondary); margin:0.15rem 0 0; font-size:0.75rem;">
+            Overview of client bookings, catering schedules, stage setups, and revenue.
+        </p>
     </div>
-    <div class="header-actions">
-        <a href="event-form.php" class="btn btn-primary">
-            <i class="fa-solid fa-plus"></i> New Booking
+    <div>
+        <a href="event-form.php" class="btn btn-primary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
+            <i class="fa-solid fa-plus"></i> New Event Booking
         </a>
     </div>
 </div>
 
 <?php if (isset($_GET['success']) && $_GET['success'] === 'event_deleted'): ?>
-    <div style="background-color: #22c55e; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
-        <span><i class="fa-solid fa-circle-check"></i> Booking deleted successfully.</span>
-        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    <div class="alert alert-success" style="font-size:0.85rem; padding:0.6rem 1rem; margin-bottom:1rem;">
+        <i class="fa-solid fa-circle-check"></i> Booking deleted successfully.
     </div>
 <?php endif; ?>
 
 <?php if (isset($_GET['error']) && $_GET['error'] === 'has_invoice'): ?>
-    <div style="background-color: #ef4444; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
-        <span><i class="fa-solid fa-triangle-exclamation"></i> Cannot delete booking. This event has an active invoice. Please delete the invoice first.</span>
-        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+    <div class="alert alert-danger" style="font-size:0.85rem; padding:0.6rem 1rem; margin-bottom:1rem;">
+        <i class="fa-solid fa-triangle-exclamation"></i> Cannot delete booking. Active invoice exists.
     </div>
 <?php endif; ?>
 
-<?php if (isset($_GET['error']) && $_GET['error'] === 'delete_failed'): ?>
-    <div style="background-color: #ef4444; color: #ffffff; padding: 0.75rem 1.5rem; border-radius: var(--border-radius-md); margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600;">
-        <span><i class="fa-solid fa-triangle-exclamation"></i> Failed to delete booking due to a database error.</span>
-        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+<!-- Compact POS Stat Cards -->
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem; margin-bottom:1rem;">
+    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:0.75rem; display:flex; align-items:center; gap:0.75rem;">
+        <div style="width:40px; height:40px; border-radius:10px; background:rgba(255, 107, 53, 0.1); color:var(--accent-color); display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+            <i class="fa-solid fa-calendar-days"></i>
+        </div>
+        <div>
+            <div style="font-size:0.7rem; color:var(--text-secondary);">Total Bookings</div>
+            <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary);"><?= number_format($total_events) ?> Events</div>
+        </div>
     </div>
-<?php endif; ?>
 
-<!-- Stats Counter Grid -->
-<div class="stats-grid">
-    <div class="card stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-calendar-days"></i></div>
-        <div class="stat-info">
-            <h3><?= $total_events ?></h3>
-            <p>Total Bookings</p>
+    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:0.75rem; display:flex; align-items:center; gap:0.75rem;">
+        <div style="width:40px; height:40px; border-radius:10px; background:rgba(46, 213, 115, 0.1); color:var(--success); display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+            <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div>
+            <div style="font-size:0.7rem; color:var(--text-secondary);">Confirmed Events</div>
+            <div style="font-size:1.1rem; font-weight:800; color:var(--success);"><?= number_format($confirmed_events) ?> Confirmed</div>
         </div>
     </div>
-    
-    <div class="card stat-card green">
-        <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
-        <div class="stat-info">
-            <h3><?= $confirmed_events ?></h3>
-            <p>Confirmed Events</p>
+
+    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:0.75rem; display:flex; align-items:center; gap:0.75rem;">
+        <div style="width:40px; height:40px; border-radius:10px; background:rgba(52, 152, 219, 0.1); color:#3498db; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+            <i class="fa-solid fa-file-invoice-dollar"></i>
+        </div>
+        <div>
+            <div style="font-size:0.7rem; color:var(--text-secondary);">Draft Invoices</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#3498db;"><?= number_format($pending_invoices) ?> Pending</div>
         </div>
     </div>
-    
-    <div class="card stat-card blue">
-        <div class="stat-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-        <div class="stat-info">
-            <h3><?= $pending_invoices ?></h3>
-            <p>Pending Invoices</p>
+
+    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:0.75rem; display:flex; align-items:center; gap:0.75rem;">
+        <div style="width:40px; height:40px; border-radius:10px; background:rgba(155, 89, 182, 0.1); color:#9b59b6; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+            <i class="fa-solid fa-wallet"></i>
         </div>
-    </div>
-    
-    <div class="card stat-card purple">
-        <div class="stat-icon"><i class="fa-solid fa-indian-rupee-sign"></i></div>
-        <div class="stat-info">
-            <h3><?= format_price($total_revenue, false) ?></h3>
-            <p>Total Revenue (Rs)</p>
+        <div>
+            <div style="font-size:0.7rem; color:var(--text-secondary);">Event Revenue</div>
+            <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary);">₹<?= number_format($total_revenue, 2) ?></div>
         </div>
     </div>
 </div>
 
 <!-- Dashboard Grid (Calendar + Upcoming Events) -->
-<div class="dashboard-grid">
+<div class="dashboard-grid" style="display:grid; grid-template-columns: 2fr 1fr; gap:1rem;">
     <!-- Left Column: Booking Calendar -->
-    <div class="card" style="padding: 1.5rem;">
-        <div class="calendar-header">
-            <h2><i class="fa-solid fa-calendar-days" style="color: var(--accent-color); margin-right: 0.5rem;"></i> Booking Calendar</h2>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <a href="?month=<?= $month - 1 ?>&year=<?= $year ?>" class="btn btn-secondary" style="padding: 0.5rem 0.85rem;">
+    <div class="card" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:1rem; box-shadow:var(--box-shadow);">
+        <div class="calendar-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <h2 style="font-size:0.95rem; font-weight:700; color:var(--text-primary); margin:0; display:flex; align-items:center; gap:0.4rem;">
+                <i class="fa-solid fa-calendar-days" style="color:var(--accent-color);"></i> Booking Calendar
+            </h2>
+            <div style="display: flex; gap: 0.35rem; align-items: center;">
+                <a href="?month=<?= $month - 1 ?>&year=<?= $year ?>" class="btn btn-secondary" style="height:28px; font-size:0.75rem; padding:0 0.5rem;">
                     <i class="fa-solid fa-chevron-left"></i>
                 </a>
-                <span style="font-weight: 600; font-size: 1.1rem; min-width: 150px; text-align: center;">
+                <span style="font-weight: 700; font-size: 0.85rem; min-width: 120px; text-align: center; color:var(--text-primary);">
                     <?= $month_name ?> <?= $year ?>
                 </span>
-                <a href="?month=<?= $month + 1 ?>&year=<?= $year ?>" class="btn btn-secondary" style="padding: 0.5rem 0.85rem;">
+                <a href="?month=<?= $month + 1 ?>&year=<?= $year ?>" class="btn btn-secondary" style="height:28px; font-size:0.75rem; padding:0 0.5rem;">
                     <i class="fa-solid fa-chevron-right"></i>
                 </a>
             </div>
@@ -162,7 +158,7 @@ $upcoming_events = $stmt_upcoming->fetchAll();
                 <div class="day-name">Fri</div>
                 <div class="day-name">Sat</div>
                 
-                <!-- Blank days before first day of month -->
+                <!-- Blank days -->
                 <?php for ($i = 0; $i < $day_of_week; $i++): ?>
                     <div class="calendar-day empty"></div>
                 <?php endfor; ?>
@@ -191,49 +187,49 @@ $upcoming_events = $stmt_upcoming->fetchAll();
     </div>
     
     <!-- Right Column: Quick Upcoming Bookings List -->
-    <div class="card">
-        <h2 class="card-title" style="margin-bottom: 1.5rem;">
-            <span><i class="fa-solid fa-list-check" style="color: var(--accent-color); margin-right: 0.5rem;"></i> Upcoming Events</span>
+    <div class="card" style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:1rem; box-shadow:var(--box-shadow);">
+        <h2 style="font-size:0.95rem; font-weight:700; color:var(--text-primary); margin:0 0 0.75rem 0; border-bottom:1px solid var(--border-color); padding-bottom:0.4rem; display:flex; align-items:center; gap:0.4rem;">
+            <i class="fa-solid fa-list-check" style="color:var(--accent-color);"></i> Upcoming Events
         </h2>
         
         <?php if (empty($upcoming_events)): ?>
-            <div style="text-align: center; padding: 3rem 0; color: var(--text-secondary);">
-                <i class="fa-regular fa-calendar" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.4;"></i>
-                <p>No upcoming events scheduled.</p>
+            <div style="text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size:0.8rem;">
+                <i class="fa-regular fa-calendar" style="font-size: 2rem; margin-bottom: 0.5rem; display:block; opacity: 0.4;"></i>
+                <p style="margin:0;">No upcoming events scheduled.</p>
             </div>
         <?php else: ?>
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.6rem;">
                 <?php foreach ($upcoming_events as $event): ?>
-                    <div style="background-color: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                    <div style="background:var(--bg-control); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.2rem;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <h4 style="font-size: 1rem;"><?= h($event['title']) ?></h4>
-                            <span class="badge badge-<?= h($event['status']) ?>"><?= h($event['status']) ?></span>
+                            <h4 style="font-size: 0.85rem; font-weight:700; margin:0; color:var(--text-primary);"><?= h($event['title']) ?></h4>
+                            <span class="badge" style="background:rgba(255,107,53,0.1); color:var(--accent-color); font-size:0.65rem; padding:1px 6px; border-radius:8px; text-transform:uppercase; font-weight:700;"><?= h($event['status']) ?></span>
                         </div>
-                        <p style="font-size: 0.8rem; color: var(--text-secondary);">
-                            <i class="fa-solid fa-location-dot" style="margin-right: 0.25rem;"></i> <?= h($event['venue']) ?>
-                        </p>
-                        <p style="font-size: 0.8rem; color: var(--text-secondary);">
-                            <i class="fa-solid fa-calendar-day" style="margin-right: 0.25rem;"></i> <?= format_date($event['event_date']) ?>
-                        </p>
-                        <p style="font-size: 0.8rem; color: var(--text-secondary);">
-                            <i class="fa-solid fa-user" style="margin-right: 0.25rem;"></i> <?= h($event['client_name']) ?> (<?= h($event['client_phone']) ?>)
-                        </p>
-                        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: center;">
-                            <a href="event-form.php?id=<?= $event['id'] ?>" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                            <i class="fa-solid fa-location-dot" style="font-size:0.7rem; color:var(--accent-color);"></i> <?= h($event['venue']) ?>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                            <i class="fa-solid fa-calendar-day" style="font-size:0.7rem;"></i> <?= format_date($event['event_date']) ?>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                            <i class="fa-solid fa-user" style="font-size:0.7rem;"></i> <?= h($event['client_name']) ?> (<?= h($event['client_phone']) ?>)
+                        </div>
+                        <div style="margin-top: 0.35rem; display: flex; gap: 0.3rem; align-items: center;">
+                            <a href="event-form.php?id=<?= $event['id'] ?>" class="btn btn-secondary" style="padding: 0.2rem 0.45rem; font-size: 0.7rem;">
                                 <i class="fa-solid fa-pen-to-square"></i> Edit
                             </a>
-                            <a href="view-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-primary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: var(--accent-gradient);">
+                            <a href="view-invoice.php?event_id=<?= $event['id'] ?>" class="btn btn-primary" style="padding: 0.2rem 0.45rem; font-size: 0.7rem;">
                                 <i class="fa-solid fa-file-invoice-dollar"></i> Menu & Quote
                             </a>
                             <?php if ($event['has_invoice'] > 0): ?>
-                                <button type="button" class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background-color: #ef4444; border-color: #ef4444; opacity: 0.6;" onclick="alert('Cannot delete booking. This event has an active invoice. Please delete the invoice first.');">
-                                    <i class="fa-solid fa-trash-can"></i> Delete
+                                <button type="button" class="btn btn-secondary" style="padding: 0.2rem 0.45rem; font-size: 0.7rem; opacity:0.6;" onclick="alert('Cannot delete booking. This event has an active invoice. Please delete the invoice first.');">
+                                    <i class="fa-solid fa-trash-can"></i>
                                 </button>
                             <?php else: ?>
-                                <form action="delete-event.php" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to delete this event/booking? This action cannot be undone.');">
+                                <form action="delete-event.php" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('Are you sure you want to delete this event/booking?');">
                                     <input type="hidden" name="event_id" value="<?= $event['id'] ?>">
-                                    <button type="submit" class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background-color: #ef4444; border-color: #ef4444;">
-                                        <i class="fa-solid fa-trash-can"></i> Delete
+                                    <button type="submit" class="btn btn-danger" style="padding: 0.2rem 0.45rem; font-size: 0.7rem;">
+                                        <i class="fa-solid fa-trash-can"></i>
                                     </button>
                                 </form>
                             <?php endif; ?>
@@ -245,6 +241,4 @@ $upcoming_events = $stmt_upcoming->fetchAll();
     </div>
 </div>
 
-<?php
-require_once __DIR__ . '/../includes/footer.php';
-?>
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
