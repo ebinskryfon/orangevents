@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Recompute expected cash balance
                     // 1. POS Cash sales
-                    $stmt_pos = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'Cash' AND created_at >= :opened_at");
+                    $stmt_pos = $db->prepare("SELECT COALESCE(SUM(paid_cash), 0) FROM billing_orders WHERE created_at >= :opened_at");
                     $stmt_pos->execute(['opened_at' => $opened_at]);
                     $pos_cash = (float)$stmt_pos->fetchColumn();
                     
@@ -173,15 +173,15 @@ if ($active_session) {
     
     // Fetch live tallies
     // POS Billing
-    $stmt = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'Cash' AND created_at >= :opened_at");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(paid_cash), 0) FROM billing_orders WHERE created_at >= :opened_at");
     $stmt->execute(['opened_at' => $opened_at]);
     $pos_cash = (float)$stmt->fetchColumn();
 
-    $stmt = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'UPI' AND created_at >= :opened_at");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(paid_upi), 0) FROM billing_orders WHERE created_at >= :opened_at");
     $stmt->execute(['opened_at' => $opened_at]);
     $pos_upi = (float)$stmt->fetchColumn();
 
-    $stmt = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'Card' AND created_at >= :opened_at");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(paid_card), 0) FROM billing_orders WHERE created_at >= :opened_at");
     $stmt->execute(['opened_at' => $opened_at]);
     $pos_card = (float)$stmt->fetchColumn();
 

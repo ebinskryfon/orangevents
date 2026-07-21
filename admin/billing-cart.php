@@ -117,24 +117,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($final_amount < 0)
             $final_amount = 0;
 
+        $paid_cash = 0.00;
+        $paid_card = 0.00;
+        $paid_upi  = 0.00;
+        $payment_breakdown = null;
+
+        if ($payment_method === 'Split') {
+            $paid_cash = max(0, (float) ($_POST['paid_cash'] ?? 0));
+            $paid_upi  = max(0, (float) ($_POST['paid_upi'] ?? 0));
+            $paid_card = max(0, (float) ($_POST['paid_card'] ?? 0));
+            $sum_paid  = $paid_cash + $paid_upi + $paid_card;
+
+            if (abs($sum_paid - $final_amount) > 0.05) {
+                $db->rollBack();
+                echo json_encode(['success' => false, 'error' => "Split payment total (₹" . number_format($sum_paid, 2) . ") does not match payable total (₹" . number_format($final_amount, 2) . ")."]);
+                exit;
+            }
+            $breakdown_arr = [];
+            if ($paid_cash > 0) $breakdown_arr['Cash'] = $paid_cash;
+            if ($paid_upi > 0)  $breakdown_arr['UPI']  = $paid_upi;
+            if ($paid_card > 0) $breakdown_arr['Card'] = $paid_card;
+            $payment_breakdown = json_encode($breakdown_arr);
+        } else if ($payment_method === 'UPI') {
+            $paid_upi = $final_amount;
+        } else if ($payment_method === 'Card') {
+            $paid_card = $final_amount;
+        } else {
+            $payment_method = 'Cash';
+            $paid_cash = $final_amount;
+        }
+
         $today = date('Ymd');
         $stmt_count = $db->query("SELECT COUNT(*) FROM billing_orders WHERE DATE(created_at) = CURDATE()");
         $today_count = (int) $stmt_count->fetchColumn() + 1;
         $invoice_number = "OE-B-" . $today . "-" . str_pad($today_count, 4, '0', STR_PAD_LEFT);
 
         $stmt_order = $db->prepare(
-            "INSERT INTO billing_orders (invoice_number, customer_name, customer_phone, customer_address, total_amount, discount_amount, final_amount, payment_method)
-             VALUES (:invoice, :name, :phone, :address, :total, :discount, :final, :method)"
+            "INSERT INTO billing_orders (invoice_number, customer_name, customer_phone, customer_address, total_amount, discount_amount, final_amount, payment_method, paid_cash, paid_card, paid_upi, payment_breakdown)
+             VALUES (:invoice, :name, :phone, :address, :total, :discount, :final, :method, :paid_cash, :paid_card, :paid_upi, :breakdown)"
         );
         $stmt_order->execute([
-            'invoice' => $invoice_number,
-            'name' => !empty($customer_name) ? $customer_name : null,
-            'phone' => !empty($customer_phone) ? $customer_phone : null,
-            'address' => !empty($customer_address) ? $customer_address : null,
-            'total' => $total_amount,
-            'discount' => $discount_amount,
-            'final' => $final_amount,
-            'method' => $payment_method
+            'invoice'   => $invoice_number,
+            'name'      => !empty($customer_name) ? $customer_name : null,
+            'phone'     => !empty($customer_phone) ? $customer_phone : null,
+            'address'   => !empty($customer_address) ? $customer_address : null,
+            'total'     => $total_amount,
+            'discount'  => $discount_amount,
+            'final'     => $final_amount,
+            'method'    => $payment_method,
+            'paid_cash' => $paid_cash,
+            'paid_card' => $paid_card,
+            'paid_upi'  => $paid_upi,
+            'breakdown' => $payment_breakdown
         ]);
 
         $order_id = $db->lastInsertId();
@@ -490,6 +524,10 @@ $default_upi = $clean_phone . '@upi';
                         <i class="fa-solid fa-credit-card"></i>
                         <span>Card</span>
                     </div>
+                    <div class="pay-btn" id="paySplit" onclick="selectPaymentMethod('Split')">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Split</span>
+                    </div>
                 </div>
                 <input type="hidden" id="paymentMethodInput" name="payment_method" value="Cash">
             </div>
@@ -508,6 +546,34 @@ $default_upi = $clean_phone . '@upi';
                         style="background:#fff; border-radius:4px; padding:0.25rem; display:block; width:120px; height:120px;">
                     <div style="font-size:0.65rem; color:var(--text-muted); text-align:center; margin-top:0.25rem;">
                         <i class="fa-solid fa-circle-info"></i> Scan with any UPI app.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Split Payment Area (Phase 4) -->
+            <div id="splitPaymentArea" style="display:none; margin:0; flex-shrink:0;">
+                <div class="qr-container" style="align-items:stretch; padding:0.5rem 0.6rem;">
+                    <div style="font-size:0.75rem; font-weight:700; color:var(--text-primary); margin-bottom:0.4rem; display:flex; justify-content:space-between; align-items:center;">
+                        <span><i class="fa-solid fa-sliders" style="color:var(--accent-color);"></i> Multi-Tender Breakdown</span>
+                        <span id="splitStatusBadge" class="badge" style="font-size:0.65rem; padding:2px 6px; background:rgba(255,71,87,0.15); color:var(--danger); border-radius:10px;">Unbalanced</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.4rem; margin-bottom:0.4rem;">
+                        <div>
+                            <label style="font-size:0.65rem; color:var(--text-muted); display:block; margin-bottom:0.15rem;">Cash (₹)</label>
+                            <input type="number" step="0.01" min="0" value="0.00" id="splitCashInput" name="paid_cash" class="form-control" style="height:26px; font-size:0.75rem; padding:0.2rem 0.35rem;" oninput="updateSplitTotals()">
+                        </div>
+                        <div>
+                            <label style="font-size:0.65rem; color:var(--text-muted); display:block; margin-bottom:0.15rem;">UPI (₹)</label>
+                            <input type="number" step="0.01" min="0" value="0.00" id="splitUPIInput" name="paid_upi" class="form-control" style="height:26px; font-size:0.75rem; padding:0.2rem 0.35rem;" oninput="updateSplitTotals()">
+                        </div>
+                        <div>
+                            <label style="font-size:0.65rem; color:var(--text-muted); display:block; margin-bottom:0.15rem;">Card (₹)</label>
+                            <input type="number" step="0.01" min="0" value="0.00" id="splitCardInput" name="paid_card" class="form-control" style="height:26px; font-size:0.75rem; padding:0.2rem 0.35rem;" oninput="updateSplitTotals()">
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; padding:0.3rem 0.45rem; background:var(--bg-control); border-radius:4px; border:1px solid var(--border-color);">
+                        <span>Allocated: <strong id="splitAllocatedTotal" style="color:var(--text-primary);">₹0.00</strong></span>
+                        <span>Remaining: <strong id="splitRemainingBalance" style="color:var(--danger);">₹0.00</strong></span>
                     </div>
                 </div>
             </div>
@@ -691,6 +757,47 @@ $default_upi = $clean_phone . '@upi';
 
         if (selectedPaymentMethod === 'UPI') {
             generateUPICode(finalTotal);
+        } else if (selectedPaymentMethod === 'Split') {
+            updateSplitTotals();
+        }
+    }
+
+    function updateSplitTotals() {
+        let subtotal = 0;
+        cart.forEach(item => { subtotal += item.price * item.quantity; });
+        const discountVal = parseFloat(document.getElementById('discountInput').value) || 0;
+        const finalTotal = Math.max(0, subtotal - discountVal);
+
+        const cashVal = parseFloat(document.getElementById('splitCashInput').value) || 0;
+        const upiVal = parseFloat(document.getElementById('splitUPIInput').value) || 0;
+        const cardVal = parseFloat(document.getElementById('splitCardInput').value) || 0;
+
+        const allocated = cashVal + upiVal + cardVal;
+        const remaining = finalTotal - allocated;
+
+        document.getElementById('splitAllocatedTotal').innerText = '₹' + allocated.toFixed(2);
+        
+        const remEl = document.getElementById('splitRemainingBalance');
+        const badge = document.getElementById('splitStatusBadge');
+
+        if (Math.abs(remaining) < 0.01) {
+            remEl.innerText = '₹0.00';
+            remEl.style.color = 'var(--success)';
+            badge.innerText = 'Balanced';
+            badge.style.background = 'rgba(46, 213, 115, 0.15)';
+            badge.style.color = 'var(--success)';
+        } else if (remaining > 0) {
+            remEl.innerText = '₹' + remaining.toFixed(2);
+            remEl.style.color = 'var(--danger)';
+            badge.innerText = 'Needs ₹' + remaining.toFixed(2);
+            badge.style.background = 'rgba(255, 71, 87, 0.15)';
+            badge.style.color = 'var(--danger)';
+        } else {
+            remEl.innerText = '-₹' + Math.abs(remaining).toFixed(2);
+            remEl.style.color = 'var(--warning)';
+            badge.innerText = 'Overpaid ₹' + Math.abs(remaining).toFixed(2);
+            badge.style.background = 'rgba(255, 170, 0, 0.15)';
+            badge.style.color = 'var(--warning)';
         }
     }
 
@@ -708,16 +815,37 @@ $default_upi = $clean_phone . '@upi';
 
         document.querySelectorAll('.pay-btn').forEach(btn => btn.classList.remove('active'));
 
+        const upiArea = document.getElementById('upiPaymentArea');
+        const splitArea = document.getElementById('splitPaymentArea');
+
+        upiArea.style.display = 'none';
+        splitArea.style.display = 'none';
+
         if (method === 'Cash') {
             document.getElementById('payCash').classList.add('active');
-            document.getElementById('upiPaymentArea').style.display = 'none';
         } else if (method === 'UPI') {
             document.getElementById('payUPI').classList.add('active');
-            document.getElementById('upiPaymentArea').style.display = 'block';
+            upiArea.style.display = 'block';
             updateSummary(); // trigger QR generation
         } else if (method === 'Card') {
             document.getElementById('payCard').classList.add('active');
-            document.getElementById('upiPaymentArea').style.display = 'none';
+        } else if (method === 'Split') {
+            document.getElementById('paySplit').classList.add('active');
+            splitArea.style.display = 'block';
+
+            let subtotal = 0;
+            cart.forEach(item => { subtotal += item.price * item.quantity; });
+            const discountVal = parseFloat(document.getElementById('discountInput').value) || 0;
+            const finalTotal = Math.max(0, subtotal - discountVal);
+
+            const cashInput = document.getElementById('splitCashInput');
+            const upiInput = document.getElementById('splitUPIInput');
+            const cardInput = document.getElementById('splitCardInput');
+
+            if ((parseFloat(cashInput.value) || 0) === 0 && (parseFloat(upiInput.value) || 0) === 0 && (parseFloat(cardInput.value) || 0) === 0) {
+                cashInput.value = finalTotal.toFixed(2);
+            }
+            updateSplitTotals();
         }
     }
 
@@ -748,6 +876,23 @@ $default_upi = $clean_phone . '@upi';
         if (cart.length === 0) {
             alert('Cart is empty.');
             return;
+        }
+
+        if (selectedPaymentMethod === 'Split') {
+            let subtotal = 0;
+            cart.forEach(item => { subtotal += item.price * item.quantity; });
+            const discountVal = parseFloat(document.getElementById('discountInput').value) || 0;
+            const finalTotal = Math.max(0, subtotal - discountVal);
+
+            const cashVal = parseFloat(document.getElementById('splitCashInput').value) || 0;
+            const upiVal = parseFloat(document.getElementById('splitUPIInput').value) || 0;
+            const cardVal = parseFloat(document.getElementById('splitCardInput').value) || 0;
+
+            const allocated = cashVal + upiVal + cardVal;
+            if (Math.abs(finalTotal - allocated) > 0.01) {
+                alert('Split payment total (₹' + allocated.toFixed(2) + ') must equal Payable Total (₹' + finalTotal.toFixed(2) + ').');
+                return;
+            }
         }
 
         const customerName = document.getElementById('customerName').value.trim();

@@ -81,17 +81,17 @@ function getSessionTallies($db, $session) {
     $closed_at = $session['closed_at']; // can be null if open
     
     // POS Billing Cash
-    $stmt = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'Cash' AND created_at >= ? AND (? IS NULL OR created_at <= ?)");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(paid_cash), 0) FROM billing_orders WHERE created_at >= ? AND (? IS NULL OR created_at <= ?)");
     $stmt->execute([$opened_at, $closed_at, $closed_at]);
     $pos_cash = (float)$stmt->fetchColumn();
 
     // POS Billing UPI
-    $stmt = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'UPI' AND created_at >= ? AND (? IS NULL OR created_at <= ?)");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(paid_upi), 0) FROM billing_orders WHERE created_at >= ? AND (? IS NULL OR created_at <= ?)");
     $stmt->execute([$opened_at, $closed_at, $closed_at]);
     $pos_upi = (float)$stmt->fetchColumn();
 
     // POS Billing Card
-    $stmt = $db->prepare("SELECT COALESCE(SUM(final_amount), 0) FROM billing_orders WHERE payment_method = 'Card' AND created_at >= ? AND (? IS NULL OR created_at <= ?)");
+    $stmt = $db->prepare("SELECT COALESCE(SUM(paid_card), 0) FROM billing_orders WHERE created_at >= ? AND (? IS NULL OR created_at <= ?)");
     $stmt->execute([$opened_at, $closed_at, $closed_at]);
     $pos_card = (float)$stmt->fetchColumn();
 

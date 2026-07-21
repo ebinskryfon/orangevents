@@ -534,7 +534,32 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <div class="ri-meta-cell">
                 <div class="ri-meta-label">Payment Information</div>
-                <div class="ri-meta-value"><?= h(strtoupper($order['payment_method'])) ?></div>
+                <div class="ri-meta-value">
+                    <?php if ($order['payment_method'] === 'Split' || !empty($order['payment_breakdown'])): ?>
+                        <span style="color:var(--accent-color); font-weight:700;">SPLIT PAYMENT</span>
+                        <div style="font-size:0.75rem; font-weight:normal; color:var(--text-muted); margin-top:2px;">
+                            <?php
+                            $bd_parts = [];
+                            if (!empty($order['payment_breakdown'])) {
+                                $bd = json_decode($order['payment_breakdown'], true);
+                                if (is_array($bd)) {
+                                    foreach ($bd as $m => $a) {
+                                        if ((float)$a > 0) $bd_parts[] = h($m) . ': ₹' . number_format((float)$a, 2);
+                                    }
+                                }
+                            }
+                            if (empty($bd_parts)) {
+                                if ($order['paid_cash'] > 0) $bd_parts[] = 'Cash: ₹' . number_format($order['paid_cash'], 2);
+                                if ($order['paid_upi'] > 0)  $bd_parts[] = 'UPI: ₹' . number_format($order['paid_upi'], 2);
+                                if ($order['paid_card'] > 0) $bd_parts[] = 'Card: ₹' . number_format($order['paid_card'], 2);
+                            }
+                            echo implode(' • ', $bd_parts);
+                            ?>
+                        </div>
+                    <?php else: ?>
+                        <?= h(strtoupper($order['payment_method'])) ?>
+                    <?php endif; ?>
+                </div>
                 <div class="ri-meta-sub">Status: Fully Settled / Complete</div>
             </div>
             <div class="ri-meta-cell">
@@ -722,8 +747,38 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="receipt-summary-row" style="margin-top:6px; font-weight:bold;">
                     <span>Payment Mode:</span>
-                    <span><?= h(strtoupper($order['payment_method'])) ?></span>
+                    <span>
+                        <?php if ($order['payment_method'] === 'Split' || !empty($order['payment_breakdown'])): ?>
+                            SPLIT
+                        <?php else: ?>
+                            <?= h(strtoupper($order['payment_method'])) ?>
+                        <?php endif; ?>
+                    </span>
                 </div>
+                <?php if ($order['payment_method'] === 'Split' || !empty($order['payment_breakdown'])): ?>
+                    <?php
+                    $bd_parts = [];
+                    if (!empty($order['payment_breakdown'])) {
+                        $bd = json_decode($order['payment_breakdown'], true);
+                        if (is_array($bd)) {
+                            foreach ($bd as $m => $a) {
+                                if ((float)$a > 0) $bd_parts[$m] = (float)$a;
+                            }
+                        }
+                    }
+                    if (empty($bd_parts)) {
+                        if ($order['paid_cash'] > 0) $bd_parts['Cash'] = $order['paid_cash'];
+                        if ($order['paid_upi'] > 0)  $bd_parts['UPI']  = $order['paid_upi'];
+                        if ($order['paid_card'] > 0) $bd_parts['Card'] = $order['paid_card'];
+                    }
+                    foreach ($bd_parts as $m => $a):
+                    ?>
+                        <div class="receipt-summary-row" style="font-size:0.75rem; color:#555;">
+                            <span style="padding-left:8px;">- <?= h($m) ?>:</span>
+                            <span>₹<?= number_format($a, 2) ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
 
             <div class="receipt-divider"></div>

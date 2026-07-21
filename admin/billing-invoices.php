@@ -293,8 +293,22 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endif; ?>
                             </td>
                             <td style="padding: 0.5rem 0.75rem;">
+                                <?php
+                                $m_bg = 'rgba(255, 107, 53, 0.12)';
+                                $m_color = 'var(--accent-color)';
+                                if ($ord['payment_method'] === 'Cash') {
+                                    $m_bg = 'rgba(46, 213, 115, 0.12)';
+                                    $m_color = 'var(--success)';
+                                } else if ($ord['payment_method'] === 'UPI') {
+                                    $m_bg = 'rgba(30, 144, 255, 0.12)';
+                                    $m_color = 'var(--info)';
+                                } else if ($ord['payment_method'] === 'Split') {
+                                    $m_bg = 'rgba(155, 89, 182, 0.15)';
+                                    $m_color = '#9b59b6';
+                                }
+                                ?>
                                 <span class="badge"
-                                    style="background: <?= $ord['payment_method'] === 'Cash' ? 'rgba(46, 213, 115, 0.12)' : ($ord['payment_method'] === 'UPI' ? 'rgba(30, 144, 255, 0.12)' : 'rgba(255, 107, 53, 0.12)') ?>; color: <?= $ord['payment_method'] === 'Cash' ? 'var(--success)' : ($ord['payment_method'] === 'UPI' ? 'var(--info)' : 'var(--accent-color)') ?>; font-weight: 600; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem;">
+                                    style="background: <?= $m_bg ?>; color: <?= $m_color ?>; font-weight: 600; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem;">
                                     <?= h($ord['payment_method']) ?>
                                 </span>
                             </td>

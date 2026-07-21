@@ -9,7 +9,7 @@ This document outlines the roadmap and detailed technical specifications for int
 - [x] **Phase 1: Keyboard Hotkeys & Rapid Checkout Navigation** (Completed)
 - [x] **Phase 2: Park & Resume Cart (Hold Bill)** (Completed)
 - [ ] **Phase 3: Quick Preset Discounts & Coupon Chips**
-- [ ] **Phase 4: Split Payment Support (Multi-Tender)**
+- [x] **Phase 4: Split Payment Support (Multi-Tender)** (Completed)
 - [ ] **Phase 5: Direct WhatsApp & Digital Receipt Sharing**
 - [ ] **Phase 6: Shift Petty Cash (Cash-In / Cash-Out Log)**
 - [ ] **Phase 7: Return & Item Exchange Terminal**

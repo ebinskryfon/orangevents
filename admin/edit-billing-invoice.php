@@ -132,6 +132,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db_created_at = date('Y-m-d H:i:s', strtotime($created_at));
 
             // Update billing order
+            $paid_cash = 0.00;
+            $paid_card = 0.00;
+            $paid_upi  = 0.00;
+            $payment_breakdown = null;
+
+            if ($payment_method === 'Split') {
+                $paid_cash = max(0, (float) ($_POST['paid_cash'] ?? 0));
+                $paid_upi  = max(0, (float) ($_POST['paid_upi'] ?? 0));
+                $paid_card = max(0, (float) ($_POST['paid_card'] ?? 0));
+                $breakdown_arr = [];
+                if ($paid_cash > 0) $breakdown_arr['Cash'] = $paid_cash;
+                if ($paid_upi > 0)  $breakdown_arr['UPI']  = $paid_upi;
+                if ($paid_card > 0) $breakdown_arr['Card'] = $paid_card;
+                $payment_breakdown = json_encode($breakdown_arr);
+            } else if ($payment_method === 'UPI') {
+                $paid_upi = $final_amount;
+            } else if ($payment_method === 'Card') {
+                $paid_card = $final_amount;
+            } else {
+                $payment_method = 'Cash';
+                $paid_cash = $final_amount;
+            }
+
             $stmt_up = $db->prepare("
                 UPDATE billing_orders
                    SET invoice_number = :invoice_number,
@@ -142,6 +165,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        discount_amount = :discount_amount,
                        final_amount = :final_amount,
                        payment_method = :payment_method,
+                       paid_cash = :paid_cash,
+                       paid_card = :paid_card,
+                       paid_upi = :paid_upi,
+                       payment_breakdown = :payment_breakdown,
                        created_at = :created_at
                  WHERE id = :id
             ");
@@ -154,6 +181,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'discount_amount' => $discount_amount,
                 'final_amount' => $final_amount,
                 'payment_method' => $payment_method,
+                'paid_cash' => $paid_cash,
+                'paid_card' => $paid_card,
+                'paid_upi' => $paid_upi,
+                'payment_breakdown' => $payment_breakdown,
                 'created_at' => $db_created_at,
                 'id' => $id
             ]);
