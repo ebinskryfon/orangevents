@@ -6,18 +6,34 @@ function h($str) {
 }
 
 $db = get_db_connection();
-$id = (int)($_GET['id'] ?? $_GET['order_id'] ?? 0);
-if (!$id) {
-    die("<div style='font-family:sans-serif; text-align:center; padding:3rem; color:#ff4757;'><h3>Invalid Invoice Link</h3><p>Please double-check the URL.</p></div>");
+
+$order = null;
+$inv_param = trim($_GET['inv'] ?? $_GET['invoice'] ?? $_GET['inv_no'] ?? '');
+$id_param = (int)($_GET['id'] ?? $_GET['order_id'] ?? 0);
+
+if ($inv_param !== '') {
+    $stmt_order = $db->prepare("SELECT * FROM billing_orders WHERE invoice_number = :inv");
+    $stmt_order->execute(['inv' => $inv_param]);
+    $order = $stmt_order->fetch();
+} elseif ($id_param > 0) {
+    $stmt_order = $db->prepare("SELECT * FROM billing_orders WHERE id = :id");
+    $stmt_order->execute(['id' => $id_param]);
+    $order = $stmt_order->fetch();
 }
 
-// Fetch billing order
-$stmt_order = $db->prepare("SELECT * FROM billing_orders WHERE id = :id");
-$stmt_order->execute(['id' => $id]);
-$order = $stmt_order->fetch();
 if (!$order) {
-    die("<div style='font-family:sans-serif; text-align:center; padding:3rem; color:#ff4757;'><h3>Invoice Not Found</h3><p>The requested invoice does not exist or has been deleted.</p></div>");
+    die("<div style='font-family:sans-serif; text-align:center; padding:4rem 1rem; color:#ef4444; background:#f8fafc; min-height:100vh; display:flex; align-items:center; justify-content:center;'>
+            <div style='max-width:380px; width:100%; background:#ffffff; border:1px solid #e2e8f0; border-radius:20px; padding:2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05);'>
+                <div style='width:60px; height:60px; background:#fee2e2; color:#ef4444; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1rem auto; font-size:1.5rem;'>
+                    <i class=\"fa-solid fa-receipt\"></i>
+                </div>
+                <h3 style='font-size:1.3rem; color:#0f172a; margin-bottom:0.4rem; font-weight:700;'>Invoice Not Found</h3>
+                <p style='color:#64748b; font-size:0.85rem; line-height:1.4;'>The requested digital invoice receipt could not be found or the link has expired.</p>
+            </div>
+         </div>");
 }
+
+$id = (int)$order['id'];
 
 // Fetch order items
 $stmt_items = $db->prepare("SELECT * FROM billing_order_items WHERE order_id = :id ORDER BY id ASC");
@@ -35,661 +51,418 @@ foreach ($settings_res as $row) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice <?= h($order['invoice_number']) ?> - <?= h($settings['company_name'] ?? 'Orange Events') ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>E-Receipt <?= h($order['invoice_number']) ?> - <?= h($settings['company_name'] ?? 'Orange Events') ?></title>
     <!-- FontAwesome Icon CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
     <style>
         :root {
-            --bg-primary: #0a0e17;
-            --bg-card: #121824;
-            --accent-color: #ff6b35;
-            --accent-gradient: linear-gradient(135deg, #ff6b35, #ff9f43);
-            --text-primary: #f5f6fa;
-            --text-secondary: #a4b0be;
-            --border-color: rgba(255, 255, 255, 0.08);
-            --border-radius: 16px;
+            --bg-page: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --accent-orange: #ff5e00;
+            --accent-orange-light: rgba(255, 94, 0, 0.08);
+            --border-light: #e2e8f0;
+            --success-green: #16a34a;
+            --success-light: #dcfce7;
+            --radius-lg: 20px;
+            --radius-md: 12px;
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-primary);
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-page);
             color: var(--text-primary);
             min-height: 100vh;
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 2rem 1rem;
+            justify-content: center;
+            align-items: flex-start;
         }
 
-        .portal-container {
+        .ereceipt-wrapper {
             width: 100%;
-            max-width: 600px;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 1.25rem 1rem 3rem 1rem;
+            box-sizing: border-box;
         }
 
-        @media(min-width: 769px) {
-            .portal-container {
-                max-width: 820px;
-            }
+        /* Card Layout */
+        .ereceipt-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+            border: 1px solid var(--border-light);
+            overflow: hidden;
         }
 
-        .brand-header {
+        /* Top Brand Header */
+        .brand-banner {
+            padding: 1.5rem 1.25rem 1.25rem 1.25rem;
             text-align: center;
-            margin-bottom: 0.5rem;
+            border-bottom: 1px dashed var(--border-light);
+            background: #ffffff;
         }
 
         .brand-logo {
-            height: 48px;
+            height: 46px;
             width: auto;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
         }
 
-        .brand-name {
+        .brand-title {
             font-family: 'Outfit', sans-serif;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 800;
-            letter-spacing: 0.05em;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
         }
 
-        .brand-name span {
-            color: var(--accent-color);
+        .brand-title span {
+            color: var(--accent-orange);
         }
 
-        .welcome-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-        }
-
-        .welcome-card h2 {
-            font-family: 'Outfit', sans-serif;
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-            color: #ffffff;
-        }
-
-        .welcome-card p {
-            font-size: 0.9rem;
+        .brand-subtitle {
+            font-size: 0.78rem;
             color: var(--text-secondary);
+            margin-top: 0.15rem;
+            font-weight: 500;
+        }
+
+        .brand-contact-info {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
             line-height: 1.4;
         }
 
-        /* Action Buttons */
-        .actions-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
-            max-width: 380px;
-            margin: 0.5rem auto 0;
+        /* Hero Total Box */
+        .hero-total-box {
+            background: linear-gradient(180deg, #fafafa 0%, #f1f5f9 100%);
+            padding: 1.35rem 1.25rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border-light);
         }
 
-        .btn {
+        .status-pill {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.8rem 1rem;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            border: none;
-            transition: all 0.2s ease;
+            gap: 0.35rem;
+            background: var(--success-light);
+            color: var(--success-green);
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 0.3rem 0.85rem;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.65rem;
+            border: 1px solid rgba(22, 163, 74, 0.2);
         }
 
-        .btn-primary {
-            background: var(--accent-gradient);
-            color: #ffffff;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.06);
-            color: #ffffff;
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px);
-        }
-
-        /* Segmented View Toggles */
-        .segmented-control {
-            display: flex;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            padding: 3px;
-            border-radius: 8px;
-            margin: 1rem auto;
-            max-width: 320px;
-            width: 100%;
-        }
-
-        .segmented-control button {
-            background: transparent;
+        .hero-label {
+            font-size: 0.75rem;
             color: var(--text-secondary);
-            border: none;
-            padding: 0.5rem 0.8rem;
-            font-size: 0.8rem;
             font-weight: 600;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-amount {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.3rem;
+            font-weight: 800;
+            color: var(--accent-orange);
+            margin: 0.15rem 0 0.35rem 0;
+            line-height: 1;
+        }
+
+        .hero-inv-details {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        /* Customer & Meta Info Grid */
+        .info-section {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .info-item-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-item-val {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.35;
+        }
+
+        .info-item-sub {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-top: 0.15rem;
+        }
+
+        /* Items Section */
+        .items-section {
+            padding: 1.25rem;
+        }
+
+        .section-heading {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 0.85rem;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 0.4rem;
-            flex: 1;
+            justify-content: space-between;
         }
 
-        .segmented-control button.active {
-            background: var(--accent-gradient);
-            color: #ffffff;
-        }
-
-        /* Toggle Visibility Rules */
-        .view-container.view-a4 .receipt-wrapper { display: none !important; }
-        .view-container.view-thermal .invoice-paper { display: none !important; }
-
-        /* ── A4 Invoice Paper ──────────────────────────────── */
-        .invoice-paper {
-            width: 100%;
-            background: #ffffff;
-            color: #1a1a2e;
-            font-family: 'Segoe UI', 'Inter', Arial, sans-serif;
-            font-size: 10.5pt;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 8px 40px rgba(0,0,0,0.35);
-            display: flex;
-            flex-direction: column;
-            text-align: left;
-        }
-
-        @media(min-width: 769px) {
-            .invoice-paper {
-                width: 210mm;
-                min-height: 275mm;
-            }
-        }
-        
-        /* ── Header band ───────────────────────────────────── */
-        .ri-header {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-            padding: 24px 28px 18px;
+        .item-card-row {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            position: relative;
-            overflow: hidden;
+            padding: 0.75rem 0;
+            border-bottom: 1px dashed var(--border-light);
         }
-        .ri-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #ff6b35, #ffa500, #ff6b35);
+
+        .item-card-row:last-child {
+            border-bottom: none;
         }
-        .ri-brand-name {
-            font-size: 20pt;
-            font-weight: 800;
-            color: #ff6b35;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+
+        .item-name-group {
+            flex: 1;
+            padding-right: 0.75rem;
+        }
+
+        .item-title {
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .item-meta-tag {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.2rem;
+        }
+
+        .item-qty-calc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+            font-weight: 500;
+        }
+
+        .item-price-total {
             font-family: 'Outfit', sans-serif;
-        }
-        .ri-brand-sub {
-            font-size: 8.5pt;
-            color: rgba(255,255,255,0.6);
-            margin-top: 3px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .ri-brand-contact {
-            font-size: 8.5pt;
-            color: rgba(255,255,255,0.60);
-            margin-top: 6px;
-            line-height: 1.6;
-        }
-        .ri-inv-label {
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            white-space: nowrap;
             text-align: right;
         }
-        .ri-inv-label h2 {
-            font-size: 16pt;
+
+        /* Summary Math Box */
+        .summary-box {
+            background: #f8fafc;
+            border-radius: var(--radius-md);
+            padding: 1rem 1.15rem;
+            margin-top: 1rem;
+            border: 1px solid var(--border-light);
+        }
+
+        .summary-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            padding: 0.25rem 0;
+        }
+
+        .summary-line.total-line {
+            border-top: 1px dashed var(--border-light);
+            margin-top: 0.4rem;
+            padding-top: 0.6rem;
+            font-size: 1.05rem;
             font-weight: 800;
-            color: #ffffff;
-            margin: 0 0 4px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            color: var(--text-primary);
+        }
+
+        .summary-line.total-line .total-val {
+            color: var(--accent-orange);
             font-family: 'Outfit', sans-serif;
         }
-        .ri-inv-label .ri-inv-num {
-            font-size: 9.5pt;
-            color: #ff6b35;
-            font-weight: 700;
-        }
-        .ri-inv-label .ri-inv-date {
-            font-size: 8pt;
-            color: rgba(255,255,255,0.5);
-            margin-top: 4px;
-        }
-        
-        /* ── Status chip ───────────────────────────────────── */
-        .ri-status-chip {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 50px;
-            font-size: 7.5pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 6px;
-        }
-        .ri-status-returned { background: rgba(34,197,94,0.2);  color: #22c55e; border: 1px solid #22c55e; }
-        
-        /* ── Client & period row ───────────────────────────── */
-        .ri-meta-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 0;
-            border-bottom: 2px solid #ff6b35;
-        }
-        .ri-meta-cell {
-            padding: 12px 18px;
-            border-right: 1px solid #e5e7eb;
-        }
-        .ri-meta-cell:last-child { border-right: none; }
-        .ri-meta-label {
-            font-size: 7pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #9ca3af;
-            margin-bottom: 4px;
-        }
-        .ri-meta-value {
-            font-size: 10pt;
-            font-weight: 700;
-            color: #1a1a2e;
-        }
-        .ri-meta-sub {
-            font-size: 8pt;
-            color: #6b7280;
-            margin-top: 2px;
-        }
-        
-        /* ── Items table ───────────────────────────────────── */
-        .ri-body { padding: 18px 24px; flex: 1; }
-        
-        .ri-section-title {
-            font-size: 8.5pt;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #ff6b35;
-            border-bottom: 1.5px solid #ff6b35;
-            padding-bottom: 5px;
-            margin: 0 0 10px;
-            font-family: 'Outfit', sans-serif;
-        }
-        
-        .ri-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9.5pt;
-            margin-bottom: 18px;
-        }
-        .ri-table thead tr {
-            background: #1a1a2e;
-            color: #ffffff;
-        }
-        .ri-table thead th {
-            padding: 8px 12px;
-            font-size: 8pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .ri-table tbody tr:nth-child(even) { background: #f9fafb; }
-        .ri-table tbody td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #f0f0f0;
-            vertical-align: middle;
-            color: #333;
-        }
-        
-        /* ── Financial summary box ─────────────────────────── */
-        .ri-bottom-grid {
-            display: grid;
-            grid-template-columns: 1.2fr 1fr;
-            gap: 20px;
-            margin-top: 16px;
-        }
-        .ri-summary-box {
-            background: #1a1a2e;
-            border-radius: 8px;
-            padding: 14px 16px;
+
+        /* Actions Container */
+        .actions-container {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            color: #ffffff;
-        }
-        .ri-summary-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 9pt;
-            color: rgba(255,255,255,0.7);
-        }
-        .ri-summary-row.ri-summary-total {
-            border-top: 1px dashed rgba(255,255,255,0.2);
-            padding-top: 8px;
-            font-size: 11.5pt;
-            font-weight: 800;
-            color: #ff6b35;
+            gap: 0.6rem;
+            margin-top: 1.25rem;
         }
 
-        /* Responsive styling for A4 Layout on customer's phone */
-        @media(max-width: 768px) {
-            .ri-header {
-                flex-direction: column !important;
-                gap: 12px;
-                padding: 16px 20px 12px;
-            }
-            .ri-inv-label {
-                text-align: left !important;
-            }
-            .ri-meta-row {
-                grid-template-columns: 1fr;
-            }
-            .ri-meta-cell {
-                border-right: none;
-                border-bottom: 1px solid #e5e7eb;
-                padding: 10px 18px;
-            }
-            .ri-meta-cell:last-child {
-                border-bottom: none;
-            }
-            .ri-bottom-grid {
-                grid-template-columns: 1fr;
-                gap: 15px;
-            }
-        }
-
-        /* ── Receipt styling ── */
-        .receipt-container {
+        .btn-action {
             display: flex;
+            align-items: center;
             justify-content: center;
+            gap: 0.5rem;
             width: 100%;
-        }
-
-        .thermal-receipt {
-            width: 100%;
-            max-width: 480px;
-            background: #ffffff;
-            color: #000000;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
-            border-radius: 8px;
-            padding: 20px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            line-height: 1.4;
-            text-align: left;
-        }
-
-        .receipt-header {
-            text-align: center;
-            margin-bottom: 12px;
-        }
-
-        .receipt-logo-title {
-            font-size: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 2px;
-            letter-spacing: 1px;
-        }
-
-        .receipt-subtitle {
-            font-size: 10px;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-            color: #555555;
-        }
-
-        .receipt-contact {
-            font-size: 9px;
-            line-height: 1.3;
-            margin-bottom: 6px;
-            color: #333333;
-        }
-
-        .receipt-divider {
-            border-top: 1px dashed #000000;
-            margin: 8px 0;
-        }
-
-        .receipt-meta {
-            font-size: 10px;
-            margin-bottom: 8px;
-        }
-
-        .receipt-meta-row {
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .receipt-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-        }
-
-        .receipt-table th {
-            font-weight: bold;
-            text-align: left;
-            border-bottom: 1px dashed #000000;
-            padding-bottom: 4px;
-            font-size: 10px;
-            text-transform: uppercase;
-        }
-
-        .receipt-table td {
-            padding: 4px 0;
-            vertical-align: top;
-        }
-
-        .receipt-summary {
-            width: 100%;
-            margin-top: 6px;
-        }
-
-        .receipt-summary-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 2px 0;
-        }
-
-        .receipt-summary-total {
-            font-size: 14px;
-            font-weight: bold;
-            border-top: 1px dashed #000000;
-            border-bottom: 1px dashed #000000;
-            padding: 6px 0;
-            margin-top: 4px;
-        }
-
-        .receipt-footer {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 9px;
-        }
-
-        .support-footer {
-            text-align: center;
-            margin-top: 1rem;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-
-        .support-footer a {
-            color: var(--accent-color);
+            height: 48px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
             text-decoration: none;
-            font-weight: 600;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
         }
 
-        /* Print styles */
+        .btn-whatsapp {
+            background: #25d366;
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(37, 211, 102, 0.25);
+        }
+
+        .btn-whatsapp:active {
+            transform: scale(0.98);
+        }
+
+        .btn-pdf {
+            background: var(--text-primary);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+        }
+
+        .btn-print {
+            background: #ffffff;
+            color: var(--text-primary);
+            border: 1px solid var(--border-light);
+        }
+
+        .receipt-footer-support {
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .receipt-footer-support a {
+            color: var(--accent-orange);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        /* Print Override */
         @media print {
-            body, html {
+            body {
                 background: #ffffff !important;
-                color: #000000 !important;
                 padding: 0 !important;
-                margin: 0 !important;
             }
-            .brand-header, .welcome-card, .segmented-control, .support-footer {
+            .ereceipt-wrapper {
+                max-width: 100% !important;
+                padding: 0 !important;
+            }
+            .ereceipt-card {
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+            }
+            .actions-container, .receipt-footer-support {
                 display: none !important;
             }
-            .portal-container {
-                max-width: 100% !important;
-                width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-
-            .view-container.view-a4 .receipt-wrapper { display: none !important; }
-            .view-container.view-thermal .invoice-paper { display: none !important; }
-
-            .view-container.view-a4 .invoice-paper {
-                width: 100% !important;
-                max-width: 100% !important;
-                min-height: auto !important;
-                margin: 0 !important;
-                box-shadow: none !important;
-                border-radius: 0 !important;
-                display: block !important;
-            }
-            .view-container.view-thermal .thermal-receipt {
-                width: 80mm !important;
-                box-shadow: none !important;
-                border-radius: 0 !important;
-                margin: 0 !important;
-                padding: 5px !important;
-                font-size: 11px !important;
-                display: block !important;
-            }
-
             @page {
                 size: auto;
-                margin: 10mm 0;
+                margin: 8mm;
             }
         }
     </style>
 </head>
 <body>
 
-<div class="portal-container">
-    <!-- Brand Header -->
-    <div class="brand-header">
-        <img src="assets/images/logo.png" alt="Orange Events Logo" class="brand-logo">
-        <div class="brand-name">Orange <span>Events</span></div>
-    </div>
+<div class="ereceipt-wrapper">
 
-    <!-- Thank you message card -->
-    <div class="welcome-card">
-        <h2>Thank You for Your Order!</h2>
-        <p>
-            Hi <?= h($order['customer_name'] ?: 'Valued Customer') ?>, your order has been successfully placed. Here is your digital receipt.
-        </p>
-
-        <!-- Segmented Control for Layout Choice -->
-        <div class="segmented-control">
-            <button onclick="setView('a4')" id="btnViewA4" class="active">
-                <i class="fa-solid fa-file-invoice"></i> A4 Invoice
-            </button>
-            <button onclick="setView('thermal')" id="btnViewThermal">
-                <i class="fa-solid fa-receipt"></i> Thermal Receipt
-            </button>
-        </div>
-
-        <div class="actions-row">
-            <button onclick="downloadPDF()" class="btn btn-primary">
-                <i class="fa-solid fa-file-pdf"></i> Download PDF
-            </button>
-            <button onclick="window.print()" class="btn btn-secondary">
-                <i class="fa-solid fa-print"></i> Print Invoice
-            </button>
-        </div>
-    </div>
-
-    <!-- Dual Layout View Wrapper -->
-    <div class="view-container view-a4" id="viewContainer" style="width: 100%;">
-
-        <!-- ── A4 Layout ── -->
-        <div class="invoice-paper">
-            <!-- Header Band -->
-            <div class="ri-header">
-                <div>
-                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 8px;">
-                        <img src="assets/images/logo.png" alt="Logo" style="max-height: 52px; width: auto; filter: brightness(0) invert(1);">
-                        <div>
-                            <div class="ri-brand-name"><?= h($settings['company_name'] ?? 'Orange Events') ?></div>
-                            <div class="ri-brand-sub"><?= h($settings['company_subtitle'] ?? 'Premium Catering & Stage Decors') ?></div>
-                        </div>
-                    </div>
-                    <div class="ri-brand-contact">
-                        <?= h($settings['company_address'] ?? 'Thumpoly P.O, Alappuzha') ?><br>
-                        Phone: <?= h($settings['company_phone'] ?? '9946731720') ?> | Email: <?= h($settings['company_email'] ?? 'orangedecorations@gmail.com') ?><br>
-                        <?php if (!empty($settings['company_gstin'] ?? '')): ?>
-                            GSTIN: <?= h($settings['company_gstin']) ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <div class="ri-inv-label">
-                    <h2>INVOICE</h2>
-                    <div class="ri-inv-num"><?= h($order['invoice_number']) ?></div>
-                    <div class="ri-inv-date">Date: <?= date('d-m-Y h:i A', strtotime($order['created_at'])) ?></div>
-                    <div class="ri-status-chip ri-status-returned">PAID</div>
-                </div>
+    <!-- Digital Receipt Card -->
+    <div class="ereceipt-card" id="eReceiptContent">
+        
+        <!-- Brand Header -->
+        <div class="brand-banner">
+            <img src="assets/images/logo.png" alt="Logo" class="brand-logo">
+            <div class="brand-title"><?= h($settings['company_name'] ?? 'Orange Events') ?></div>
+            <div class="brand-subtitle"><?= h($settings['company_subtitle'] ?? 'Premium Catering & Stage Decors') ?></div>
+            <div class="brand-contact-info">
+                <?= h($settings['company_address'] ?? 'Thumpoly P.O, Alappuzha') ?><br>
+                Phone: <?= h($settings['company_phone'] ?? '9946731720') ?> | Email: <?= h($settings['company_email'] ?? 'orangedecorations@gmail.com') ?>
+                <?php if (!empty($settings['company_gstin'] ?? '')): ?>
+                    <br>GSTIN: <?= h($settings['company_gstin']) ?>
+                <?php endif; ?>
             </div>
+        </div>
 
-            <!-- Meta Details Row -->
-            <div class="ri-meta-row">
-                <div class="ri-meta-cell">
-                    <div class="ri-meta-label">Billed To</div>
-                    <div class="ri-meta-value"><?= h($order['customer_name'] ?: 'Walk-in Customer') ?></div>
+        <!-- Hero Amount & Status Header -->
+        <div class="hero-total-box">
+            <div class="status-pill">
+                <i class="fa-solid fa-circle-check"></i> Payment Settled
+            </div>
+            <div class="hero-label">Total Amount Paid</div>
+            <div class="hero-amount">₹<?= number_format($order['final_amount'], 2) ?></div>
+            <div class="hero-inv-details">
+                Invoice <strong><?= h($order['invoice_number']) ?></strong> • <?= date('d M Y, h:i A', strtotime($order['created_at'])) ?>
+            </div>
+        </div>
+
+        <!-- Metadata Section (Billed To & Payment Method) -->
+        <div class="info-section">
+            <div class="info-grid">
+                <div>
+                    <div class="info-item-label">Billed To</div>
+                    <div class="info-item-val"><?= h($order['customer_name'] ?: 'Walk-in Customer') ?></div>
                     <?php if (!empty($order['customer_phone'])): ?>
-                        <div class="ri-meta-sub">Phone: <?= h($order['customer_phone']) ?></div>
+                        <div class="info-item-sub"><i class="fa-solid fa-phone" style="font-size:0.68rem; color:var(--text-muted);"></i> <?= h($order['customer_phone']) ?></div>
                     <?php endif; ?>
                     <?php if (!empty($order['customer_address'])): ?>
-                        <div class="ri-meta-sub" style="margin-top: 4px; line-height: 1.3;">Address: <?= nl2br(h($order['customer_address'])) ?></div>
+                        <div class="info-item-sub" style="margin-top:0.2rem;"><?= nl2br(h($order['customer_address'])) ?></div>
                     <?php endif; ?>
                 </div>
-                <div class="ri-meta-cell">
-                    <div class="ri-meta-label">Payment Information</div>
-                    <div class="ri-meta-value">
+
+                <div>
+                    <div class="info-item-label">Payment Mode</div>
+                    <div class="info-item-val">
                         <?php if ($order['payment_method'] === 'Split' || !empty($order['payment_breakdown'])): ?>
-                            <span style="color:var(--accent-color); font-weight:700;">SPLIT PAYMENT</span>
-                            <div style="font-size:0.75rem; font-weight:normal; color:var(--text-muted); margin-top:2px;">
+                            <span style="color:var(--accent-orange);">SPLIT PAYMENT</span>
+                            <div class="info-item-sub">
                                 <?php
                                 $bd_parts = [];
                                 if (!empty($order['payment_breakdown'])) {
@@ -705,281 +478,142 @@ foreach ($settings_res as $row) {
                                     if ($order['paid_upi'] > 0)  $bd_parts[] = 'UPI: ₹' . number_format($order['paid_upi'], 2);
                                     if ($order['paid_card'] > 0) $bd_parts[] = 'Card: ₹' . number_format($order['paid_card'], 2);
                                 }
-                                echo implode(' • ', $bd_parts);
+                                echo implode('<br>', $bd_parts);
                                 ?>
                             </div>
                         <?php else: ?>
                             <?= h(strtoupper($order['payment_method'])) ?>
                         <?php endif; ?>
                     </div>
-                    <div class="ri-meta-sub">Status: Fully Settled / Complete</div>
-                </div>
-                <div class="ri-meta-cell">
-                    <div class="ri-meta-label">POS Terminal</div>
-                    <div class="ri-meta-value">POS Terminal 01</div>
-                    <div class="ri-meta-sub">Standard Checkout</div>
-                </div>
-            </div>
-
-            <!-- Items Body -->
-            <div class="ri-body">
-                <div class="ri-section-title">Order Items Details</div>
-                <table class="ri-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 8%; text-align: center;">SL</th>
-                            <th style="text-align: left;">Item & Variant Description</th>
-                            <th style="width: 15%; text-align: right;">Unit Price</th>
-                            <th style="width: 12%; text-align: center;">Qty</th>
-                            <th style="width: 18%; text-align: right;">Total Price</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php $sl = 1; foreach ($items as $item): ?>
-                            <tr>
-                                <td style="text-align: center; color: #6b7280;"><?= $sl++ ?></td>
-                                <td>
-                                    <div style="font-weight: 700; color: #1a1a2e;"><?= h($item['product_name']) ?></div>
-                                    <?php if (!empty($item['variant_size']) || !empty($item['sell_type'])): ?>
-                                        <div style="font-size: 8.5pt; color: #6b7280; margin-top: 2px;">
-                                            <?php if (!empty($item['variant_size'])): ?>
-                                                Size / Variant: <?= h($item['variant_size']) ?>
-                                            <?php endif; ?>
-                                            <?php if (!empty($item['sell_type'])): ?>
-                                                <?= !empty($item['variant_size']) ? ' | ' : '' ?>Type: <?= h(ucfirst($item['sell_type'])) ?>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </td>
-                                <td style="text-align: right;">₹<?= number_format($item['price'], 2) ?></td>
-                                <td style="text-align: center; font-weight: 600;"><?= $item['quantity'] ?></td>
-                                <td style="text-align: right; font-weight: 700; color: #1a1a2e;">₹<?= number_format($item['total_price'], 2) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-
-                <!-- Summary Box & T&C -->
-                <div class="ri-bottom-grid">
-                    <div style="font-size: 8.5pt; color: #6b7280; line-height: 1.6; padding-top: 10px;">
-                        <strong>Terms & Conditions:</strong><br>
-                        1. This is a computer generated invoice and requires no physical signature.<br>
-                        2. Goods once sold are not returnable or exchangeable.<br>
-                        3. For support or queries, contact us at <?= h($settings['company_phone'] ?? '9946731720') ?>.
-                    </div>
-                    <div>
-                        <div class="ri-summary-box">
-                            <div class="ri-summary-row">
-                                <span>Subtotal</span>
-                                <span>₹<?= number_format($order['total_amount'], 2) ?></span>
-                            </div>
-                            <?php if ($order['discount_amount'] > 0): ?>
-                                <div class="ri-summary-row" style="color: #ff6b35;">
-                                    <span>Discount</span>
-                                    <span>-₹<?= number_format($order['discount_amount'], 2) ?></span>
-                                </div>
-                            <?php endif; ?>
-                            <div class="ri-summary-row ri-summary-total">
-                                <span>Grand Total</span>
-                                <span>₹<?= number_format($order['final_amount'], 2) ?></span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- ── Thermal Layout ── -->
-        <div class="receipt-wrapper">
-            <div class="thermal-receipt">
-                <div class="receipt-header">
-                    <div style="text-align: center; margin-bottom: 8px;">
-                        <img src="assets/images/logo.png" alt="Orange Events Logo" style="max-height: 45px; width: auto; filter: grayscale(100%); display: inline-block;">
-                    </div>
-                    <div class="receipt-logo-title"><?= h($settings['company_name'] ?? 'Orange Events') ?></div>
-                    <div class="receipt-subtitle"><?= h($settings['company_subtitle'] ?? 'Premium Catering & Stage Decors') ?></div>
-                    <div class="receipt-contact">
-                        <?= h($settings['company_address'] ?? 'Thumpoly P.O, Alappuzha') ?><br>
-                        Phone: <?= h($settings['company_phone'] ?? '9946731720') ?><br>
-                        <?= h($settings['company_email'] ?? 'orangedecorations@gmail.com') ?><br>
-                        <?php if (!empty($settings['company_gstin'] ?? '')): ?>
-                            GSTIN: <?= h($settings['company_gstin']) ?><br>
+        <!-- Items Breakdown -->
+        <div class="items-section">
+            <div class="section-heading">
+                <span>Items Purchased</span>
+                <span><?= count($items) ?> <?= count($items) === 1 ? 'item' : 'items' ?></span>
+            </div>
+
+            <?php foreach ($items as $item): ?>
+                <div class="item-card-row">
+                    <div class="item-name-group">
+                        <div class="item-title"><?= h($item['product_name']) ?></div>
+                        <?php if (!empty($item['variant_size']) || (!empty($item['sell_type']) && $item['sell_type'] === 'rental')): ?>
+                            <div class="item-meta-tag">
+                                <?php if (!empty($item['variant_size'])): ?>
+                                    Variant: <?= h($item['variant_size']) ?>
+                                <?php endif; ?>
+                                <?php if (!empty($item['sell_type']) && $item['sell_type'] === 'rental'): ?>
+                                    (Rental)
+                                <?php endif; ?>
+                            </div>
                         <?php endif; ?>
+                        <div class="item-qty-calc">
+                            <?= (float)$item['quantity'] ?> × ₹<?= number_format($item['price'], 2) ?>
+                        </div>
+                    </div>
+                    <div class="item-price-total">
+                        ₹<?= number_format($item['total_price'], 2) ?>
                     </div>
                 </div>
+            <?php endforeach; ?>
 
-                <div class="receipt-divider"></div>
-
-                <!-- Meta Information -->
-                <div class="receipt-meta">
-                    <div class="receipt-meta-row">
-                        <span>INVOICE:</span>
-                        <strong><?= h($order['invoice_number']) ?></strong>
-                    </div>
-                    <div class="receipt-meta-row">
-                        <span>DATE:</span>
-                        <span><?= date('d-m-Y H:i', strtotime($order['created_at'])) ?></span>
-                    </div>
-                    <?php if (!empty($order['customer_name'])): ?>
-                        <div class="receipt-meta-row" style="margin-top:4px;">
-                            <span>CUSTOMER:</span>
-                            <span><?= h($order['customer_name']) ?></span>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (!empty($order['customer_phone'])): ?>
-                        <div class="receipt-meta-row">
-                            <span>PHONE:</span>
-                            <span><?= h($order['customer_phone']) ?></span>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (!empty($order['customer_address'])): ?>
-                        <div class="receipt-meta-row" style="margin-top:2px;">
-                            <span>ADDRESS:</span>
-                            <span style="text-align:right; max-width:65%;"><?= h(preg_replace('/\s+/', ' ', $order['customer_address'])) ?></span>
-                        </div>
-                    <?php endif; ?>
+            <!-- Financial Summary Box -->
+            <div class="summary-box">
+                <div class="summary-line">
+                    <span>Subtotal</span>
+                    <span>₹<?= number_format($order['total_amount'], 2) ?></span>
                 </div>
-
-                <div class="receipt-divider"></div>
-
-                <!-- Items Table -->
-                <table class="receipt-table">
-                    <thead>
-                        <tr>
-                            <th style="width:55%;">ITEM</th>
-                            <th style="width:20%; text-align:center;">QTY</th>
-                            <th style="width:25%; text-align:right;">PRICE</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($items as $item): ?>
-                            <tr>
-                                <td>
-                                    <div><?= h($item['product_name']) ?></div>
-                                    <?php if (!empty($item['variant_size']) || !empty($item['sell_type'])): ?>
-                                        <div style="font-size:9px; color:#555555;">
-                                            <?php if (!empty($item['variant_size'])): ?>
-                                                Size: <?= h($item['variant_size']) ?>
-                                            <?php endif; ?>
-                                            <?php if (!empty($item['sell_type'])): ?>
-                                                <?= !empty($item['variant_size']) ? ' | ' : '' ?>Type: <?= h(ucfirst($item['sell_type'])) ?>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </td>
-                                <td style="text-align:center;"><?= $item['quantity'] ?></td>
-                                <td style="text-align:right;">₹<?= number_format($item['total_price'], 2) ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-
-                <div class="receipt-divider"></div>
-
-                <!-- Summary -->
-                <div class="receipt-summary">
-                    <div class="receipt-summary-row">
-                        <span>Subtotal:</span>
-                        <span>₹<?= number_format($order['total_amount'], 2) ?></span>
+                <?php if ($order['discount_amount'] > 0): ?>
+                    <div class="summary-line" style="color:#ef4444;">
+                        <span>Discount Savings</span>
+                        <span>-₹<?= number_format($order['discount_amount'], 2) ?></span>
                     </div>
-                    <?php if ($order['discount_amount'] > 0): ?>
-                        <div class="receipt-summary-row">
-                            <span>Discount:</span>
-                            <span>-₹<?= number_format($order['discount_amount'], 2) ?></span>
-                        </div>
-                    <?php endif; ?>
-                    <div class="receipt-summary-row receipt-summary-total">
-                        <span>PAYABLE TOTAL:</span>
-                        <span>₹<?= number_format($order['final_amount'], 2) ?></span>
-                    </div>
-                    <div class="receipt-summary-row" style="margin-top:6px; font-weight:bold;">
-                        <span>Payment Mode:</span>
-                        <span><?= h(strtoupper($order['payment_method'])) ?></span>
-                    </div>
-                </div>
-
-                <div class="receipt-divider"></div>
-
-                <!-- Footer -->
-                <div class="receipt-footer">
-                    <div style="font-weight:bold; margin-bottom:4px;">Thank you for shopping with us!</div>
-                    <div>Have a great celebration!</div>
-                    <div>--- Visit Us Again ---</div>
+                <?php endif; ?>
+                <div class="summary-line total-line">
+                    <span>Net Paid</span>
+                    <span class="total-val">₹<?= number_format($order['final_amount'], 2) ?></span>
                 </div>
             </div>
         </div>
 
     </div>
 
-    <!-- Support info -->
-    <div class="support-footer">
-        Need help? Contact support at <a href="tel:<?= h(preg_replace('/[^0-9]/', '', $settings['company_phone'] ?? '9946731720')) ?>"><?= h($settings['company_phone'] ?? '9946731720') ?></a>
+    <!-- Mobile Action Buttons -->
+    <div class="actions-container">
+        <button onclick="shareWhatsApp()" class="btn-action btn-whatsapp">
+            <i class="fa-brands fa-whatsapp" style="font-size:1.15rem;"></i> Share via WhatsApp
+        </button>
+        <button onclick="downloadPDF()" class="btn-action btn-pdf">
+            <i class="fa-solid fa-file-pdf"></i> Download PDF Receipt
+        </button>
+        <button onclick="window.print()" class="btn-action btn-print">
+            <i class="fa-solid fa-print"></i> Print Receipt
+        </button>
     </div>
+
+    <!-- Footer Note -->
+    <div class="receipt-footer-support">
+        Thank you for choosing <strong><?= h($settings['company_name'] ?? 'Orange Events') ?></strong>!<br>
+        Questions? Contact us at <a href="tel:<?= h($settings['company_phone'] ?? '9946731720') ?>"><?= h($settings['company_phone'] ?? '9946731720') ?></a>
+    </div>
+
 </div>
 
-<!-- html2pdf JS library from CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
-    let activeView = 'a4';
-
-    function setView(view) {
-        activeView = view;
-        const container = document.getElementById('viewContainer');
-        const btnA4 = document.getElementById('btnViewA4');
-        const btnThermal = document.getElementById('btnViewThermal');
-        
-        // Remove existing print class states from body
-        document.body.classList.remove('view-a4', 'view-thermal');
-        document.body.classList.add('view-' + view);
-        
-        if (view === 'a4') {
-            container.classList.remove('view-thermal');
-            container.classList.add('view-a4');
-            btnA4.classList.add('active');
-            btnThermal.classList.remove('active');
-        } else {
-            container.classList.remove('view-a4');
-            container.classList.add('view-thermal');
-            btnThermal.classList.add('active');
-            btnA4.classList.remove('active');
-        }
-    }
-
-    // Set default view on load
-    document.addEventListener("DOMContentLoaded", () => {
-        setView('a4');
-    });
-
     function downloadPDF() {
-        const selector = activeView === 'a4' ? '.invoice-paper' : '.thermal-receipt';
-        const element = document.querySelector(selector);
-        const invoiceNo = '<?= $order['invoice_number'] ?>';
+        const element = document.getElementById('eReceiptContent');
+        const invoiceNo = '<?= h($order['invoice_number']) ?>';
         
-        const opt = activeView === 'a4' ? {
-            margin:       0,
-            filename:     `Invoice_${invoiceNo}.pdf`,
+        const opt = {
+            margin:       [5, 5, 5, 5],
+            filename:     `EReceipt_${invoiceNo}.pdf`,
             image:        { type: 'jpeg', quality: 1.0 },
             html2canvas:  { 
                 scale: 3, 
                 useCORS: true, 
                 logging: false,
-                windowWidth: 1150 // Forces desktop view scale to prevent clipping on mobile screen render
+                windowWidth: 500
             },
             jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        } : {
-            margin:       0,
-            filename:     `Receipt_${invoiceNo}.pdf`,
-            image:        { type: 'jpeg', quality: 1.0 },
-            html2canvas:  { 
-                scale: 3, 
-                useCORS: true, 
-                logging: false,
-                windowWidth: 480
-            },
-            jsPDF:        { unit: 'mm', format: [80, 240], orientation: 'portrait' }
         };
         
         html2pdf().from(element).set(opt).save();
+    }
+
+    function shareWhatsApp() {
+        let customerName = '<?= h(addslashes($order['customer_name'] ?? 'Customer')) ?>';
+        if (!customerName || customerName === 'Walk-in Customer') customerName = 'Valued Customer';
+        
+        const invoiceNo = '<?= h($order['invoice_number']) ?>';
+        const amount = '₹<?= number_format($order['final_amount'], 2) ?>';
+        const publicUrl = window.location.origin + '/orange-events/view-receipt.php?inv=' + encodeURIComponent(invoiceNo);
+        
+        let rawPhone = '<?= h($order['customer_phone'] ?? '') ?>';
+        let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+        
+        if (!cleanPhone) {
+            const inputPhone = prompt(`Share E-Receipt ${invoiceNo} via WhatsApp\n\nEnter 10-digit WhatsApp Phone Number:`, '');
+            if (inputPhone === null) return;
+            cleanPhone = inputPhone.replace(/[^0-9]/g, '');
+        }
+        
+        const purchaseDate = '<?= date('d M Y', strtotime($order['created_at'])) ?>';
+        const messageText = `Hello *${customerName}* 👋,\n\nThank you for choosing *Orange Events*! 🌟\nHere is your digital receipt *${invoiceNo}* for *${amount}* issued on *${purchaseDate}*.\n\nView & download your E-Receipt link:\n${publicUrl}\n\nHave a wonderful celebration! 🎉`;
+        
+        const encodedText = encodeURIComponent(messageText);
+        let whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+        if (cleanPhone.length >= 10) {
+            let phone = cleanPhone;
+            if (phone.length === 10) {
+                phone = '91' + phone;
+            }
+            whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+        }
+        
+        window.open(whatsappUrl, '_blank');
     }
 </script>
 

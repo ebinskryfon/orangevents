@@ -19,7 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'company_bank_acc',
         'company_bank_ifsc',
         'company_bank_holder',
-        'company_upi_id'
+        'company_upi_id',
+        'pos_thermal_paper_width',
+        'pos_thermal_font_size',
+        'pos_thermal_footer_msg'
     ];
     
     try {
@@ -212,6 +215,9 @@ $settings = get_settings();
     <button type="button" class="pos-tab-btn" onclick="switchTab('templates')">
         <i class="fa-solid fa-images"></i> Receipt Templates
     </button>
+    <button type="button" class="pos-tab-btn" onclick="switchTab('thermal')">
+        <i class="fa-solid fa-print" style="color:var(--accent-color);"></i> POS Thermal Printer
+    </button>
 </div>
 
 <form action="" method="POST" enctype="multipart/form-data">
@@ -376,6 +382,42 @@ $settings = get_settings();
                     <label for="collage_deserts" class="form-group-label">Desserts Image</label>
                     <input type="file" id="collage_deserts" name="collage_deserts" class="form-control" accept="image/*" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary);">
                 </div>
+            </div>
+        </div>
+
+        <!-- Tab 6: Thermal Printer Settings -->
+        <div id="tab-thermal" class="tab-content" style="display: none;">
+            <h2 style="font-size:1.05rem; font-weight:700; color:var(--text-primary); margin:0 0 0.5rem 0; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; display:flex; align-items:center; gap:0.4rem;">
+                <i class="fa-solid fa-print" style="color:var(--accent-color);"></i> POS Thermal Printer & Roll Sizing
+            </h2>
+            <p style="font-size:0.8rem; color:var(--text-secondary); margin-bottom:1.25rem;">
+                Configure thermal receipt paper roll width, font sizing, and footer notice for POS thermal printers.
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+                <div class="form-group">
+                    <label for="pos_thermal_paper_width" class="form-group-label">Thermal Roll Width Configuration *</label>
+                    <select id="pos_thermal_paper_width" name="pos_thermal_paper_width" class="form-control" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px; padding:0.35rem 0.75rem; font-size:0.82rem; cursor:pointer;">
+                        <option value="80mm" <?= ($settings['pos_thermal_paper_width'] ?? '80mm') === '80mm' ? 'selected' : '' ?> style="background:var(--bg-card); color:var(--text-primary);">80mm (Standard 3-Inch Desktop Thermal Receipt Roll)</option>
+                        <option value="58mm" <?= ($settings['pos_thermal_paper_width'] ?? '') === '58mm' ? 'selected' : '' ?> style="background:var(--bg-card); color:var(--text-primary);">58mm (Compact 2-Inch Mobile POS Thermal Roll)</option>
+                    </select>
+                    <small style="color:var(--text-muted); font-size:0.75rem; margin-top:0.2rem; display:block;">Select your thermal printer paper width.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="pos_thermal_font_size" class="form-group-label">Thermal Receipt Font Size</label>
+                    <select id="pos_thermal_font_size" name="pos_thermal_font_size" class="form-control" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px; padding:0.35rem 0.75rem; font-size:0.82rem; cursor:pointer;">
+                        <option value="10px" <?= ($settings['pos_thermal_font_size'] ?? '') === '10px' ? 'selected' : '' ?> style="background:var(--bg-card); color:var(--text-primary);">10px (Compact Font)</option>
+                        <option value="11px" <?= ($settings['pos_thermal_font_size'] ?? '11px') === '11px' ? 'selected' : '' ?> style="background:var(--bg-card); color:var(--text-primary);">11px (Standard Regular Font)</option>
+                        <option value="12px" <?= ($settings['pos_thermal_font_size'] ?? '') === '12px' ? 'selected' : '' ?> style="background:var(--bg-card); color:var(--text-primary);">12px (Medium Bold Font)</option>
+                        <option value="13px" <?= ($settings['pos_thermal_font_size'] ?? '') === '13px' ? 'selected' : '' ?> style="background:var(--bg-card); color:var(--text-primary);">13px (Large High-Legibility Font)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="pos_thermal_footer_msg" class="form-group-label">Thermal Receipt Footer Custom Message</label>
+                <textarea id="pos_thermal_footer_msg" name="pos_thermal_footer_msg" class="form-control" rows="2" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.85rem;" placeholder="Thank you for your business! Please retain this receipt."><?= h($settings['pos_thermal_footer_msg'] ?? 'Thank you for your business! Please retain this receipt.') ?></textarea>
             </div>
         </div>
 

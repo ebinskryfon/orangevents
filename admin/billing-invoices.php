@@ -220,17 +220,21 @@ require_once __DIR__ . '/../includes/header.php';
             </select>
             <div style="display: flex; align-items: center; gap: 0.25rem; flex-grow: 0;">
                 <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">From:</span>
-                <input type="date" id="dateFrom" class="form-control"
+                <input type="date" id="dateFrom" class="form-control" value="<?= date('Y-m-d') ?>"
                     style="width: 125px; cursor: pointer; padding: 0.25rem 0.5rem; height: 34px; font-size: 0.8rem;" onchange="filterInvoices()">
             </div>
             <div style="display: flex; align-items: center; gap: 0.25rem; flex-grow: 0;">
                 <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">To:</span>
-                <input type="date" id="dateTo" class="form-control"
+                <input type="date" id="dateTo" class="form-control" value="<?= date('Y-m-d') ?>"
                     style="width: 125px; cursor: pointer; padding: 0.25rem 0.5rem; height: 34px; font-size: 0.8rem;" onchange="filterInvoices()">
             </div>
-            <button onclick="clearDateFilters()" class="btn btn-secondary"
-                style="height: 34px; padding: 0 0.75rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Reset Date Filters">
-                <i class="fa-solid fa-rotate-left"></i> Reset
+            <button type="button" onclick="setTodayFilter()" class="btn btn-secondary"
+                style="height: 34px; padding: 0 0.65rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Filter Today's Invoices">
+                <i class="fa-solid fa-calendar-day"></i> Today
+            </button>
+            <button type="button" onclick="clearDateFilters()" class="btn btn-secondary"
+                style="height: 34px; padding: 0 0.65rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem;" title="Show All Historical Invoices">
+                <i class="fa-solid fa-globe"></i> All Time
             </button>
         </div>
         <div style="color: var(--text-muted); font-size: 0.8rem;">
@@ -318,6 +322,10 @@ require_once __DIR__ . '/../includes/header.php';
                                         style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem;" title="View Thermal Receipt">
                                         <i class="fa-solid fa-eye"></i> View
                                     </a>
+                                    <button type="button" onclick="shareWhatsAppInvoice('<?= $ord['id'] ?>', '<?= h(addslashes($ord['invoice_number'])) ?>', '<?= h(addslashes($ord['customer_name'] ?? '')) ?>', '<?= h(addslashes($ord['customer_phone'] ?? '')) ?>', <?= (float)$ord['final_amount'] ?>, '<?= date('d M Y', strtotime($ord['created_at'])) ?>')" class="btn btn-success"
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: #25d366; border-color: #25d366; color: #ffffff;" title="Share Invoice on WhatsApp">
+                                        <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                                    </button>
                                     <?php if (has_permission('billing_update')): ?>
                                     <a href="edit-billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary"
                                         style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15);"
@@ -354,10 +362,12 @@ require_once __DIR__ . '/../includes/header.php';
         const dateTo = document.getElementById('dateTo').value;
 
         const rows = document.querySelectorAll('.invoice-row');
+
         let visibleCount = 0;
         let totalSales = 0;
         let totalDiscount = 0;
 
+        // Filter Table Rows
         rows.forEach(row => {
             const inv = row.getAttribute('data-invoice') || '';
             const name = row.getAttribute('data-name') || '';
@@ -386,7 +396,7 @@ require_once __DIR__ . '/../includes/header.php';
             }
         });
 
-        // Update showing text
+        // Update visible count in toolbar
         document.getElementById('visibleCount').textContent = visibleCount;
 
         // Update stats grid values reactively
@@ -398,11 +408,53 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('statTotalDiscount').textContent = '₹' + totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function setTodayFilter() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('dateFrom').value = today;
+        document.getElementById('dateTo').value = today;
+        filterInvoices();
+    }
+
     function clearDateFilters() {
         document.getElementById('dateFrom').value = '';
         document.getElementById('dateTo').value = '';
         filterInvoices();
     }
+
+    function shareWhatsAppInvoice(id, invNo, customerName, customerPhone, finalAmount, purchaseDate) {
+        let name = customerName.trim();
+        if (!name || name === 'Walk-in Customer') name = 'Valued Customer';
+        
+        const amount = '₹' + parseFloat(finalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const receiptUrl = window.location.origin + '/orange-events/view-receipt.php?inv=' + encodeURIComponent(invNo);
+        const dateStr = purchaseDate ? ` issued on *${purchaseDate}*` : '';
+        
+        let targetPhone = customerPhone ? customerPhone.replace(/[^0-9]/g, '') : '';
+        
+        if (!targetPhone) {
+            const inputPhone = prompt(`Share E-Receipt ${invNo} via WhatsApp\n\nEnter 10-digit WhatsApp Phone Number:`, '');
+            if (inputPhone === null) return;
+            targetPhone = inputPhone.replace(/[^0-9]/g, '');
+        }
+        
+        const messageText = `Hello *${name}* 👋,\n\nThank you for choosing *Orange Events*! 🌟\nHere is your digital receipt *${invNo}* for *${amount}*${dateStr}.\n\nView & download your E-Receipt link:\n${receiptUrl}\n\nHave a wonderful celebration! 🎉`;
+        
+        const encodedText = encodeURIComponent(messageText);
+        let whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+        
+        if (targetPhone.length >= 10) {
+            if (targetPhone.length === 10) {
+                targetPhone = '91' + targetPhone;
+            }
+            whatsappUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodedText}`;
+        }
+        
+        window.open(whatsappUrl, '_blank');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        filterInvoices();
+    });
 </script>
 
 <?php

@@ -42,6 +42,8 @@ $settings = [];
 foreach ($settings_res as $row) {
     $settings[$row['key']] = $row['value'];
 }
+$thermal_paper_width = $settings['pos_thermal_paper_width'] ?? '80mm';
+$thermal_font_size = $settings['pos_thermal_font_size'] ?? ($thermal_paper_width === '58mm' ? '10px' : '11px');
 ?>
 
 <style>
@@ -55,14 +57,16 @@ foreach ($settings_res as $row) {
     color: #000000 !important;
 }
 .thermal-receipt {
-    width: 80mm;
+    width: <?= $thermal_paper_width ?>;
+    max-width: 100%;
     background: #ffffff !important;
     font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
-    padding: 15px;
+    font-size: <?= $thermal_font_size ?>;
+    padding: 12px;
     border-radius: 4px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     border: 1px solid #ddd;
+    box-sizing: border-box;
 }
 .receipt-header {
     text-align: center;
@@ -97,7 +101,7 @@ foreach ($settings_res as $row) {
     border-bottom: 1px dashed #000;
     padding-bottom: 8px;
     margin-bottom: 8px;
-    font-size: 11px;
+    font-size: <?= $thermal_font_size ?>;
 }
 .receipt-meta-row {
     display: flex;
@@ -108,7 +112,7 @@ foreach ($settings_res as $row) {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 10px;
-    font-size: 11px;
+    font-size: <?= $thermal_font_size ?>;
 }
 .receipt-table th {
     border-bottom: 1px solid #000;
@@ -140,6 +144,12 @@ foreach ($settings_res as $row) {
     margin-top: 10px;
 }
 @media print {
+    @page { size: auto; margin: 0mm; }
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+    }
     body * {
         visibility: hidden;
     }
@@ -156,7 +166,10 @@ foreach ($settings_res as $row) {
     .thermal-receipt {
         box-shadow: none;
         border: none;
-        width: 80mm;
+        width: <?= $thermal_paper_width ?>;
+        max-width: <?= $thermal_paper_width ?>;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
     }
     .no-print {
         display: none !important;
