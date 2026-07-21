@@ -148,9 +148,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
 
         $today = date('Ymd');
-        $stmt_count = $db->query("SELECT COUNT(*) FROM billing_orders WHERE DATE(created_at) = CURDATE()");
-        $today_count = (int) $stmt_count->fetchColumn() + 1;
-        $invoice_number = "OE-B-" . $today . "-" . str_pad($today_count, 4, '0', STR_PAD_LEFT);
+        $prefix = "OE-B-" . $today . "-";
+
+        // Query the max existing sequence number for today's prefix in billing_orders
+        $stmt_max = $db->prepare("SELECT invoice_number FROM billing_orders WHERE invoice_number LIKE :prefix ORDER BY id DESC LIMIT 1");
+        $stmt_max->execute(['prefix' => $prefix . '%']);
+        $last_inv = $stmt_max->fetchColumn();
+
+        $seq = 1;
+        if ($last_inv) {
+            $parts = explode('-', $last_inv);
+            $last_num = (int) end($parts);
+            $seq = $last_num + 1;
+        }
+
+        // Loop to guarantee unique invoice_number even with deleted items, timezone mismatches, or concurrency
+        do {
+            $invoice_number = $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
+            $stmt_check = $db->prepare("SELECT COUNT(*) FROM billing_orders WHERE invoice_number = :inv");
+            $stmt_check->execute(['inv' => $invoice_number]);
+            $exists = (int) $stmt_check->fetchColumn() > 0;
+            if ($exists) {
+                $seq++;
+            }
+        } while ($exists);
 
         $stmt_order = $db->prepare(
             "INSERT INTO billing_orders (invoice_number, customer_name, customer_phone, customer_address, total_amount, discount_amount, final_amount, payment_method, paid_cash, paid_card, paid_upi, payment_breakdown)

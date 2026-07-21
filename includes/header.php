@@ -7,9 +7,9 @@ check_admin_auth();
 $current_page = basename($_SERVER['PHP_SELF']);
 
 // Determine active module
-$event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php'];
+$event_pages = ['index.php', 'event-form.php', 'catering-items.php', 'stage-items.php', 'invoices.php', 'view-invoice.php', 'edit-invoice.php', 'analytics.php'];
 $rental_pages = ['rentals.php', 'rental-form.php', 'view-rental.php', 'rental-items.php', 'rental-invoice.php'];
-$billing_pages = ['billing.php', 'barcode-billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php', 'billing-cart.php', 'register-sessions.php', 'register-history.php', 'pos-returns.php', 'return-receipt.php', 'customers.php', 'view-customer.php'];
+$billing_pages = ['billing.php', 'barcode-billing.php', 'billing-categories.php', 'billing-products.php', 'billing-invoice.php', 'billing-invoices.php', 'billing-cart.php', 'register-sessions.php', 'register-history.php', 'pos-returns.php', 'return-receipt.php', 'customers.php', 'view-customer.php', 'analytics.php'];
 
 if (isset($_GET['module'])) {
     $_SESSION['current_module'] = $_GET['module'];
@@ -208,6 +208,12 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                                 <span>Invoices</span>
                             </a>
                         </li>
+                        <li class="nav-item <?= $current_page == 'analytics.php' ? 'active' : '' ?>">
+                            <a href="analytics.php">
+                                <i class="fa-solid fa-chart-line"></i>
+                                <span>Sales Analytics</span>
+                            </a>
+                        </li>
                     <?php endif; ?>
                     
                     <?php if ($current_module === 'rental'): ?>
@@ -278,6 +284,12 @@ $current_module = $_SESSION['current_module'] ?? 'event';
                             <a href="register-history.php">
                                 <i class="fa-solid fa-receipt"></i>
                                 <span>Register History</span>
+                            </a>
+                        </li>
+                        <li class="nav-item <?= $current_page == 'analytics.php' ? 'active' : '' ?>">
+                            <a href="analytics.php">
+                                <i class="fa-solid fa-chart-line"></i>
+                                <span>Sales Analytics</span>
                             </a>
                         </li>
                     <?php endif; ?>

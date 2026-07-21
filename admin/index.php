@@ -115,14 +115,19 @@ $upcoming_events = $stmt_upcoming->fetchAll();
         </div>
     </div>
 
-    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:0.75rem; display:flex; align-items:center; gap:0.75rem;">
-        <div style="width:40px; height:40px; border-radius:10px; background:rgba(155, 89, 182, 0.1); color:#9b59b6; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
-            <i class="fa-solid fa-wallet"></i>
+    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--border-radius-lg); padding:0.75rem; display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+            <div style="width:40px; height:40px; border-radius:10px; background:rgba(155, 89, 182, 0.1); color:#9b59b6; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <div>
+                <div style="font-size:0.7rem; color:var(--text-secondary);">Event Revenue</div>
+                <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary);">₹<?= number_format($total_revenue, 2) ?></div>
+            </div>
         </div>
-        <div>
-            <div style="font-size:0.7rem; color:var(--text-secondary);">Event Revenue</div>
-            <div style="font-size:1.1rem; font-weight:800; color:var(--text-primary);">₹<?= number_format($total_revenue, 2) ?></div>
-        </div>
+        <a href="analytics.php" class="btn btn-secondary" style="height:28px; font-size:0.7rem; padding:0 0.5rem;" title="View Detailed Analytics & Revenue Charts">
+            <i class="fa-solid fa-chart-line" style="color:var(--accent-color);"></i> Analytics
+        </a>
     </div>
 </div>
 
