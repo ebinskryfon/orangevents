@@ -992,8 +992,8 @@ $default_upi = $clean_phone . '@upi';
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    localStorage.setItem('orange_billing_customer_name', customerName);
-                    localStorage.setItem('orange_billing_customer_phone', customerPhone);
+                    localStorage.removeItem('orange_billing_customer_name');
+                    localStorage.removeItem('orange_billing_customer_phone');
                     localStorage.removeItem('orange_billing_cart');
                     localStorage.removeItem('orange_billing_discount');
                     window.location.href = 'billing-invoice.php?id=' + data.order_id + '&print=1';
@@ -1025,12 +1025,13 @@ $default_upi = $clean_phone . '@upi';
         const discountInput = document.getElementById('discountInput');
         const upiPhoneInput = document.getElementById('upiPhoneInput');
 
-        customerName.value = localStorage.getItem('orange_billing_customer_name') || '';
-        customerPhone.value = localStorage.getItem('orange_billing_customer_phone') || '';
-        discountInput.value = localStorage.getItem('orange_billing_discount') || '0';
+        // Always start with fresh empty customer fields for new billing sessions
+        if (customerName) customerName.value = '';
+        if (customerPhone) customerPhone.value = '';
+        const badgeBox = document.getElementById('customerBadgeContainer');
+        if (badgeBox) badgeBox.style.display = 'none';
 
-        customerName.addEventListener('input', () => localStorage.setItem('orange_billing_customer_name', customerName.value));
-        customerPhone.addEventListener('input', () => localStorage.setItem('orange_billing_customer_phone', customerPhone.value));
+        discountInput.value = localStorage.getItem('orange_billing_discount') || '0';
 
         const savedPayment = localStorage.getItem('orange_billing_payment_method') || 'Cash';
         selectPaymentMethod(savedPayment);
