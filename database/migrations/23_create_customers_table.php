@@ -63,6 +63,32 @@ return [
             $count++;
         }
 
+        // Backfill unique customers from events table
+        echo "Migration 23 — Backfilling customer records from events...\n";
+        $stmt_e = $db->query("
+            SELECT client_name, client_phone, COUNT(*) as order_count
+              FROM events
+             WHERE client_phone IS NOT NULL AND TRIM(client_phone) != ''
+          GROUP BY client_phone
+        ");
+        $event_customers = $stmt_e->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($event_customers as $cust) {
+            $phone = trim($cust['client_phone']);
+            $name = trim($cust['client_name']);
+            if (empty($name)) {
+                $name = 'Client (' . $phone . ')';
+            }
+            $stmt_ins->execute([
+                'name'         => $name,
+                'phone'        => $phone,
+                'address'      => null,
+                'total_orders' => (int)$cust['order_count'],
+                'total_spent'  => 0
+            ]);
+            $count++;
+        }
+
         echo "Success: Backfilled $count unique customer profiles into database.\n";
     }
 ];

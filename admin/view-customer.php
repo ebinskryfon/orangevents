@@ -36,10 +36,10 @@ $pos_orders = $stmt_pos->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch Event Catering/Decor Invoices for this customer
 $stmt_events = $db->prepare("
-    SELECT i.*, e.event_date, e.venue_name, e.function_type
+    SELECT i.*, e.event_date, e.venue, e.title
       FROM invoices i
  LEFT JOIN events e ON e.id = i.event_id
-     WHERE i.client_phone = :phone OR i.client_name = :name
+     WHERE e.client_phone = :phone OR e.client_name = :name
   ORDER BY i.id DESC
 ");
 $stmt_events->execute(['phone' => $customer['phone'], 'name' => $customer['name']]);
