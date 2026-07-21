@@ -44,10 +44,12 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
     align-items: center;
     padding: 1.5rem 0;
 }
+.thermal-receipt, .thermal-receipt h2, .thermal-receipt p, .thermal-receipt span, .thermal-receipt strong, .thermal-receipt div, .thermal-receipt td, .thermal-receipt th {
+    color: #000000 !important;
+}
 .thermal-receipt {
     width: 80mm;
-    background: #ffffff;
-    color: #000000;
+    background: #ffffff !important;
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
     padding: 15px;
@@ -66,15 +68,17 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
     font-weight: bold;
     margin: 0 0 4px 0;
     text-transform: uppercase;
+    color: #000000 !important;
 }
 .receipt-header p {
     margin: 2px 0;
     font-size: 11px;
+    color: #000000 !important;
 }
 .receipt-badge {
     display: inline-block;
-    background: #000;
-    color: #fff;
+    background: #000000 !important;
+    color: #ffffff !important;
     font-size: 11px;
     font-weight: bold;
     padding: 2px 8px;
@@ -102,10 +106,15 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
 .receipt-table th {
     border-bottom: 1px solid #000;
     text-align: left;
-    padding: 4px 0;
+    padding: 6px 4px;
+    color: #000000 !important;
 }
 .receipt-table td {
-    padding: 4px 0;
+    padding: 5px 4px;
+    color: #000000 !important;
+}
+.text-center {
+    text-align: center;
 }
 .text-right {
     text-align: right;
@@ -202,24 +211,24 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
         <table class="receipt-table">
             <thead>
                 <tr>
-                    <th>Item</th>
-                    <th class="text-right">Qty</th>
-                    <th class="text-right">Price</th>
-                    <th class="text-right">Total</th>
+                    <th style="padding: 6px 4px;">Item</th>
+                    <th class="text-center" style="padding: 6px 8px; width: 45px;">Qty</th>
+                    <th class="text-right" style="padding: 6px 8px; width: 65px;">Price</th>
+                    <th class="text-right" style="padding: 6px 4px; width: 70px;">Total</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($items as $item): ?>
                 <tr>
-                    <td>
+                    <td style="padding: 5px 4px;">
                         <?= h($item['product_name']) ?>
                         <?php if (!empty($item['variant_size'])): ?>
-                            <br><small>(<?= h($item['variant_size']) ?>)</small>
+                            <br><small style="color:#444 !important;">(<?= h($item['variant_size']) ?>)</small>
                         <?php endif; ?>
                     </td>
-                    <td class="text-right"><?= (int)$item['quantity'] ?></td>
-                    <td class="text-right">₹<?= number_format($item['unit_price'], 2) ?></td>
-                    <td class="text-right">₹<?= number_format($item['total_refund'], 2) ?></td>
+                    <td class="text-center" style="padding: 5px 8px;"><?= (int)$item['quantity'] ?></td>
+                    <td class="text-right" style="padding: 5px 8px;">₹<?= number_format($item['unit_price'], 2) ?></td>
+                    <td class="text-right" style="padding: 5px 4px;">₹<?= number_format($item['total_refund'], 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

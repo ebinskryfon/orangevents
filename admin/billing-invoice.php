@@ -26,6 +26,18 @@ $stmt_items = $db->prepare("SELECT * FROM billing_order_items WHERE order_id = :
 $stmt_items->execute(['id' => $id]);
 $items = $stmt_items->fetchAll();
 
+// Fetch any returns associated with this order
+$stmt_returns = $db->prepare("SELECT * FROM billing_returns WHERE order_id = :id ORDER BY id DESC");
+$stmt_returns->execute(['id' => $id]);
+$returns_list = $stmt_returns->fetchAll();
+
+$total_returned_amount = 0;
+foreach ($returns_list as $ret) {
+    $total_returned_amount += (float)$ret['refund_amount'];
+}
+$has_returns = ($total_returned_amount > 0);
+$net_invoice_amount = max(0, (float)$order['final_amount'] - $total_returned_amount);
+
 // Fetch settings
 $settings_res = $db->query("SELECT * FROM settings")->fetchAll();
 $settings = [];
@@ -517,6 +529,9 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="ri-inv-num"><?= h($order['invoice_number']) ?></div>
                 <div class="ri-inv-date">Date: <?= date('d-m-Y h:i A', strtotime($order['created_at'])) ?></div>
                 <div class="ri-status-chip ri-status-returned">PAID</div>
+                <?php if ($has_returns): ?>
+                    <div class="ri-status-chip" style="background:rgba(255, 71, 87, 0.15); color:#ff4757; border:1px solid #ff4757; margin-top:4px;">ITEM RETURNED</div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -631,6 +646,16 @@ require_once __DIR__ . '/../includes/header.php';
                             <span>Grand Total</span>
                             <span>₹<?= number_format($order['final_amount'], 2) ?></span>
                         </div>
+                        <?php if ($has_returns): ?>
+                            <div class="ri-summary-row" style="color: #ff4757; border-top:1px dashed #e5e7eb; padding-top:4px; margin-top:4px;">
+                                <span>Returned Total</span>
+                                <span>-₹<?= number_format($total_returned_amount, 2) ?></span>
+                            </div>
+                            <div class="ri-summary-row" style="font-weight:800; color: #10b981; font-size:1.05rem;">
+                                <span>Net Paid Balance</span>
+                                <span>₹<?= number_format($net_invoice_amount, 2) ?></span>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
