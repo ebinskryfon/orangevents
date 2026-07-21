@@ -384,13 +384,23 @@ foreach ($variants_res as $row) {
                 </div>
             </div>
 
-            <div style="display: flex; gap: 0.4rem; width: 100%;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; width: 100%; margin-bottom: 0.4rem;">
+                <button onclick="parkCurrentOrder()" class="btn btn-secondary"
+                    style="display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0; color:var(--text-secondary);">
+                    <i class="fa-solid fa-pause"></i> Park Cart
+                </button>
+                <button onclick="openParkedOrdersModal()" class="btn btn-secondary" id="parkedOrdersBtn"
+                    style="display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0; position:relative;">
+                    <i class="fa-solid fa-folder-open"></i> Parked <span class="badge" id="parkedCountBadge" style="background:var(--accent-color); color:white; font-size:0.6rem; padding:1px 5px; border-radius:10px; margin-left:2px; display:none;">0</span>
+                </button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; width: 100%;">
                 <button onclick="openModal('customItemModal')" class="btn btn-secondary"
-                    style="flex:1; display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0;">
+                    style="display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0;">
                     <i class="fa-solid fa-plus-circle"></i> Custom Item
                 </button>
                 <button onclick="clearCart()" class="btn btn-secondary"
-                    style="color:var(--danger); border-color:rgba(255, 71, 87, 0.2); flex:1; display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0;">
+                    style="color:var(--danger); border-color:rgba(255, 71, 87, 0.2); display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0;">
                     <i class="fa-solid fa-trash-can"></i> Clear Cart
                 </button>
             </div>
@@ -467,6 +477,24 @@ foreach ($variants_res as $row) {
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                 <button type="button" onclick="closeModal('customItemModal')" class="btn btn-secondary">Cancel</button>
                 <button type="button" onclick="addCustomItemToCart()" class="btn btn-primary">Add to Cart</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+     MODAL: Parked Orders List
+     ============================================================ -->
+    <div id="parkedOrdersModal" class="modal">
+        <div class="modal-content" style="max-width: 580px;">
+            <button class="modal-close" onclick="closeModal('parkedOrdersModal')">&times;</button>
+            <h3 style="margin-bottom:1.5rem;">
+                <i class="fa-solid fa-pause-circle" style="color:var(--accent-color);"></i> Parked Orders
+            </h3>
+            <div id="parkedOrdersList" style="display:flex; flex-direction:column; gap:0.75rem; max-height:320px; overflow-y:auto; padding-right:0.25rem;">
+                <!-- Rendered dynamically -->
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem; border-top:1px solid var(--border-color); padding-top:1rem;">
+                <button type="button" onclick="closeModal('parkedOrdersModal')" class="btn btn-secondary">Close</button>
             </div>
         </div>
     </div>
@@ -844,6 +872,173 @@ foreach ($variants_res as $row) {
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        // =========================================================
+        // PARK & RESUME ORDER STATE LOGIC (PHASE 2)
+        // =========================================================
+        function getParkedOrders() {
+            try {
+                return JSON.parse(localStorage.getItem('pos_parked_orders')) || [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveParkedOrders(orders) {
+            localStorage.setItem('pos_parked_orders', JSON.stringify(orders));
+            updateParkedCountBadge();
+        }
+
+        function updateParkedCountBadge() {
+            const orders = getParkedOrders();
+            const badge = document.getElementById('parkedCountBadge');
+            if (badge) {
+                if (orders.length > 0) {
+                    badge.innerText = orders.length;
+                    badge.style.display = 'inline-block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        function parkCurrentOrder() {
+            if (cart.length === 0) {
+                showBarcodeToast('Cannot park an empty cart', 'danger');
+                return;
+            }
+
+            // Get customer details from localStorage if they exist
+            const customerName = localStorage.getItem('orange_billing_customer_name') || '';
+            const customerPhone = localStorage.getItem('orange_billing_customer_phone') || '';
+
+            // Generate temporary description
+            let desc = customerName ? customerName : 'Walk-in Client';
+            if (customerPhone) desc += ` (${customerPhone})`;
+
+            // Prompt user for optional name/note
+            const note = prompt('Enter a name/note for this parked cart:', desc);
+            if (note === null) return; // user cancelled
+
+            const orders = getParkedOrders();
+            orders.push({
+                id: Date.now(),
+                label: note.trim() || `Order #${orders.length + 1}`,
+                cart: cart,
+                customer_name: customerName,
+                customer_phone: customerPhone,
+                timestamp: new Date().toLocaleString(),
+                total: cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+            });
+
+            saveParkedOrders(orders);
+
+            // Clear current cart & customer
+            cart = [];
+            saveCartState();
+            renderCart();
+            
+            localStorage.removeItem('orange_billing_customer_name');
+            localStorage.removeItem('orange_billing_customer_phone');
+            localStorage.removeItem('orange_billing_discount');
+
+            showBarcodeToast('Order parked successfully', 'success');
+            if (typeof playBeep === 'function') playBeep(600, 150);
+        }
+
+        function openParkedOrdersModal() {
+            renderParkedOrders();
+            openModal('parkedOrdersModal');
+        }
+
+        function renderParkedOrders() {
+            const listEl = document.getElementById('parkedOrdersList');
+            if (!listEl) return;
+
+            const orders = getParkedOrders();
+            if (orders.length === 0) {
+                listEl.innerHTML = `
+                    <div style="text-align:center; padding:2rem; color:var(--text-muted);">
+                        <i class="fa-solid fa-folder-open" style="font-size:2rem; opacity:0.3; margin-bottom:0.5rem; display:block;"></i>
+                        No parked orders found.
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            orders.forEach(order => {
+                const itemNames = order.cart.map(i => `${i.name} (x${i.quantity})`).join(', ');
+                html += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; background:rgba(255,255,255,0.015); border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:0.6rem 0.75rem;">
+                        <div style="flex-grow:1; min-width:0;">
+                            <div style="font-weight:700; font-size:0.85rem; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(order.label)}</div>
+                            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(itemNames)}</div>
+                            <div style="display:flex; gap:0.5rem; font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">
+                                <span><i class="fa-solid fa-clock"></i> ${escapeHtml(order.timestamp)}</span>
+                                <span>•</span>
+                                <span style="color:var(--accent-color); font-weight:600;">₹${order.total.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:0.35rem; flex-shrink:0;">
+                            <button onclick="resumeParkedOrder(${order.id})" class="btn btn-primary" style="padding:0.25rem 0.5rem; font-size:0.7rem; height:26px; font-weight:600; display:inline-flex; align-items:center; gap:0.2rem;">
+                                <i class="fa-solid fa-play"></i> Resume
+                            </button>
+                            <button onclick="discardParkedOrder(${order.id})" class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem; height:26px; color:var(--danger); border-color:rgba(255,71,87,0.2); display:inline-flex; align-items:center; gap:0.2rem;">
+                                <i class="fa-solid fa-trash-can"></i> Discard
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        }
+
+        function resumeParkedOrder(id) {
+            if (cart.length > 0) {
+                const proceed = confirm('Resuming this order will overwrite your current cart. Do you want to park the current cart first? Click OK to park current cart first, or CANCEL to replace current cart.');
+                if (proceed) {
+                    parkCurrentOrder();
+                }
+            }
+
+            const orders = getParkedOrders();
+            const idx = orders.findIndex(o => o.id === id);
+            if (idx === -1) return;
+
+            const order = orders[idx];
+            cart = order.cart;
+            saveCartState();
+            renderCart();
+
+            if (order.customer_name) localStorage.setItem('orange_billing_customer_name', order.customer_name);
+            if (order.customer_phone) localStorage.setItem('orange_billing_customer_phone', order.customer_phone);
+
+            // Remove from parked
+            orders.splice(idx, 1);
+            saveParkedOrders(orders);
+
+            closeModal('parkedOrdersModal');
+            showBarcodeToast('Order resumed successfully', 'success');
+            if (typeof playBeep === 'function') playBeep(800, 100);
+
+            // Return focus to scanner
+            const barcodeInput = document.getElementById('barcodeInput');
+            if (barcodeInput) barcodeInput.focus();
+        }
+
+        function discardParkedOrder(id) {
+            if (!confirm('Are you sure you want to discard this parked order?')) return;
+
+            const orders = getParkedOrders();
+            const idx = orders.findIndex(o => o.id === id);
+            if (idx === -1) return;
+
+            orders.splice(idx, 1);
+            saveParkedOrders(orders);
+            renderParkedOrders();
+            showBarcodeToast('Parked order discarded', 'success');
         }
 
         // DOM ready setup
