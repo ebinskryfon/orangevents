@@ -643,7 +643,10 @@ require_once __DIR__ . '/../includes/header.php';
         
         const invoiceNo = '<?= h($order['invoice_number']) ?>';
         const amount = '₹<?= number_format($order['final_amount'], 2) ?>';
-        const publicUrl = window.location.origin + '/orange-events/view-receipt.php?inv=' + encodeURIComponent(invoiceNo);
+        const basePath = window.location.pathname.includes('/admin/') 
+            ? window.location.pathname.substring(0, window.location.pathname.indexOf('/admin/')) 
+            : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+        const publicUrl = window.location.origin + basePath + '/view-receipt.php?inv=' + encodeURIComponent(invoiceNo);
         
         let rawPhone = '<?= h($order['customer_phone'] ?? '') ?>';
         let cleanPhone = rawPhone.replace(/[^0-9]/g, '');

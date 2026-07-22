@@ -426,7 +426,10 @@ require_once __DIR__ . '/../includes/header.php';
         if (!name || name === 'Walk-in Customer') name = 'Valued Customer';
         
         const amount = '₹' + parseFloat(finalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const receiptUrl = window.location.origin + '/orange-events/view-receipt.php?inv=' + encodeURIComponent(invNo);
+        const basePath = window.location.pathname.includes('/admin/') 
+            ? window.location.pathname.substring(0, window.location.pathname.indexOf('/admin/')) 
+            : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
+        const receiptUrl = window.location.origin + basePath + '/view-receipt.php?inv=' + encodeURIComponent(invNo);
         const dateStr = purchaseDate ? ` issued on *${purchaseDate}*` : '';
         
         let targetPhone = customerPhone ? customerPhone.replace(/[^0-9]/g, '') : '';

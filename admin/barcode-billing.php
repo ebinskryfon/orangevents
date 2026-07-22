@@ -392,6 +392,9 @@ foreach ($variants_res as $row) {
                 </div>
             </div>
 
+            <!-- Live Camera Barcode Scanner Widget -->
+            <div id="posCameraScannerWidget"></div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; width: 100%; margin-bottom: 0.4rem;">
                 <button onclick="parkCurrentOrder()" class="btn btn-secondary"
                     style="display:flex; align-items:center; justify-content:center; gap:0.25rem; height:30px; font-size:0.75rem; padding:0; color:var(--text-secondary);">
@@ -461,9 +464,9 @@ foreach ($variants_res as $row) {
      MODAL: Add Custom / Extra Billing Item
      ============================================================ -->
     <div id="customItemModal" class="modal">
-        <div class="modal-content" style="max-width: 480px;">
+        <div class="modal-content" style="max-width: 420px; padding: 1.25rem;">
             <button class="modal-close" onclick="closeModal('customItemModal')">&times;</button>
-            <h3 style="margin-bottom:1.5rem;">
+            <h3 style="margin-bottom:1.25rem;">
                 <i class="fa-solid fa-plus-circle" style="color:var(--accent-color);"></i> Add Custom Item
             </h3>
             <div class="form-group">
@@ -482,7 +485,7 @@ foreach ($variants_res as $row) {
                     <input type="number" min="1" value="1" id="customItemQty" class="form-control" required>
                 </div>
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem;">
                 <button type="button" onclick="closeModal('customItemModal')" class="btn btn-secondary">Cancel</button>
                 <button type="button" onclick="addCustomItemToCart()" class="btn btn-primary">Add to Cart</button>
             </div>
@@ -493,9 +496,9 @@ foreach ($variants_res as $row) {
      MODAL: Parked Orders List
      ============================================================ -->
     <div id="parkedOrdersModal" class="modal">
-        <div class="modal-content" style="max-width: 580px;">
+        <div class="modal-content" style="max-width: 460px; padding: 1.25rem;">
             <button class="modal-close" onclick="closeModal('parkedOrdersModal')">&times;</button>
-            <h3 style="margin-bottom:1.5rem;">
+            <h3 style="margin-bottom:1.25rem;">
                 <i class="fa-solid fa-pause-circle" style="color:var(--accent-color);"></i> Parked Orders
             </h3>
             <div id="parkedOrdersList" style="display:flex; flex-direction:column; gap:0.75rem; max-height:320px; overflow-y:auto; padding-right:0.25rem;">
@@ -1208,6 +1211,12 @@ foreach ($variants_res as $row) {
             });
 
             loadCart();
+
+            if (window.OrangeCameraUtils) {
+                window.OrangeCameraUtils.initPosCameraScanner('posCameraScannerWidget', function(scannedBarcode) {
+                    processBarcodeValue(scannedBarcode);
+                });
+            }
         });
     </script>
 

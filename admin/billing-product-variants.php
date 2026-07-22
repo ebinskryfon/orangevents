@@ -361,89 +361,80 @@ $variants = $stmt_vars->fetchAll();
      MODAL: Add / Edit Variant
      ============================================================ -->
 <div id="variantModal" class="modal">
-    <div class="modal-content" style="max-width:420px;">
+    <div class="modal-content" style="max-width:640px; padding:1.25rem;">
         <button class="modal-close" onclick="closeModal('variantModal')">&times;</button>
-        <h3 id="variantModalTitle" style="margin-bottom:1.5rem;">
+        <h3 id="variantModalTitle" style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; font-size:1.1rem;">
             <i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Size/Variant
         </h3>
         <form method="POST">
             <input type="hidden" name="action" value="save_variant">
             <input type="hidden" name="variant_id" id="variantId" value="0">
 
-            <div class="form-group">
-                <label class="form-label">Size / Variant Label</label>
-                <input type="text" name="size" id="variantSize" class="form-control"
-                    placeholder="e.g. Standard, Large, Metallic" required>
-            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; align-items:start;">
+                <!-- Left Column: Size, Barcode & Price -->
+                <div style="display:flex; flex-direction:column; gap:0.65rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-size:0.75rem;">Size / Variant Label</label>
+                        <input type="text" name="size" id="variantSize" class="form-control" placeholder="e.g. Standard, Large, Metallic" style="height:34px; font-size:0.8rem;" required>
+                    </div>
 
-            <div class="form-group" style="margin-top:1rem;">
-                <label class="form-label">Barcode (Auto-generated if left blank)</label>
-                <input type="text" name="barcode" id="variantBarcode" class="form-control"
-                    placeholder="e.g. 200123456789">
-            </div>
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-size:0.75rem;">Barcode (Auto-generated if left blank)</label>
+                        <div style="display:flex; gap:0.35rem; align-items:center;">
+                            <input type="text" name="barcode" id="variantBarcode" class="form-control" placeholder="e.g. 200123456789" style="height:34px; font-size:0.8rem; flex:1;">
+                            <button type="button" class="btn btn-secondary" onclick="scanVariantBarcodeWithCamera()" style="white-space:nowrap; display:flex; align-items:center; gap:0.25rem; height:34px; font-size:0.75rem; padding:0 0.5rem;">
+                                <i class="fa-solid fa-barcode" style="color:var(--accent-color);"></i> Scan
+                            </button>
+                        </div>
+                    </div>
 
-            <div class="form-group" style="margin-top:1rem;">
-                <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked
-                        style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
-                    <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer;">Inherit Product
-                        Base Price (<?= format_price($product['base_price']) ?>)</label>
-                </div>
-            </div>
+                    <div class="form-group" style="margin:0;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="checkbox" id="variantInherit" name="inherit_price" value="1" checked style="width:16px; height:16px; accent-color:var(--accent-color); cursor:pointer;">
+                            <label for="variantInherit" class="form-label" style="margin:0; cursor:pointer; font-size:0.78rem;">Inherit Base Price (<?= format_price($product['base_price']) ?>)</label>
+                        </div>
+                    </div>
 
-            <div class="form-group" id="variantPriceGroup" style="display:none; margin-top:1rem;">
-                <label class="form-label">Custom Price for this Variant (Rs)</label>
-                <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control"
-                    placeholder="<?= $product['base_price'] ?>">
-            </div>
-
-            <!-- Stock and Inventory Management section -->
-            <div style="margin-top:1.5rem; border-top:1px solid var(--border-color); padding-top:1.25rem;">
-                <h4
-                    style="font-size:0.9rem; margin-bottom:0.75rem; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
-                    <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-color); font-size:0.95rem;"></i>
-                    Stock & Inventory
-                </h4>
-
-                <!-- Stock quantity of whole packets -->
-                <div class="form-group">
-                    <label class="form-label" style="font-size:0.8rem;">Stock Quantity (Whole Packets)</label>
-                    <input type="number" step="0.01" name="stock_quantity" id="variantStockQty" class="form-control"
-                        placeholder="0.00" required>
-                </div>
-
-                <!-- Toggle to allow loose sales -->
-                <div class="form-group" style="margin-top:1rem;">
-                    <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <input type="checkbox" id="variantAllowLoose" name="allow_loose" value="1"
-                            style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
-                        <label for="variantAllowLoose" class="form-label" style="margin:0; cursor:pointer; font-size:0.8rem;">
-                            Allow Loose sales from this packet?
-                        </label>
+                    <div class="form-group" id="variantPriceGroup" style="display:none; margin:0;">
+                        <label class="form-label" style="font-size:0.75rem;">Custom Price for this Variant (Rs)</label>
+                        <input type="number" step="0.01" min="0" name="price" id="variantPrice" class="form-control" placeholder="<?= $product['base_price'] ?>" style="height:34px; font-size:0.8rem;">
                     </div>
                 </div>
 
-                <!-- Loose sales options -->
-                <div id="variantLooseSalesGroup" style="display:none; margin-top:1rem; padding-left:1.5rem; border-left:2px solid var(--accent-color);">
-                    <div class="form-group">
-                        <label class="form-label" style="font-size:0.8rem;">Loose Item Price (Rs per single unit)</label>
-                        <input type="number" step="0.01" min="0.01" name="loose_price" id="variantLoosePrice" class="form-control"
-                            placeholder="e.g. 3.00">
+                <!-- Right Column: Stock & Inventory Management -->
+                <div style="background:var(--bg-control); border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:0.75rem; display:flex; flex-direction:column; gap:0.6rem;">
+                    <h4 style="font-size:0.85rem; margin:0; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem; border-bottom:1px solid var(--border-color); padding-bottom:0.35rem;">
+                        <i class="fa-solid fa-boxes-stacked" style="color:var(--accent-color);"></i> Stock & Inventory
+                    </h4>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-size:0.75rem;">Stock Quantity (Whole Packets)</label>
+                        <input type="number" step="0.01" name="stock_quantity" id="variantStockQty" class="form-control" placeholder="0.00" style="height:34px; font-size:0.8rem;" required>
                     </div>
-                    <div class="form-group" style="margin-top:0.75rem;">
-                        <label class="form-label" style="font-size:0.8rem;">Quantity of loose units in 1 Whole packet</label>
-                        <input type="number" step="0.01" min="1" name="loose_units_per_whole" id="variantLooseUnitsPerWhole"
-                            class="form-control" placeholder="e.g. 50">
-                        <small style="color:var(--text-muted); font-size:0.72rem; display:block; margin-top:0.25rem;">
-                            E.g. if 1 packet has 50 balloons, enter 50
-                        </small>
+
+                    <div class="form-group" style="margin:0;">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="checkbox" id="variantAllowLoose" name="allow_loose" value="1" style="width:16px; height:16px; accent-color:var(--accent-color); cursor:pointer;">
+                            <label for="variantAllowLoose" class="form-label" style="margin:0; cursor:pointer; font-size:0.78rem;">Allow Loose sales from packet?</label>
+                        </div>
+                    </div>
+
+                    <div id="variantLooseSalesGroup" style="display:none; flex-direction:column; gap:0.5rem; padding-left:0.75rem; border-left:2px solid var(--accent-color);">
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label" style="font-size:0.72rem;">Loose Unit Price (Rs)</label>
+                            <input type="number" step="0.01" min="0.01" name="loose_price" id="variantLoosePrice" class="form-control" placeholder="e.g. 3.00" style="height:32px; font-size:0.78rem;">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label" style="font-size:0.72rem;">Loose units in 1 Whole packet</label>
+                            <input type="number" step="0.01" min="1" name="loose_units_per_whole" id="variantLooseUnitsPerWhole" class="form-control" placeholder="e.g. 50" style="height:32px; font-size:0.78rem;">
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
-                <button type="button" onclick="closeModal('variantModal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Variant</button>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem; border-top:1px solid var(--border-color); padding-top:0.75rem;">
+                <button type="button" onclick="closeModal('variantModal')" class="btn btn-secondary" style="height:32px; font-size:0.8rem;">Cancel</button>
+                <button type="submit" class="btn btn-primary" style="height:32px; font-size:0.8rem;"><i class="fa-solid fa-floppy-disk"></i> Save Variant</button>
             </div>
         </form>
     </div>
@@ -540,6 +531,20 @@ $variants = $stmt_vars->fetchAll();
         }
 
         openModal('variantModal');
+    }
+
+    // Trigger Camera Barcode Scanning for Variant Barcode
+    function scanVariantBarcodeWithCamera() {
+        if (!window.OrangeCameraUtils) {
+            alert('Camera utilities loading... Please try again.');
+            return;
+        }
+        window.OrangeCameraUtils.openBarcodeScanModal(function(scannedBarcode) {
+            const barcodeInput = document.getElementById('variantBarcode');
+            if (barcodeInput) {
+                barcodeInput.value = scannedBarcode;
+            }
+        });
     }
 </script>
 

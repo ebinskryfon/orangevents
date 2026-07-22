@@ -177,9 +177,9 @@ $categories = $db->query(
      MODAL: Add Category
      ============================================================ -->
 <div id="addCategoryModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width:380px; padding:1.25rem;">
         <button class="modal-close" onclick="closeModal('addCategoryModal')">&times;</button>
-        <h3 style="margin-bottom:1.5rem;">
+        <h3 style="margin-bottom:1.25rem;">
             <i class="fa-solid fa-folder-plus" style="color:var(--accent-color);"></i> New Category
         </h3>
         <form method="POST">
@@ -188,7 +188,7 @@ $categories = $db->query(
                 <label class="form-label">Category Name</label>
                 <input type="text" name="category_name" class="form-control" placeholder="e.g. Birthday Items" required>
             </div>
-            <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1.5rem;">
+            <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:1.25rem;">
                 <button type="button" onclick="closeModal('addCategoryModal')" class="btn btn-secondary">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create Category</button>
             </div>
@@ -200,9 +200,9 @@ $categories = $db->query(
      MODAL: Edit Category
      ============================================================ -->
 <div id="editCategoryModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width:380px; padding:1.25rem;">
         <button class="modal-close" onclick="closeModal('editCategoryModal')">&times;</button>
-        <h3 style="margin-bottom:1.5rem;">
+        <h3 style="margin-bottom:1.25rem;">
             <i class="fa-solid fa-folder-pen" style="color:var(--accent-color);"></i> Edit Category
         </h3>
         <form method="POST">

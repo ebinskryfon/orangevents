@@ -346,58 +346,72 @@ foreach ($all_variants as $v) {
      MODAL: Add / Edit Product
      ============================================================ -->
 <div id="productModal" class="modal">
-    <div class="modal-content" style="max-width:560px;">
+    <div class="modal-content" style="max-width:640px; padding:1.25rem;">
         <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
-        <h3 id="productModalTitle" style="margin-bottom:1.5rem;">
+        <h3 id="productModalTitle" style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; font-size:1.1rem;">
             <i class="fa-solid fa-circle-plus" style="color:var(--accent-color);"></i> Add Product
         </h3>
         <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="action" value="save_product">
             <input type="hidden" name="product_id" id="productId" value="0">
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <select name="category_id" id="productCategoryId" class="form-control" required>
-                        <option value="">Select category</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?= $cat['id'] ?>"><?= h($cat['category_name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem; align-items:start;">
+                <!-- Left Column: Details -->
+                <div style="display:flex; flex-direction:column; gap:0.65rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label" style="font-size:0.75rem;">Category</label>
+                            <select name="category_id" id="productCategoryId" class="form-control" style="height:34px; font-size:0.8rem;" required>
+                                <option value="">Select</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?= $cat['id'] ?>"><?= h($cat['category_name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label class="form-label" style="font-size:0.75rem;">Base Price (Rs)</label>
+                            <input type="number" step="0.01" min="0" name="base_price" id="productBasePrice" class="form-control" placeholder="120" style="height:34px; font-size:0.8rem;" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-size:0.75rem;">Product Name</label>
+                        <input type="text" name="product_name" id="productName" class="form-control" placeholder="e.g. Premium Balloon Pack" style="height:34px; font-size:0.8rem;" required>
+                    </div>
+
+                    <div class="form-group" style="margin:0;">
+                        <label class="form-label" style="font-size:0.75rem;">Description</label>
+                        <textarea name="description" id="productDesc" class="form-control" rows="2" placeholder="Short description..." style="font-size:0.8rem;"></textarea>
+                    </div>
+
+                    <div class="form-group" style="display:flex; align-items:center; gap:0.5rem; margin:0;">
+                        <input type="checkbox" name="is_active" id="productActive" value="1" checked style="width:16px; height:16px; accent-color:var(--accent-color); cursor:pointer;">
+                        <label for="productActive" class="form-label" style="margin:0; cursor:pointer; font-size:0.8rem;">Mark as Active in POS</label>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Base Price (Rs)</label>
-                    <input type="number" step="0.01" min="0" name="base_price" id="productBasePrice" class="form-control" placeholder="120" required>
+
+                <!-- Right Column: Image & Camera -->
+                <div style="background:var(--bg-control); border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+                    <label class="form-label" style="font-size:0.75rem; margin:0; font-weight:700;">Product Image</label>
+                    <div style="display:flex; gap:0.35rem;">
+                        <input type="file" name="product_image" id="productImage" class="form-control" accept="image/*" style="font-size:0.75rem; height:32px; padding:2px 4px; flex:1;">
+                        <button type="button" class="btn btn-secondary" onclick="triggerProductCameraCapture()" style="white-space:nowrap; display:flex; align-items:center; gap:0.25rem; height:32px; font-size:0.75rem; padding:0 0.5rem;">
+                            <i class="fa-solid fa-camera" style="color:var(--accent-color);"></i> Camera
+                        </button>
+                    </div>
+
+                    <div id="imagePreviewContainer" style="display:none; text-align:center; margin-top:0.25rem;">
+                        <img id="productImagePreview" src="" alt="Preview" style="max-height:100px; width:100px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); display:inline-block;">
+                    </div>
+                    <p style="font-size:0.7rem; color:var(--text-muted); margin:0; line-height:1.2;">
+                        Max 2MB (JPG, PNG, WEBP). Select file or snapshot via camera.
+                    </p>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">Product Name</label>
-                <input type="text" name="product_name" id="productName" class="form-control" placeholder="e.g. Premium Balloon Pack" required>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Description</label>
-                <textarea name="description" id="productDesc" class="form-control" rows="2" placeholder="Short description of the product..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Product Image</label>
-                <input type="file" name="product_image" id="productImage" class="form-control" accept="image/*">
-                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">Supported: JPG, JPEG, PNG, WEBP, GIF (Max 2MB)</p>
-                <div id="imagePreviewContainer" style="display:none; margin-top:0.75rem; border:1px solid var(--border-color); border-radius:4px; padding:4px; display:inline-block;">
-                    <img id="productImagePreview" src="" alt="Preview" style="max-height:80px; display:block; border-radius:4px;">
-                </div>
-            </div>
-
-            <div class="form-group" style="display:flex; align-items:center; gap:0.6rem; padding-top:0.5rem;">
-                <input type="checkbox" name="is_active" id="productActive" value="1" checked style="width:18px; height:18px; accent-color:var(--accent-color); cursor:pointer;">
-                <label for="productActive" class="form-label" style="margin:0; cursor:pointer;">Mark as Active</label>
-            </div>
-
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
-                <button type="button" onclick="closeModal('productModal')" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary" id="productSaveBtn"><i class="fa-solid fa-floppy-disk"></i> Save Product</button>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem; border-top:1px solid var(--border-color); padding-top:0.75rem;">
+                <button type="button" onclick="closeModal('productModal')" class="btn btn-secondary" style="height:32px; font-size:0.8rem;">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="productSaveBtn" style="height:32px; font-size:0.8rem;"><i class="fa-solid fa-floppy-disk"></i> Save Product</button>
             </div>
         </form>
     </div>
@@ -469,10 +483,27 @@ if (searchInput) {
             const text = row.getAttribute('data-search-text') || '';
             if (text.includes(query)) {
                 row.style.display = '';
-            } else {
-                row.style.display = 'none';
             }
         });
+    });
+}
+
+// Trigger Camera Photo Capture for Product Image
+function triggerProductCameraCapture() {
+    if (!window.OrangeCameraUtils) {
+        alert('Camera utilities loading... Please try again.');
+        return;
+    }
+    window.OrangeCameraUtils.openProductCameraModal(function(capturedFile, objectUrl) {
+        const fileInput = document.getElementById('productImage');
+        const container = new DataTransfer();
+        container.items.add(capturedFile);
+        fileInput.files = container.files;
+
+        const previewContainer = document.getElementById('imagePreviewContainer');
+        const previewImg = document.getElementById('productImagePreview');
+        previewImg.src = objectUrl;
+        previewContainer.style.display = 'inline-block';
     });
 }
 </script>

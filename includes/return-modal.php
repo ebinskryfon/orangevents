@@ -1,6 +1,6 @@
 <!-- POS Return & Item Exchange Modal -->
 <div id="posReturnModal" class="modal" tabindex="-1" style="z-index:1050;">
-    <div class="modal-content" style="max-width:680px; padding:1.25rem;">
+    <div class="modal-content" style="max-width:500px; padding:1rem;">
             
             <!-- Modal Header -->
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:0.75rem; margin-bottom:1rem;">
