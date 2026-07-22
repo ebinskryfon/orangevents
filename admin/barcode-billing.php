@@ -41,8 +41,13 @@ foreach ($variants_res as $row) {
     $raw_code = trim($row['barcode']);
     $barcode_map[$raw_code] = $data;
     
-    // Strip AIM symbology prefix (e.g. ]c, ]C1, ]Q1)
-    $clean_code = preg_replace('/^\][A-Za-z0-9]{1,4}\s*/', '', preg_replace('/[\x00-\x1F\x7F-\x9F]/u', '', $raw_code));
+    // Strip AIM symbology prefix/suffix/embedded markers (e.g. ]c, ]C1, ]Q1)
+    $clean_code = preg_replace('/[\x00-\x1F\x7F-\x9F]/u', '', $raw_code);
+    $clean_code = preg_replace('/^(?:\][A-Za-z][0-9A-Za-z]?\s*)+/', '', $clean_code);
+    $clean_code = preg_replace('/(?:\s*\][A-Za-z][0-9A-Za-z]?)+$/', '', $clean_code);
+    $clean_code = preg_replace('/\][A-Za-z][0-9A-Za-z]?/', '', $clean_code);
+    $clean_code = trim(preg_replace('/^\]+|\]+$/', '', $clean_code));
+
     if ($clean_code !== '' && $clean_code !== $raw_code) {
         $barcode_map[$clean_code] = $data;
     }
@@ -817,14 +822,20 @@ foreach ($variants_res as $row) {
 
             let barcodeValue = (window.OrangeCameraUtils && window.OrangeCameraUtils.cleanBarcode)
                 ? window.OrangeCameraUtils.cleanBarcode(rawBarcodeValue)
-                : String(rawBarcodeValue).replace(/[\x00-\x1F\x7F-\x9F]/g, '').replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+                : String(rawBarcodeValue).replace(/[\x00-\x1F\x7F-\x9F]/g, '').replace(/\][A-Za-z][0-9A-Za-z]?/g, '').replace(/^\]+|\]+$/g, '').trim();
 
             if (!barcodeValue) return;
 
             let variant = barcodeMap[barcodeValue];
             if (!variant) {
-                // Fallback attempt: check raw value or alt prefix strip
-                let altClean = String(rawBarcodeValue).replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+                // Fallback attempt: check raw value or alt clean
+                let altClean = String(rawBarcodeValue)
+                    .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+                    .replace(/^(?:\][A-Za-z][0-9A-Za-z]?\s*)+/, '')
+                    .replace(/(?:\s*\][A-Za-z][0-9A-Za-z]?)+$/, '')
+                    .replace(/\][A-Za-z][0-9A-Za-z]?/g, '')
+                    .replace(/^\]+|\]+$/g, '')
+                    .trim();
                 if (barcodeMap[altClean]) {
                     barcodeValue = altClean;
                     variant = barcodeMap[barcodeValue];

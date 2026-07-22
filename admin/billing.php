@@ -735,7 +735,7 @@ function format_variant_stock_badge($v)
 
             function processBarcodeValue(rawBarcodeValue) {
                 if (!rawBarcodeValue) return;
-                const barcodeValue = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(rawBarcodeValue) : String(rawBarcodeValue).replace(/[\x00-\x1F\x7F-\x9F]/g, '').replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+                const barcodeValue = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(rawBarcodeValue) : String(rawBarcodeValue).replace(/[\x00-\x1F\x7F-\x9F]/g, '').replace(/\][A-Za-z][0-9A-Za-z]?/g, '').replace(/^\]+|\]+$/g, '').trim();
                 if (!barcodeValue) return;
 
                 let card = null;
@@ -744,7 +744,13 @@ function format_variant_stock_badge($v)
                 } catch(e) {}
 
                 if (!card) {
-                    const altClean = String(rawBarcodeValue).replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+                    const altClean = String(rawBarcodeValue)
+                        .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+                        .replace(/^(?:\][A-Za-z][0-9A-Za-z]?\s*)+/, '')
+                        .replace(/(?:\s*\][A-Za-z][0-9A-Za-z]?)+$/, '')
+                        .replace(/\][A-Za-z][0-9A-Za-z]?/g, '')
+                        .replace(/^\]+|\]+$/g, '')
+                        .trim();
                     try {
                         card = document.querySelector(`.prod-card[data-barcode="${CSS.escape(altClean)}"]`) || document.querySelector(`.prod-card[data-barcode="${CSS.escape(rawBarcodeValue)}"]`);
                     } catch(e) {}

@@ -50,31 +50,21 @@ window.OrangeCameraUtils = (function () {
         let str = String(val);
 
         // Strip non-printable ASCII control chars (0x00-0x1F, 0x7F-0x9F, zero-width space, BOM)
-        str = str.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, '');
-        str = str.trim();
+        str = str.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, '').trim();
+        if (!str) return '';
 
-        // Strip AIM Symbology Identifier prefixes starting with ']' (ISO/IEC 15424)
-        if (str.startsWith(']')) {
-            // Pattern 1: ']' + 1-4 letters/digits followed by whitespace (e.g. "]c   1234", "]C1  1234")
-            str = str.replace(/^\][A-Za-z0-9]{1,4}\s+/, '');
+        // ISO/IEC 15424 AIM Symbology Identifiers: ] + 1 letter + optional 1 letter/digit (e.g. ]C1, ]C0, ]c, ]Q1, ]d2, ]E0)
+        // 1. Strip AIM Symbology Identifier prefixes from start
+        str = str.replace(/^(?:\][A-Za-z][0-9A-Za-z]?\s*)+/, '');
 
-            // Pattern 2: Standard 3-character AIM identifier (e.g. "]C1", "]Q1", "]d2", "]E0", "]A0")
-            if (str.startsWith(']')) {
-                str = str.replace(/^\][A-Za-z][0-9A-Za-z]/, '');
-            }
+        // 2. Strip AIM Symbology Identifier suffixes from end
+        str = str.replace(/(?:\s*\][A-Za-z][0-9A-Za-z]?)+$/, '');
 
-            // Pattern 3: 2-character AIM identifier (e.g. "]c", "]Q", "]d")
-            if (str.startsWith(']')) {
-                str = str.replace(/^\][A-Za-z]/, '');
-            }
+        // 3. Strip any AIM Symbology identifier tag anywhere in the string
+        str = str.replace(/\][A-Za-z][0-9A-Za-z]?/g, '');
 
-            // Fallback: strip any remaining leading ']' and leading spaces
-            if (str.startsWith(']')) {
-                str = str.replace(/^\]+\s*/, '');
-            }
-
-            str = str.trim();
-        }
+        // 4. Strip any remaining square brackets or trailing/leading whitespace
+        str = str.replace(/^\]+|\]+$/g, '').trim();
 
         return str;
     }

@@ -76,7 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $inherit = isset($_POST['inherit_price']) ? 1 : 0;
         $price = $inherit ? null : (float) ($_POST['price'] ?? 0);
         $raw_barcode = trim($_POST['barcode'] ?? '');
-        $barcode = preg_replace('/^\][A-Za-z0-9]{1,4}\s*/', '', preg_replace('/[\x00-\x1F\x7F-\x9F]/u', '', $raw_barcode));
+        $barcode = preg_replace('/[\x00-\x1F\x7F-\x9F]/u', '', $raw_barcode);
+        $barcode = preg_replace('/^(?:\][A-Za-z][0-9A-Za-z]?\s*)+/', '', $barcode);
+        $barcode = preg_replace('/(?:\s*\][A-Za-z][0-9A-Za-z]?)+$/', '', $barcode);
+        $barcode = preg_replace('/\][A-Za-z][0-9A-Za-z]?/', '', $barcode);
+        $barcode = trim(preg_replace('/^\]+|\]+$/', '', $barcode));
         $stock_qty = (float) ($_POST['stock_quantity'] ?? 0);
         $allow_loose = isset($_POST['allow_loose']) ? 1 : 0;
         $loose_price = $_POST['loose_price'] !== '' ? (float) $_POST['loose_price'] : null;
@@ -547,6 +551,22 @@ $variants = $stmt_vars->fetchAll();
             }
         });
     }
+
+    // Real-time auto-cleaning for Variant Barcode Input
+    document.addEventListener('DOMContentLoaded', () => {
+        const vInput = document.getElementById('variantBarcode');
+        if (vInput) {
+            ['input', 'blur', 'paste', 'change'].forEach(evt => {
+                vInput.addEventListener(evt, () => {
+                    setTimeout(() => {
+                        if (window.OrangeCameraUtils && window.OrangeCameraUtils.cleanBarcode) {
+                            vInput.value = window.OrangeCameraUtils.cleanBarcode(vInput.value);
+                        }
+                    }, 20);
+                });
+            });
+        }
+    });
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
