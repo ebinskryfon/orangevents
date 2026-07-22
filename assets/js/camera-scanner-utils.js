@@ -2,7 +2,7 @@
  * Orange Events - Camera & Barcode Scanner Utility Engine
  * Supports direct product photo capture from webcam/mobile camera
  * & high-accuracy 1D/2D barcode scanning via Html5Qrcode / Web APIs.
- * Optimized for mobile touch, torch control, dynamic aspect ratio, & haptic feedback.
+ * Optimized for mobile touch, torch control, dynamic aspect ratio, camera switching, & haptic feedback.
  */
 
 window.OrangeCameraUtils = (function () {
@@ -333,10 +333,15 @@ window.OrangeCameraUtils = (function () {
             <div style="font-size: 0.8rem; color: var(--text-muted, #94a3b8); text-align: center; line-height: 1.3;">
                 Position 1D barcode or QR code inside the box. Auto-detects product codes.
             </div>
-            <div style="display: flex; gap: 0.75rem; width: 100%; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color, #334155); padding-top: 0.75rem;">
-                <button type="button" id="orange_torch_btn" class="btn btn-secondary btn-sm" style="display:none; border-radius: 8px;">
-                    <i class="fa-solid fa-bolt"></i> Flashlight
-                </button>
+            <div style="display: flex; gap: 0.5rem; width: 100%; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color, #334155); padding-top: 0.75rem;">
+                <div style="display: flex; gap: 0.35rem; align-items: center;">
+                    <button type="button" id="orange_torch_btn" class="btn btn-secondary btn-sm" style="display:none; border-radius: 8px;">
+                        <i class="fa-solid fa-bolt"></i> Flashlight
+                    </button>
+                    <button type="button" id="orange_switch_cam_btn" class="btn btn-secondary btn-sm" style="display:none; border-radius: 8px;">
+                        <i class="fa-solid fa-camera-rotate"></i> Switch
+                    </button>
+                </div>
                 <button type="button" id="orange_barcode_cancel_btn" class="btn btn-secondary" style="border-radius: 8px; margin-left: auto;">Close Scanner</button>
             </div>
         `;
@@ -346,10 +351,14 @@ window.OrangeCameraUtils = (function () {
 
         const cancelBtn = content.querySelector('#orange_barcode_cancel_btn');
         const torchBtn = content.querySelector('#orange_torch_btn');
+        const switchCamBtn = content.querySelector('#orange_switch_cam_btn');
         const closeBtn = modal.querySelector('.orange_barcode_scan_modal_close_btn');
 
         const html5Qrcode = new Html5Qrcode('orange_barcode_reader');
         html5QrcodeInstance = html5Qrcode;
+
+        let availableCameras = [];
+        let currentCamIndex = 0;
 
         async function closeModal() {
             modal.style.opacity = '0';
@@ -368,41 +377,62 @@ window.OrangeCameraUtils = (function () {
             aspectRatio: 1.333333
         };
 
-        html5Qrcode.start(
-            { facingMode: 'environment' },
-            config,
-            (decodedText, decodedResult) => {
-                const cleanedText = cleanBarcode(decodedText);
-                playBeepSound('success');
-                triggerHaptic(80);
-                if (onScannedCallback) {
-                    onScannedCallback(cleanedText, decodedResult, decodedText);
-                }
-                closeModal();
-            },
-            () => {}
-        ).then(() => {
-            // Check torch support
+        async function startScanning(cameraConfig) {
             try {
-                const track = html5Qrcode.getRunningTrack();
-                if (track && track.getCapabilities && track.getCapabilities().torch) {
-                    torchBtn.style.display = 'inline-flex';
-                    torchBtn.addEventListener('click', async () => {
-                        isTorchOn = !isTorchOn;
-                        await track.applyConstraints({ advanced: [{ torch: isTorchOn }] });
-                        torchBtn.classList.toggle('btn-warning', isTorchOn);
-                    });
+                await html5Qrcode.start(
+                    cameraConfig,
+                    config,
+                    (decodedText, decodedResult) => {
+                        const cleanedText = cleanBarcode(decodedText);
+                        playBeepSound('success');
+                        triggerHaptic(80);
+                        if (onScannedCallback) {
+                            onScannedCallback(cleanedText, decodedResult, decodedText);
+                        }
+                        closeModal();
+                    },
+                    () => {}
+                );
+
+                // Enumerate cameras for switcher
+                try {
+                    const devices = await Html5Qrcode.getCameras();
+                    if (devices && devices.length > 1) {
+                        availableCameras = devices;
+                        switchCamBtn.style.display = 'inline-flex';
+                        switchCamBtn.onclick = async () => {
+                            currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
+                            await html5Qrcode.stop();
+                            startScanning({ deviceId: { exact: availableCameras[currentCamIndex].id } });
+                        };
+                    }
+                } catch (e) {}
+
+                // Check torch support
+                try {
+                    const track = html5Qrcode.getRunningTrack();
+                    if (track && track.getCapabilities && track.getCapabilities().torch) {
+                        torchBtn.style.display = 'inline-flex';
+                        torchBtn.onclick = async () => {
+                            isTorchOn = !isTorchOn;
+                            await track.applyConstraints({ advanced: [{ torch: isTorchOn }] });
+                            torchBtn.classList.toggle('btn-warning', isTorchOn);
+                        };
+                    }
+                } catch (e) {}
+
+            } catch (err) {
+                console.error('Html5Qrcode scanner failed to start:', err);
+                let errText = err.message || 'Camera permission denied or unavailable.';
+                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    errText += '\n\nNote: Mobile web browsers block camera streaming over insecure non-HTTPS (HTTP) IP origins.';
                 }
-            } catch (e) {}
-        }).catch(err => {
-            console.error('Html5Qrcode scanner failed to start:', err);
-            let errText = err.message || 'Camera permission denied or unavailable.';
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                errText += ' (Note: Mobile browsers block camera on non-HTTPS IP origins)';
+                alert('Could not start camera scanner: ' + errText);
+                closeModal();
             }
-            alert('Could not start camera scanner: ' + errText);
-            closeModal();
-        });
+        }
+
+        startScanning({ facingMode: 'environment' });
     }
 
     /**
@@ -418,32 +448,134 @@ window.OrangeCameraUtils = (function () {
         }
 
         container.innerHTML = `
-            <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border-color, #334155); border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                    <div style="font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; color: var(--text-primary);">
+            <div style="background: var(--bg-card, #1e293b); border: 1px solid var(--border-color, #334155); border-radius: 14px; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; box-shadow: 0 4px 16px rgba(0,0,0,0.18);">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+                    <div style="font-size: 0.88rem; font-weight: 800; display: flex; align-items: center; gap: 0.4rem; color: var(--text-primary);">
                         <i class="fa-solid fa-camera" style="color: var(--accent-color, #ff5e00);"></i> Live Camera Scanner
                     </div>
                     <div style="display: flex; gap: 0.35rem; align-items: center;">
-                        <button type="button" id="pos_cam_torch_btn" class="btn btn-sm btn-outline-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: none;">
+                        <button type="button" id="pos_cam_switch_btn" class="btn btn-sm btn-outline-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: none; border-radius: 6px;" title="Switch Camera">
+                            <i class="fa-solid fa-camera-rotate"></i>
+                        </button>
+                        <button type="button" id="pos_cam_torch_btn" class="btn btn-sm btn-outline-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: none; border-radius: 6px;" title="Flashlight">
                             <i class="fa-solid fa-bolt"></i>
                         </button>
-                        <button type="button" id="pos_cam_toggle_btn" class="btn btn-sm btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; font-weight: 700; background: var(--accent-color, #ff5e00); border: none; border-radius: 8px;">
+                        <button type="button" id="pos_cam_toggle_btn" class="btn btn-sm btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 700; background: var(--accent-color, #ff5e00); border: none; border-radius: 8px;">
                             <i class="fa-solid fa-power-off"></i> Start Camera
                         </button>
                     </div>
                 </div>
-                <div id="pos_cam_reader" style="width: 100%; aspect-ratio: 4/3; max-height: 280px; background: #000; border-radius: 8px; overflow: hidden; display: none; position: relative;"></div>
-                <div id="pos_cam_status" style="font-size: 0.75rem; color: var(--text-muted); text-align: center; min-height: 1.25rem;">Camera scanner idle. Tap "Start Camera" to scan items.</div>
+
+                <div id="pos_cam_reader" style="width: 100%; aspect-ratio: 4/3; max-height: 280px; background: #000; border-radius: 10px; overflow: hidden; display: none; position: relative;"></div>
+
+                <div id="pos_cam_status" style="font-size: 0.78rem; color: var(--text-muted); text-align: center; min-height: 1.25rem; line-height: 1.3;">
+                    Camera scanner idle. Tap <strong style="color:var(--accent-color);">"Start Camera"</strong> to scan product barcodes or QR codes.
+                </div>
             </div>
         `;
 
         const toggleBtn = container.querySelector('#pos_cam_toggle_btn');
         const torchBtn = container.querySelector('#pos_cam_torch_btn');
+        const switchBtn = container.querySelector('#pos_cam_switch_btn');
         const readerDiv = container.querySelector('#pos_cam_reader');
         const statusDiv = container.querySelector('#pos_cam_status');
 
         let isRunning = false;
         let posScannerInstance = null;
+        let availableCameras = [];
+        let currentCamIndex = 0;
+
+        async function startPosCameraStream(cameraTarget) {
+            readerDiv.style.display = 'block';
+            statusDiv.textContent = 'Initializing camera stream...';
+            
+            if (posScannerInstance) {
+                try {
+                    await posScannerInstance.stop();
+                    posScannerInstance.clear();
+                } catch (e) {}
+            }
+
+            posScannerInstance = new Html5Qrcode('pos_cam_reader');
+
+            const config = {
+                fps: 20,
+                qrbox: (w, h) => calculateQrBox(w, h),
+                aspectRatio: 1.333333
+            };
+
+            try {
+                await posScannerInstance.start(
+                    cameraTarget,
+                    config,
+                    (decodedText) => {
+                        const cleanedText = cleanBarcode(decodedText);
+                        const now = Date.now();
+                        if (cleanedText === lastScannedCode && (now - lastScanTime) < SCAN_DEBOUNCE_MS) {
+                            return;
+                        }
+                        lastScannedCode = cleanedText;
+                        lastScanTime = now;
+
+                        playBeepSound('success');
+                        triggerHaptic(80);
+                        const safeDisplay = (typeof escapeHtml === 'function') ? escapeHtml(cleanedText) : cleanedText;
+                        statusDiv.innerHTML = `<span style="color:#2ed573; font-weight:700;"><i class="fa-solid fa-check-circle"></i> Scanned & Synced: ${safeDisplay}</span>`;
+
+                        if (onScanCallback) {
+                            onScanCallback(cleanedText, decodedText);
+                        }
+                    },
+                    () => {}
+                );
+
+                isRunning = true;
+                statusDiv.innerHTML = `<span style="color:var(--text-primary); font-weight:600;"><i class="fa-solid fa-qrcode" style="color:var(--accent-color);"></i> Camera active. Framing box ready for barcodes / QR codes.</span>`;
+                toggleBtn.classList.remove('btn-primary');
+                toggleBtn.classList.add('btn-danger');
+                toggleBtn.style.background = '#ff4757';
+                toggleBtn.innerHTML = `<i class="fa-solid fa-stop"></i> Stop Camera`;
+
+                // Check multiple cameras
+                try {
+                    const devices = await Html5Qrcode.getCameras();
+                    if (devices && devices.length > 1) {
+                        availableCameras = devices;
+                        switchBtn.style.display = 'inline-flex';
+                        switchBtn.onclick = () => {
+                            currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
+                            startPosCameraStream({ deviceId: { exact: availableCameras[currentCamIndex].id } });
+                        };
+                    }
+                } catch (e) {}
+
+                // Enable flashlight if available
+                try {
+                    const track = posScannerInstance.getRunningTrack();
+                    if (track && track.getCapabilities && track.getCapabilities().torch) {
+                        torchBtn.style.display = 'inline-flex';
+                        torchBtn.onclick = async () => {
+                            isTorchOn = !isTorchOn;
+                            await track.applyConstraints({ advanced: [{ torch: isTorchOn }] });
+                            torchBtn.classList.toggle('btn-warning', isTorchOn);
+                        };
+                    }
+                } catch (e) {}
+
+            } catch (err) {
+                console.error('POS camera start error:', err);
+                let errStr = err.message || 'Camera Access Denied or Unavailable';
+                let isHttpOrigin = window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
+                let helpNotice = isHttpOrigin
+                    ? `<br><span style="font-size:0.7rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Note: Chrome & Safari block camera streaming on non-HTTPS IP links (http://${window.location.host}). To test on mobile over Wi-Fi, enable <code>#unsafely-treat-insecure-origin-as-secure</code> in Chrome settings or use HTTPS.</span>`
+                    : '';
+
+                statusDiv.innerHTML = `<div style="color:#ff4757; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Camera Access Error: ${errStr}${helpNotice}</div>`;
+                readerDiv.style.display = 'none';
+                isRunning = false;
+            }
+        }
 
         toggleBtn.addEventListener('click', async () => {
             if (isRunning) {
@@ -456,7 +588,8 @@ window.OrangeCameraUtils = (function () {
                 }
                 readerDiv.style.display = 'none';
                 torchBtn.style.display = 'none';
-                statusDiv.textContent = 'Camera scanner stopped.';
+                switchBtn.style.display = 'none';
+                statusDiv.innerHTML = `Camera scanner stopped. Tap <strong style="color:var(--accent-color);">"Start Camera"</strong> to scan again.`;
                 toggleBtn.classList.remove('btn-danger');
                 toggleBtn.classList.add('btn-primary');
                 toggleBtn.style.background = 'var(--accent-color, #ff5e00)';
@@ -464,69 +597,7 @@ window.OrangeCameraUtils = (function () {
                 isRunning = false;
                 isTorchOn = false;
             } else {
-                readerDiv.style.display = 'block';
-                statusDiv.textContent = 'Initializing camera stream...';
-                posScannerInstance = new Html5Qrcode('pos_cam_reader');
-
-                const config = {
-                    fps: 20,
-                    qrbox: (w, h) => calculateQrBox(w, h),
-                    aspectRatio: 1.333333
-                };
-
-                try {
-                    await posScannerInstance.start(
-                        { facingMode: 'environment' },
-                        config,
-                        (decodedText) => {
-                            const cleanedText = cleanBarcode(decodedText);
-                            const now = Date.now();
-                            if (cleanedText === lastScannedCode && (now - lastScanTime) < SCAN_DEBOUNCE_MS) {
-                                return;
-                            }
-                            lastScannedCode = cleanedText;
-                            lastScanTime = now;
-
-                            playBeepSound('success');
-                            triggerHaptic(80);
-                            const safeDisplay = (typeof escapeHtml === 'function') ? escapeHtml(cleanedText) : cleanedText;
-                            statusDiv.innerHTML = `<span style="color:#2ed573; font-weight:700;"><i class="fa-solid fa-check-circle"></i> Scanned: ${safeDisplay}</span>`;
-
-                            if (onScanCallback) {
-                                onScanCallback(cleanedText, decodedText);
-                            }
-                        },
-                        () => {}
-                    );
-
-                    isRunning = true;
-                    statusDiv.textContent = 'Camera active. Point barcode/QR code into framing box.';
-                    toggleBtn.classList.remove('btn-primary');
-                    toggleBtn.classList.add('btn-danger');
-                    toggleBtn.style.background = '#ff4757';
-                    toggleBtn.innerHTML = `<i class="fa-solid fa-stop"></i> Stop Camera`;
-
-                    // Enable flashlight if available
-                    try {
-                        const track = posScannerInstance.getRunningTrack();
-                        if (track && track.getCapabilities && track.getCapabilities().torch) {
-                            torchBtn.style.display = 'inline-flex';
-                            torchBtn.onclick = async () => {
-                                isTorchOn = !isTorchOn;
-                                await track.applyConstraints({ advanced: [{ torch: isTorchOn }] });
-                                torchBtn.classList.toggle('btn-warning', isTorchOn);
-                            };
-                        }
-                    } catch (e) {}
-                } catch (err) {
-                    console.error('POS camera start error:', err);
-                    let errStr = err.message || 'Denied/Unavailable';
-                    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                        errStr += ' (Non-HTTPS IP connections block camera on mobile)';
-                    }
-                    statusDiv.innerHTML = `<span style="color:#ff4757; font-weight:600;"><i class="fa-solid fa-circle-exclamation"></i> Camera Access Error: ${errStr}</span>`;
-                    readerDiv.style.display = 'none';
-                }
+                startPosCameraStream({ facingMode: 'environment' });
             }
         });
 
