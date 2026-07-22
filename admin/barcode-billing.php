@@ -11,17 +11,6 @@ $register_stmt = $db->prepare("SELECT id FROM cash_register_sessions WHERE statu
 $register_stmt->execute(['user_id' => $user_id]);
 $is_register_open = (bool) $register_stmt->fetch();
 
-// Fetch or create active cart token for current user
-$active_cart_stmt = $db->prepare("SELECT cart_token FROM pos_active_carts WHERE cashier_user_id = :user_id AND status = 'active' LIMIT 1");
-$active_cart_stmt->execute(['user_id' => $user_id]);
-$active_cart_token = $active_cart_stmt->fetchColumn();
-
-if (!$active_cart_token) {
-    $active_cart_token = 'CART_' . strtoupper(bin2hex(random_bytes(8)));
-    $ins_cart = $db->prepare("INSERT INTO pos_active_carts (cart_token, cashier_user_id, status) VALUES (:token, :user_id, 'active')");
-    $ins_cart->execute(['token' => $active_cart_token, 'user_id' => $user_id]);
-}
-
 
 // Fetch all active product variants that have a barcode
 $variants_res = $db->query("
@@ -365,9 +354,6 @@ foreach ($variants_res as $row) {
             </p>
         </div>
         <div style="display:flex; gap:0.5rem; align-items:center;">
-            <button onclick="openMobilePairModal()" class="btn btn-primary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem; background:var(--accent-color); border:none; font-weight:700;">
-                <i class="fa-solid fa-mobile-screen-button"></i> 📱 Pair Mobile Scanner
-            </button>
             <button onclick="openPosReturnModal()" class="btn btn-secondary" style="height:32px; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.35rem;">
                 <i class="fa-solid fa-rotate-left" style="color:var(--accent-color);"></i> Return / Exchange (F7)
             </button>
@@ -418,9 +404,6 @@ foreach ($variants_res as $row) {
                     </div>
                 </div>
             </div>
-
-            <!-- Live Camera Barcode Scanner Widget -->
-            <div id="posCameraScannerWidget"></div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; width: 100%; margin-bottom: 0.4rem;">
                 <button onclick="parkCurrentOrder()" class="btn btn-secondary"
@@ -515,41 +498,6 @@ foreach ($variants_res as $row) {
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem;">
                 <button type="button" onclick="closeModal('customItemModal')" class="btn btn-secondary">Cancel</button>
                 <button type="button" onclick="addCustomItemToCart()" class="btn btn-primary">Add to Cart</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================================
-     MODAL: Pair Mobile Camera Scanner via QR Code
-     ============================================================ -->
-    <div id="mobilePairModal" class="modal">
-        <div class="modal-content" style="max-width: 440px; padding: 1.25rem; text-align: center;">
-            <button class="modal-close" onclick="closeModal('mobilePairModal')">&times;</button>
-            <h3 style="margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 1.1rem; color: var(--text-primary);">
-                <i class="fa-solid fa-qrcode" style="color: var(--accent-color);"></i>
-                Pair Mobile Camera Scanner
-            </h3>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.4;">
-                Scan this QR code with your mobile phone camera to open the <strong>Mobile POS Scanner UI</strong>. Scanned items on your phone will sync live to this PC terminal!
-            </p>
-
-            <div style="background: #ffffff; padding: 0.85rem; border-radius: 12px; display: inline-block; margin-bottom: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.18);">
-                <img id="mobilePairQrImg" src="" alt="Mobile Scanner QR Code" style="width: 200px; height: 200px; display: block; image-rendering: pixelated;">
-            </div>
-
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">
-                Mobile Pairing Link:
-                <div style="background: var(--bg-control); padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border-color); font-family: monospace; font-size: 0.72rem; word-break: break-all; margin-top: 0.25rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
-                    <span id="mobilePairUrlText" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--accent-color);"></span>
-                    <button type="button" onclick="copyPairUrl()" class="btn btn-secondary btn-sm" style="padding: 2px 8px; font-size: 0.68rem; flex-shrink: 0;">Copy</button>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: center; gap: 0.5rem;">
-                <button type="button" onclick="closeModal('mobilePairModal')" class="btn btn-secondary">Close</button>
-                <a id="mobilePairDirectLink" href="#" target="_blank" class="btn btn-primary" style="background: var(--accent-color); border: none; font-size: 0.8rem; font-weight: 700;">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Mobile Page
-                </a>
             </div>
         </div>
     </div>
@@ -662,66 +610,6 @@ foreach ($variants_res as $row) {
             }, 3000);
         }
 
-        // Active DB Cart Session Token
-        const activeCartToken = <?= json_encode($active_cart_token) ?>;
-        let localVersionHash = '';
-
-        function openMobilePairModal() {
-            const protocol = window.location.protocol;
-            const host = window.location.host;
-            const pathParts = window.location.pathname.split('/');
-            pathParts.pop();
-            const basePath = pathParts.join('/');
-            const pairUrl = `${protocol}//${host}${basePath}/mobile-scanner.php?cart_token=${encodeURIComponent(activeCartToken)}`;
-
-            document.getElementById('mobilePairUrlText').innerText = pairUrl;
-            document.getElementById('mobilePairDirectLink').href = pairUrl;
-            document.getElementById('mobilePairQrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(pairUrl)}`;
-
-            openModal('mobilePairModal');
-        }
-
-        function copyPairUrl() {
-            const text = document.getElementById('mobilePairUrlText').innerText;
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(text);
-                showBarcodeToast('Mobile pairing link copied!', 'success');
-            }
-        }
-
-        // Real-Time DB Active Cart Polling & Syncing
-        async function fetchDbCartState() {
-            try {
-                const res = await fetch(`../api/pos-cart-sync.php?action=get_cart&version_hash=${encodeURIComponent(localVersionHash)}&cart_token=${encodeURIComponent(activeCartToken)}`);
-                const data = await res.json();
-                if (!data.success) return;
-                if (!data.changed) return; // Unchanged
-
-                localVersionHash = data.version_hash;
-                cart = data.items.map(item => ({
-                    db_item_id: item.id,
-                    product_id: item.product_id || 0,
-                    variant_id: item.variant_id,
-                    name: item.product_name,
-                    size: item.size,
-                    price: item.price,
-                    whole_price: item.price,
-                    quantity: item.quantity,
-                    is_custom: !item.variant_id,
-                    allow_loose: item.allow_loose,
-                    loose_price: item.loose_price,
-                    loose_units_per_whole: item.loose_units,
-                    sell_type: item.sell_type,
-                    added_by_device: item.added_by_device
-                }));
-
-                saveCartState();
-                renderCart();
-            } catch (e) {
-                console.warn('DB cart poll error:', e);
-            }
-        }
-
         // Restore & Save Cart
         function loadCart() {
             const savedCart = localStorage.getItem('orange_billing_cart');
@@ -733,7 +621,6 @@ foreach ($variants_res as $row) {
                 }
             }
             renderCart();
-            fetchDbCartState();
         }
 
         function saveCartState() {
@@ -741,44 +628,38 @@ foreach ($variants_res as $row) {
         }
 
         // Core Cart Add Function
-        async function addItemToCart(productId, variantId, name, size, price, allowLoose = 0, loosePrice = null, looseUnits = 1, barcode = null) {
-            const bodyData = new URLSearchParams();
-            bodyData.append('action', 'add_item');
-            if (variantId) bodyData.append('variant_id', variantId);
-            if (barcode) bodyData.append('barcode', barcode);
-            bodyData.append('added_by', 'pc');
-            bodyData.append('cart_token', activeCartToken);
+        function addItemToCart(productId, variantId, name, size, price, allowLoose = 0, loosePrice = null, looseUnits = 1) {
+            const existingIndex = cart.findIndex(item =>
+                item.product_id === productId &&
+                item.variant_id === variantId &&
+                !item.is_custom
+            );
 
-            try {
-                const res = await fetch('../api/pos-cart-sync.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: bodyData
+            if (existingIndex !== -1) {
+                cart[existingIndex].quantity += 1;
+            } else {
+                cart.push({
+                    product_id: productId,
+                    variant_id: variantId,
+                    name: name,
+                    size: size,
+                    price: price,
+                    whole_price: price,
+                    quantity: 1,
+                    is_custom: false,
+                    allow_loose: allowLoose,
+                    loose_price: loosePrice,
+                    loose_units_per_whole: looseUnits,
+                    sell_type: 'whole'
                 });
-                const data = await res.json();
-                if (data.success) {
-                    localVersionHash = data.version_hash;
-                    await fetchDbCartState();
-                }
-            } catch (e) {
-                // Fallback to local array if offline
-                const existingIndex = cart.findIndex(item => item.product_id === productId && item.variant_id === variantId && !item.is_custom);
-                if (existingIndex !== -1) {
-                    cart[existingIndex].quantity += 1;
-                } else {
-                    cart.push({
-                        product_id: productId, variant_id: variantId, name: name, size: size,
-                        price: price, whole_price: price, quantity: 1, is_custom: false,
-                        allow_loose: allowLoose, loose_price: loosePrice, loose_units_per_whole: looseUnits, sell_type: 'whole'
-                    });
-                }
-                saveCartState();
-                renderCart();
             }
+
+            saveCartState();
+            renderCart();
         }
 
         // Custom Item
-        async function addCustomItemToCart() {
+        function addCustomItemToCart() {
             const nameInput = document.getElementById('customItemName');
             const priceInput = document.getElementById('customItemPrice');
             const qtyInput = document.getElementById('customItemQty');
@@ -792,123 +673,51 @@ foreach ($variants_res as $row) {
                 return;
             }
 
-            const bodyData = new URLSearchParams();
-            bodyData.append('action', 'add_custom_item');
-            bodyData.append('item_name', name);
-            bodyData.append('price', price);
-            bodyData.append('quantity', qty);
-            bodyData.append('cart_token', activeCartToken);
-
-            try {
-                const res = await fetch('../api/pos-cart-sync.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: bodyData
-                });
-                const data = await res.json();
-                if (data.success) {
-                    localVersionHash = data.version_hash;
-                    await fetchDbCartState();
-                }
-            } catch (e) {
-                cart.push({ product_id: 0, variant_id: null, name: name, size: 'Custom', price: price, quantity: qty, is_custom: true });
-                saveCartState();
-                renderCart();
-            }
+            cart.push({
+                product_id: 0,
+                variant_id: null,
+                name: name,
+                size: 'Custom',
+                price: price,
+                quantity: qty,
+                is_custom: true
+            });
 
             nameInput.value = '';
             priceInput.value = '';
             qtyInput.value = '1';
 
             closeModal('customItemModal');
+            saveCartState();
+            renderCart();
+
             playBeep(800, 100);
             showBarcodeToast(`Added custom item: ${name}`, 'success');
 
+            // Return focus to scanner
             const barcodeInput = document.getElementById('barcodeInput');
             if (barcodeInput) barcodeInput.focus();
         }
 
         // Cart Operations
-        async function updateQty(index, amount) {
-            if (!cart[index]) return;
-            const item = cart[index];
-            const newQty = item.quantity + amount;
-
-            if (item.db_item_id) {
-                const bodyData = new URLSearchParams();
-                bodyData.append('action', 'update_qty');
-                bodyData.append('item_id', item.db_item_id);
-                bodyData.append('quantity', newQty);
-                bodyData.append('sell_type', item.sell_type || 'whole');
-                bodyData.append('cart_token', activeCartToken);
-
-                try {
-                    const res = await fetch('../api/pos-cart-sync.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: bodyData
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        localVersionHash = data.version_hash;
-                        await fetchDbCartState();
-                        return;
-                    }
-                } catch (e) {}
+        function updateQty(index, amount) {
+            cart[index].quantity += amount;
+            if (cart[index].quantity <= 0) {
+                cart.splice(index, 1);
             }
-
-            // Fallback
-            item.quantity = newQty;
-            if (item.quantity <= 0) cart.splice(index, 1);
             saveCartState();
             renderCart();
         }
 
-        async function removeItem(index) {
-            if (!cart[index]) return;
-            const item = cart[index];
-
-            if (item.db_item_id) {
-                const bodyData = new URLSearchParams();
-                bodyData.append('action', 'remove_item');
-                bodyData.append('item_id', item.db_item_id);
-                bodyData.append('cart_token', activeCartToken);
-
-                try {
-                    const res = await fetch('../api/pos-cart-sync.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: bodyData
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        localVersionHash = data.version_hash;
-                        await fetchDbCartState();
-                        return;
-                    }
-                } catch (e) {}
-            }
-
+        function removeItem(index) {
             cart.splice(index, 1);
             saveCartState();
             renderCart();
         }
 
-        async function clearCart() {
+        function clearCart() {
             if (cart.length === 0) return;
             if (confirm('Are you sure you want to clear all items in the cart?')) {
-                const bodyData = new URLSearchParams();
-                bodyData.append('action', 'clear_cart');
-                bodyData.append('cart_token', activeCartToken);
-
-                try {
-                    await fetch('../api/pos-cart-sync.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: bodyData
-                    });
-                } catch (e) {}
-
                 cart = [];
                 saveCartState();
                 renderCart();
@@ -916,38 +725,13 @@ foreach ($variants_res as $row) {
             }
         }
 
-        async function changeItemSellType(index, type) {
+        function changeItemSellType(index, type) {
             if (!cart[index]) return;
-            const item = cart[index];
-            item.sell_type = type;
-
-            if (item.db_item_id) {
-                const bodyData = new URLSearchParams();
-                bodyData.append('action', 'update_qty');
-                bodyData.append('item_id', item.db_item_id);
-                bodyData.append('quantity', item.quantity);
-                bodyData.append('sell_type', type);
-                bodyData.append('cart_token', activeCartToken);
-
-                try {
-                    const res = await fetch('../api/pos-cart-sync.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: bodyData
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        localVersionHash = data.version_hash;
-                        await fetchDbCartState();
-                        return;
-                    }
-                } catch (e) {}
-            }
-
+            cart[index].sell_type = type;
             if (type === 'loose') {
-                item.price = parseFloat(item.loose_price);
+                cart[index].price = parseFloat(cart[index].loose_price);
             } else {
-                item.price = parseFloat(item.whole_price);
+                cart[index].price = parseFloat(cart[index].whole_price);
             }
             saveCartState();
             renderCart();
@@ -1464,14 +1248,6 @@ foreach ($variants_res as $row) {
             });
 
             loadCart();
-            // Start real-time active DB cart polling for mobile scanner sync
-            setInterval(fetchDbCartState, 1200);
-
-            if (window.OrangeCameraUtils) {
-                window.OrangeCameraUtils.initPosCameraScanner('posCameraScannerWidget', function(scannedBarcode) {
-                    processBarcodeValue(scannedBarcode);
-                });
-            }
         });
     </script>
 

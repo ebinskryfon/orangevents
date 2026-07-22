@@ -385,12 +385,7 @@ $variants = $stmt_vars->fetchAll();
 
                     <div class="form-group" style="margin:0;">
                         <label class="form-label" style="font-size:0.75rem;">Barcode (Auto-generated if left blank)</label>
-                        <div style="display:flex; gap:0.35rem; align-items:center;">
-                            <input type="text" name="barcode" id="variantBarcode" class="form-control" placeholder="e.g. 200123456789" style="height:34px; font-size:0.8rem; flex:1;">
-                            <button type="button" class="btn btn-secondary" onclick="scanVariantBarcodeWithCamera()" style="white-space:nowrap; display:flex; align-items:center; gap:0.25rem; height:34px; font-size:0.75rem; padding:0 0.5rem;">
-                                <i class="fa-solid fa-barcode" style="color:var(--accent-color);"></i> Scan
-                            </button>
-                        </div>
+                        <input type="text" name="barcode" id="variantBarcode" class="form-control" placeholder="e.g. 200123456789" style="height:34px; font-size:0.8rem;">
                     </div>
 
                     <div class="form-group" style="margin:0;">
@@ -536,20 +531,6 @@ $variants = $stmt_vars->fetchAll();
         }
 
         openModal('variantModal');
-    }
-
-    // Trigger Camera Barcode Scanning for Variant Barcode
-    function scanVariantBarcodeWithCamera() {
-        if (!window.OrangeCameraUtils) {
-            alert('Camera utilities loading... Please try again.');
-            return;
-        }
-        window.OrangeCameraUtils.openBarcodeScanModal(function(scannedBarcode) {
-            const barcodeInput = document.getElementById('variantBarcode');
-            if (barcodeInput) {
-                barcodeInput.value = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(scannedBarcode) : scannedBarcode;
-            }
-        });
     }
 
     // Real-time auto-cleaning for Variant Barcode Input
