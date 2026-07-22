@@ -75,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $size = trim($_POST['size'] ?? '');
         $inherit = isset($_POST['inherit_price']) ? 1 : 0;
         $price = $inherit ? null : (float) ($_POST['price'] ?? 0);
-        $barcode = trim($_POST['barcode'] ?? '');
+        $raw_barcode = trim($_POST['barcode'] ?? '');
+        $barcode = preg_replace('/^\][A-Za-z0-9]{1,4}\s*/', '', preg_replace('/[\x00-\x1F\x7F-\x9F]/u', '', $raw_barcode));
         $stock_qty = (float) ($_POST['stock_quantity'] ?? 0);
         $allow_loose = isset($_POST['allow_loose']) ? 1 : 0;
         $loose_price = $_POST['loose_price'] !== '' ? (float) $_POST['loose_price'] : null;
@@ -542,7 +543,7 @@ $variants = $stmt_vars->fetchAll();
         window.OrangeCameraUtils.openBarcodeScanModal(function(scannedBarcode) {
             const barcodeInput = document.getElementById('variantBarcode');
             if (barcodeInput) {
-                barcodeInput.value = scannedBarcode;
+                barcodeInput.value = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(scannedBarcode) : scannedBarcode;
             }
         });
     }

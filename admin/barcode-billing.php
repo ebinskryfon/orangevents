@@ -26,7 +26,7 @@ $variants_res = $db->query("
 $barcode_map = [];
 foreach ($variants_res as $row) {
     $effective_price = $row['variant_price'] !== null ? (float) $row['variant_price'] : (float) $row['base_price'];
-    $barcode_map[$row['barcode']] = [
+    $data = [
         'product_id' => (int) $row['product_id'],
         'variant_id' => (int) $row['variant_id'],
         'display_name' => $row['product_name'] . ' (' . $row['size'] . ')',
@@ -38,6 +38,14 @@ foreach ($variants_res as $row) {
         'stock' => (float) $row['stock_quantity'],
         'category_name' => $row['category_name']
     ];
+    $raw_code = trim($row['barcode']);
+    $barcode_map[$raw_code] = $data;
+    
+    // Strip AIM symbology prefix (e.g. ]c, ]C1, ]Q1)
+    $clean_code = preg_replace('/^\][A-Za-z0-9]{1,4}\s*/', '', preg_replace('/[\x00-\x1F\x7F-\x9F]/u', '', $raw_code));
+    if ($clean_code !== '' && $clean_code !== $raw_code) {
+        $barcode_map[$clean_code] = $data;
+    }
 }
 ?>
 
@@ -804,10 +812,28 @@ foreach ($variants_res as $row) {
         }
 
         // Barcode Scanning Input Process
-        function processBarcodeValue(barcodeValue) {
+        function processBarcodeValue(rawBarcodeValue) {
+            if (!rawBarcodeValue) return;
+
+            let barcodeValue = (window.OrangeCameraUtils && window.OrangeCameraUtils.cleanBarcode)
+                ? window.OrangeCameraUtils.cleanBarcode(rawBarcodeValue)
+                : String(rawBarcodeValue).replace(/[\x00-\x1F\x7F-\x9F]/g, '').replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+
             if (!barcodeValue) return;
 
-            const variant = barcodeMap[barcodeValue];
+            let variant = barcodeMap[barcodeValue];
+            if (!variant) {
+                // Fallback attempt: check raw value or alt prefix strip
+                let altClean = String(rawBarcodeValue).replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+                if (barcodeMap[altClean]) {
+                    barcodeValue = altClean;
+                    variant = barcodeMap[barcodeValue];
+                } else if (barcodeMap[rawBarcodeValue]) {
+                    barcodeValue = rawBarcodeValue;
+                    variant = barcodeMap[barcodeValue];
+                }
+            }
+
             const feedbackCard = document.getElementById('feedbackCard');
             const feedbackContent = document.getElementById('feedbackContent');
 
@@ -1105,7 +1131,8 @@ foreach ($variants_res as $row) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         clearTimeout(scannerDebounceTimer);
-                        const val = barcodeInput.value.trim();
+                        const val = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(barcodeInput.value) : barcodeInput.value.trim();
+                        barcodeInput.value = val;
                         if (val !== '') processBarcodeValue(val);
                     }
                     lastKeyTime = Date.now();
@@ -1118,8 +1145,9 @@ foreach ($variants_res as $row) {
 
                     if (timeSinceLast < SCANNER_SPEED_THRESHOLD_MS || timeSinceLast === now) {
                         scannerDebounceTimer = setTimeout(() => {
-                            const val = barcodeInput.value.trim();
-                            if (val.length >= 4) { // Guard for min barcode length
+                            const val = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(barcodeInput.value) : barcodeInput.value.trim();
+                            barcodeInput.value = val;
+                            if (val.length >= 3) { // Guard for min barcode length
                                 processBarcodeValue(val);
                             }
                         }, SCANNER_DEBOUNCE_MS);
@@ -1129,7 +1157,8 @@ foreach ($variants_res as $row) {
                 barcodeInput.addEventListener('paste', () => {
                     clearTimeout(scannerDebounceTimer);
                     scannerDebounceTimer = setTimeout(() => {
-                        const val = barcodeInput.value.trim();
+                        const val = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(barcodeInput.value) : barcodeInput.value.trim();
+                        barcodeInput.value = val;
                         if (val !== '') processBarcodeValue(val);
                     }, 50);
                 });

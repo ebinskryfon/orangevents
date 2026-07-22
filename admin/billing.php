@@ -733,9 +733,23 @@ function format_variant_stock_badge($v)
             const SCANNER_SPEED_THRESHOLD_MS = 80; // chars arriving faster than this = scanner
             const SCANNER_DEBOUNCE_MS = 120;        // wait this long after last char before auto-adding
 
-            function processBarcodeValue(barcodeValue) {
+            function processBarcodeValue(rawBarcodeValue) {
+                if (!rawBarcodeValue) return;
+                const barcodeValue = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(rawBarcodeValue) : String(rawBarcodeValue).replace(/[\x00-\x1F\x7F-\x9F]/g, '').replace(/^\][A-Za-z0-9]*\s*/, '').trim();
                 if (!barcodeValue) return;
-                const card = document.querySelector(`.prod-card[data-barcode="${barcodeValue}"]`);
+
+                let card = null;
+                try {
+                    card = document.querySelector(`.prod-card[data-barcode="${CSS.escape(barcodeValue)}"]`);
+                } catch(e) {}
+
+                if (!card) {
+                    const altClean = String(rawBarcodeValue).replace(/^\][A-Za-z0-9]*\s*/, '').trim();
+                    try {
+                        card = document.querySelector(`.prod-card[data-barcode="${CSS.escape(altClean)}"]`) || document.querySelector(`.prod-card[data-barcode="${CSS.escape(rawBarcodeValue)}"]`);
+                    } catch(e) {}
+                }
+
                 if (card) {
                     const productId = parseInt(card.dataset.productId);
                     const variantId = parseInt(card.dataset.variantId);
@@ -770,7 +784,8 @@ function format_variant_stock_badge($v)
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     clearTimeout(scannerDebounceTimer);
-                    const barcodeValue = barcodeInput.value.trim();
+                    const barcodeValue = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(barcodeInput.value) : barcodeInput.value.trim();
+                    barcodeInput.value = barcodeValue;
                     if (barcodeValue !== '') processBarcodeValue(barcodeValue);
                     return;
                 }
@@ -786,8 +801,9 @@ function format_variant_stock_badge($v)
                 if (timeSinceLast < SCANNER_SPEED_THRESHOLD_MS || timeSinceLast === now) {
                     // Fast typing / paste — schedule auto-add after brief pause
                     scannerDebounceTimer = setTimeout(() => {
-                        const barcodeValue = barcodeInput.value.trim();
-                        if (barcodeValue.length >= 4) { // Minimum barcode length guard
+                        const barcodeValue = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(barcodeInput.value) : barcodeInput.value.trim();
+                        barcodeInput.value = barcodeValue;
+                        if (barcodeValue.length >= 3) { // Minimum barcode length guard
                             processBarcodeValue(barcodeValue);
                         }
                     }, SCANNER_DEBOUNCE_MS);
@@ -799,7 +815,8 @@ function format_variant_stock_badge($v)
             barcodeInput.addEventListener('paste', () => {
                 clearTimeout(scannerDebounceTimer);
                 scannerDebounceTimer = setTimeout(() => {
-                    const barcodeValue = barcodeInput.value.trim();
+                    const barcodeValue = window.OrangeCameraUtils ? window.OrangeCameraUtils.cleanBarcode(barcodeInput.value) : barcodeInput.value.trim();
+                    barcodeInput.value = barcodeValue;
                     if (barcodeValue !== '') processBarcodeValue(barcodeValue);
                 }, 50);
             });

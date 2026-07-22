@@ -40,10 +40,45 @@ window.OrangeCameraUtils = (function () {
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.25);
             }
-        } catch (e) {
-            console.warn('Audio playback not allowed or supported:', e);
+    /**
+     * Clean & sanitize raw barcode/QR code scanned output.
+     * Removes AIM Symbology Identifiers (ISO/IEC 15424 e.g. ]c, ]C1, ]Q1, ]d2, ]E0),
+     * control characters, zero-width characters, and extraneous whitespace.
+     */
+    function cleanBarcode(val) {
+        if (val === null || val === undefined) return '';
+        let str = String(val);
+
+        // Strip non-printable ASCII control chars (0x00-0x1F, 0x7F-0x9F, zero-width space, BOM)
+        str = str.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, '');
+        str = str.trim();
+
+        // Strip AIM Symbology Identifier prefixes starting with ']' (ISO/IEC 15424)
+        if (str.startsWith(']')) {
+            // Pattern 1: ']' + 1-4 letters/digits followed by whitespace (e.g. "]c   1234", "]C1  1234")
+            str = str.replace(/^\][A-Za-z0-9]{1,4}\s+/, '');
+
+            // Pattern 2: Standard 3-character AIM identifier (e.g. "]C1", "]Q1", "]d2", "]E0", "]A0")
+            if (str.startsWith(']')) {
+                str = str.replace(/^\][A-Za-z][0-9A-Za-z]/, '');
+            }
+
+            // Pattern 3: 2-character AIM identifier (e.g. "]c", "]Q", "]d")
+            if (str.startsWith(']')) {
+                str = str.replace(/^\][A-Za-z]/, '');
+            }
+
+            // Fallback: strip any remaining leading ']' and leading spaces
+            if (str.startsWith(']')) {
+                str = str.replace(/^\]+\s*/, '');
+            }
+
+            str = str.trim();
         }
+
+        return str;
     }
+
 
     /**
      * Helper to stop any active video stream
@@ -323,9 +358,10 @@ window.OrangeCameraUtils = (function () {
             { facingMode: 'environment' },
             config,
             (decodedText, decodedResult) => {
+                const cleanedText = cleanBarcode(decodedText);
                 playBeepSound('success');
                 if (onScannedCallback) {
-                    onScannedCallback(decodedText, decodedResult);
+                    onScannedCallback(cleanedText, decodedResult, decodedText);
                 }
                 closeModal();
             },
@@ -406,18 +442,20 @@ window.OrangeCameraUtils = (function () {
                         { facingMode: 'environment' },
                         config,
                         (decodedText) => {
+                            const cleanedText = cleanBarcode(decodedText);
                             const now = Date.now();
-                            if (decodedText === lastScannedCode && (now - lastScanTime) < SCAN_DEBOUNCE_MS) {
+                            if (cleanedText === lastScannedCode && (now - lastScanTime) < SCAN_DEBOUNCE_MS) {
                                 return; // Ignore duplicate scan within debounce timeframe
                             }
-                            lastScannedCode = decodedText;
+                            lastScannedCode = cleanedText;
                             lastScanTime = now;
 
                             playBeepSound('success');
-                            statusDiv.innerHTML = `<span style="color:#2ed573; font-weight:600;"><i class="fa-solid fa-check"></i> Scanned: ${decodedText}</span>`;
+                            const safeDisplay = (typeof escapeHtml === 'function') ? escapeHtml(cleanedText) : cleanedText;
+                            statusDiv.innerHTML = `<span style="color:#2ed573; font-weight:600;"><i class="fa-solid fa-check"></i> Scanned: ${safeDisplay}</span>`;
 
                             if (onScanCallback) {
-                                onScanCallback(decodedText);
+                                onScanCallback(cleanedText, decodedText);
                             }
                         },
                         () => {}
@@ -449,6 +487,7 @@ window.OrangeCameraUtils = (function () {
 
     return {
         playBeepSound: playBeepSound,
+        cleanBarcode: cleanBarcode,
         openProductCameraModal: openProductCameraModal,
         openBarcodeScanModal: openBarcodeScanModal,
         initPosCameraScanner: initPosCameraScanner
