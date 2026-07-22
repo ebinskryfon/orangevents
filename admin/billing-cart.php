@@ -267,6 +267,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
+        // Clear active DB cart items for current cashier
+        try {
+            $db->exec("DELETE FROM pos_active_cart_items WHERE cart_id IN (SELECT id FROM pos_active_carts WHERE cashier_user_id = " . (int)$user_id . " AND status = 'active')");
+            $db->exec("UPDATE pos_active_carts SET customer_name = NULL, customer_phone = NULL, customer_address = NULL, discount_amount = 0.00, updated_at = CURRENT_TIMESTAMP WHERE cashier_user_id = " . (int)$user_id . " AND status = 'active'");
+        } catch (Exception $e) {}
+
         $db->commit();
 
         echo json_encode(['success' => true, 'order_id' => $order_id]);

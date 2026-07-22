@@ -1,0 +1,207 @@
+/* ==========================================================================
+   Orange Events - POS Module Mobile Responsiveness & Touch Optimization
+   ========================================================================== */
+
+/* Mobile Navigation Bar for POS Screens */
+.pos-mobile-tabs {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    background: var(--bg-card);
+    padding: 0.35rem;
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.pos-mobile-tab-btn {
+    padding: 0.65rem 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-radius: var(--border-radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    transition: var(--transition-fast);
+}
+
+.pos-mobile-tab-btn.active {
+    background: var(--accent-color);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.25);
+}
+
+/* Floating Sticky Mobile Footer Bar */
+.pos-mobile-sticky-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    padding: 0.65rem 1rem;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    backdrop-filter: blur(10px);
+}
+
+.pos-mobile-sticky-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.pos-mobile-sticky-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.pos-mobile-sticky-total {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: var(--accent-color);
+    line-height: 1.1;
+}
+
+.pos-mobile-sticky-pay-btn {
+    background: var(--accent-color);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--border-radius-md);
+    padding: 0.65rem 1.25rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(255, 107, 53, 0.35);
+    height: 44px;
+}
+
+/* Live Camera Reader Container Framing */
+#pos_cam_reader,
+#orange_barcode_reader {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+#pos_cam_reader video,
+#orange_barcode_reader video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+/* Tablet & Mobile Breakpoints */
+@media (max-width: 992px) {
+    .pos-container,
+    .barcode-billing-container {
+        grid-template-columns: 1fr !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    .pos-mobile-tabs {
+        display: grid;
+    }
+
+    .category-sidebar {
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        padding-bottom: 0.5rem !important;
+        white-space: nowrap !important;
+    }
+
+    .category-btn {
+        min-width: 110px !important;
+    }
+
+    .product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    }
+
+    .prod-card {
+        padding: 0.65rem !important;
+    }
+
+    .prod-card img,
+    .prod-card > div:first-child {
+        height: 80px !important;
+    }
+
+    .prod-title {
+        font-size: 0.8rem !important;
+        min-height: 28px !important;
+    }
+
+    .prod-price {
+        font-size: 0.9rem !important;
+    }
+
+    .pos-top-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+    }
+
+    .pos-top-bar > div {
+        width: 100% !important;
+    }
+
+    .scanner-input-wrapper {
+        max-width: 100% !important;
+    }
+
+    .scanner-input {
+        height: 42px !important;
+        font-size: 1rem !important;
+    }
+
+    .qty-btn {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 0.9rem !important;
+    }
+
+    .barcode-cart-item,
+    .cart-item {
+        flex-wrap: wrap !important;
+        padding: 0.6rem !important;
+        gap: 0.5rem !important;
+    }
+
+    .pos-mobile-sticky-bar {
+        display: flex;
+    }
+
+    .modal-content {
+        width: 95vw !important;
+        max-width: 95vw !important;
+        max-height: 90vh !important;
+        border-radius: 16px !important;
+        padding: 1rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .header-title h1 {
+        font-size: 1.15rem !important;
+    }
+}
