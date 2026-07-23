@@ -960,7 +960,10 @@ function format_variant_stock_badge($v)
                     <span style="color:var(--accent-color); font-weight:700;">₹${price.toFixed(2)}</span>
                 `;
                 button.onclick = () => {
-                    addItemToCart(id, v.id, name, v.size, price);
+                    const allowLoose = parseInt(v.allow_loose || 0);
+                    const loosePrice = v.loose_price !== null ? parseFloat(v.loose_price) : null;
+                    const looseUnits = parseFloat(v.loose_units_per_whole || 1);
+                    addItemToCart(id, v.id, name, v.size, price, allowLoose, loosePrice, looseUnits);
                     closeModal('variantSelectModal');
                 };
                 btnList.appendChild(button);

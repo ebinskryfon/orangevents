@@ -220,12 +220,12 @@ require_once __DIR__ . '/../includes/header.php';
             </select>
             <div style="display: flex; align-items: center; gap: 0.25rem; flex-grow: 0;">
                 <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">From:</span>
-                <input type="date" id="dateFrom" class="form-control" value="<?= date('Y-m-d') ?>"
+                <input type="date" id="dateFrom" class="form-control" value=""
                     style="width: 125px; cursor: pointer; padding: 0.25rem 0.5rem; height: 34px; font-size: 0.8rem;" onchange="filterInvoices()">
             </div>
             <div style="display: flex; align-items: center; gap: 0.25rem; flex-grow: 0;">
                 <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">To:</span>
-                <input type="date" id="dateTo" class="form-control" value="<?= date('Y-m-d') ?>"
+                <input type="date" id="dateTo" class="form-control" value=""
                     style="width: 125px; cursor: pointer; padding: 0.25rem 0.5rem; height: 34px; font-size: 0.8rem;" onchange="filterInvoices()">
             </div>
             <button type="button" onclick="setTodayFilter()" class="btn btn-secondary"

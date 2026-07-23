@@ -772,6 +772,12 @@ require_once __DIR__ . '/../includes/header.php';
                     <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-credit-card"
                             style="color:var(--accent-color); margin-right:0.25rem;"></i> Card</span>
                 </label>
+                <label
+                    style="flex:1; display:flex; align-items:center; gap:0.5rem; padding:0.75rem; border:1px solid var(--border-color); border-radius:var(--border-radius-sm); cursor:pointer; background:var(--bg-control);">
+                    <input type="radio" name="payment_method" value="Split" <?= $order['payment_method'] === 'Split' ? 'checked' : '' ?>>
+                    <span style="font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-sliders"
+                            style="color:var(--warning); margin-right:0.25rem;"></i> Split</span>
+                </label>
             </div>
         </div>
 
@@ -1244,6 +1250,9 @@ require_once __DIR__ . '/../includes/header.php';
         } else if (paymentMethod === 'UPI') {
             badge.style.background = 'rgba(30, 144, 255, 0.12)';
             badge.style.color = 'var(--info)';
+        } else if (paymentMethod === 'Split') {
+            badge.style.background = 'rgba(155, 89, 182, 0.15)';
+            badge.style.color = '#9b59b6';
         } else {
             badge.style.background = 'rgba(255, 107, 53, 0.12)';
             badge.style.color = 'var(--accent-color)';
