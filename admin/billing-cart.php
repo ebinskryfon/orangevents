@@ -655,6 +655,7 @@ $default_upi = $clean_phone . '@upi';
 
 <?php include_once __DIR__ . '/../includes/return-modal.php'; ?>
 
+<script src="../assets/js/qrcode.min.js"></script>
 <script>
     let cart = [];
     let selectedPaymentMethod = 'Cash';
@@ -968,7 +969,28 @@ $default_upi = $clean_phone . '@upi';
         const upiUrl = `upi://pay?pa=${encodeURIComponent(upiPhoneInput)}&pn=${encodeURIComponent(companyName)}&am=${amount.toFixed(2)}&cu=INR&tn=Invoice%20Payment`;
 
         const qrImg = document.getElementById('upiQRCodeImage');
-        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiUrl)}`;
+        if (!qrImg) return;
+
+        if (typeof QRCode !== 'undefined') {
+            const tempDiv = document.createElement('div');
+            new QRCode(tempDiv, {
+                text: upiUrl,
+                width: 160,
+                height: 160,
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            setTimeout(function() {
+                const generatedImg = tempDiv.querySelector('img');
+                const generatedCanvas = tempDiv.querySelector('canvas');
+                if (generatedImg && generatedImg.src) {
+                    qrImg.src = generatedImg.src;
+                } else if (generatedCanvas) {
+                    qrImg.src = generatedCanvas.toDataURL('image/png');
+                }
+            }, 50);
+        } else {
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(upiUrl)}`;
+        }
     }
 
     // Recalculate QR Code when UPI input phone changes

@@ -4,7 +4,8 @@
     "type": "project",
     "license": "proprietary",
     "require": {
-        "php": ">=8.0"
+        "php": ">=8.0",
+        "splitbrain/php-qrcode": "^0.1.0"
     },
     "scripts": {
         "migrate": "php bin/migrate.php"

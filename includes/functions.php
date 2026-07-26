@@ -293,6 +293,26 @@ function generate_upi_qr_code_url($amount, $invoice_number, $size = '150x150', $
     if (!$upi_url) {
         return false;
     }
+
+    if (!class_exists('\splitbrain\phpQRCode\QRCode')) {
+        $vendor_autoload = __DIR__ . '/../vendor/autoload.php';
+        $direct_src = __DIR__ . '/../vendor/splitbrain/php-qrcode/src/QRCode.php';
+        if (file_exists($vendor_autoload)) {
+            require_once $vendor_autoload;
+        } elseif (file_exists($direct_src)) {
+            require_once $direct_src;
+        }
+    }
+
+    if (class_exists('\splitbrain\phpQRCode\QRCode')) {
+        try {
+            $svg = \splitbrain\phpQRCode\QRCode::svg($upi_url);
+            return 'data:image/svg+xml;base64,' . base64_encode($svg);
+        } catch (\Throwable $e) {
+            // Fallback if SVG generation fails
+        }
+    }
+
     return 'https://api.qrserver.com/v1/create-qr-code/?size=' . urlencode($size) . '&data=' . urlencode($upi_url);
 }
 
