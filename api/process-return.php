@@ -34,29 +34,34 @@ try {
             exit;
         }
 
-        // Search by invoice number or phone number
+        // Search by exact invoice number, phone number, or numeric invoice barcode
+        $digits_query = preg_replace('/[^0-9]/', '', $query);
+        $trimmed_digits = ltrim($digits_query, '0');
+        $fallback_order_id = (strlen($digits_query) === 12 && strpos($digits_query, '200') === 0) ? (int)substr($digits_query, 3) : (int)$digits_query;
+
         $stmt = $db->prepare("
             SELECT id, invoice_number, customer_name, customer_phone, total_amount, discount_amount, final_amount, payment_method, created_at
               FROM billing_orders
-             WHERE invoice_number = :inv OR customer_phone = :phone
+             WHERE invoice_number = :inv 
+                OR customer_phone = :phone
+                OR (:digits != '' AND (
+                    REPLACE(REPLACE(invoice_number, '-', ''), ' ', '') LIKE :digits_like
+                    OR (:trimmed != '' AND REPLACE(REPLACE(invoice_number, '-', ''), ' ', '') LIKE :trimmed_like)
+                    OR id = :order_id
+                ))
           ORDER BY id DESC
              LIMIT 1
         ");
-        $stmt->execute(['inv' => $query, 'phone' => $query]);
+        $stmt->execute([
+            'inv' => $query,
+            'phone' => $query,
+            'digits' => $digits_query,
+            'digits_like' => '%' . $digits_query . '%',
+            'trimmed' => $trimmed_digits,
+            'trimmed_like' => '%' . $trimmed_digits . '%',
+            'order_id' => $fallback_order_id
+        ]);
         $order = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$order) {
-            // Try fuzzy match on invoice number
-            $stmt2 = $db->prepare("
-                SELECT id, invoice_number, customer_name, customer_phone, total_amount, discount_amount, final_amount, payment_method, created_at
-                  FROM billing_orders
-                 WHERE invoice_number LIKE :q
-              ORDER BY id DESC
-                 LIMIT 1
-            ");
-            $stmt2->execute(['q' => '%' . $query . '%']);
-            $order = $stmt2->fetch(PDO::FETCH_ASSOC);
-        }
 
         if (!$order) {
             echo json_encode(['success' => false, 'error' => 'No order found matching: ' . $query]);

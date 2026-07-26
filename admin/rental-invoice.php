@@ -24,6 +24,8 @@ $payments = $payments->fetchAll();
 $total_paid   = array_sum(array_column($payments, 'amount'));
 $balance_due  = max(0, $order['total_amount'] - $total_paid);
 $settings     = get_settings();
+$rental_qr_amount = ($balance_due > 0) ? $balance_due : (float)$order['total_amount'];
+$rental_upi_qr_url = generate_upi_qr_code_url($rental_qr_amount, $order['order_number']);
 
 $method_labels = ['cash'=>'Cash','upi'=>'UPI','bank_transfer'=>'Bank Transfer','cheque'=>'Cheque','other'=>'Other'];
 $type_labels   = ['advance'=>'Advance','partial'=>'Partial','balance'=>'Balance','refund'=>'Refund'];
@@ -592,6 +594,20 @@ function toggleElement(selector, isVisible) {
                         A/C: <?= h(get_setting('company_bank_acc')) ?><br>
                         IFSC: <?= h(get_setting('company_bank_ifsc')) ?><br>
                         Name: <?= h(get_setting('company_bank_holder')) ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (!empty($rental_upi_qr_url)): ?>
+                <div class="upi-qr-details-block" style="margin-top:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:6px;font-size:8pt;display:flex;align-items:center;gap:10px;background:#f9fafb;">
+                    <img src="<?= h($rental_upi_qr_url) ?>" alt="UPI QR Code" style="width:75px;height:75px;border:1px solid #d1d5db;border-radius:4px;background:#fff;padding:2px;flex-shrink:0;">
+                    <div>
+                        <div style="font-weight:700;color:#ff6b35;font-size:8pt;display:flex;align-items:center;gap:4px;">
+                            <i class="fa-solid fa-qrcode"></i> Scan &amp; Pay via UPI
+                        </div>
+                        <div style="color:#6b7280;font-size:7pt;margin-top:2px;">Google Pay • PhonePe • Paytm</div>
+                        <div style="font-family:monospace;font-weight:700;color:#1a1a2e;margin-top:3px;font-size:7.5pt;"><?= h($settings['company_upi_id']) ?></div>
+                        <div style="font-size:7pt;color:#6b7280;margin-top:2px;">Payable: <strong><?= format_price($rental_qr_amount) ?></strong></div>
                     </div>
                 </div>
                 <?php endif; ?>

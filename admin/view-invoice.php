@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
 check_admin_auth();
 
 $db = get_db_connection();
@@ -214,6 +215,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 $template = $invoice['template_name'];
 $settings = get_settings();
+$event_balance_due = max(0, (float)$invoice['final_total'] - ((float)$invoice['advance_received'] + (float)$invoice['balance_received']));
+$event_qr_amount = ($event_balance_due > 0) ? $event_balance_due : (float)$invoice['final_total'];
+$event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice_number']);
 ?>
 
 <?php if ($template === 'aedan_gardens'): ?>
@@ -659,6 +663,19 @@ $settings = get_settings();
                                 <?= date('d-M-Y', strtotime($invoice['balance_paid_at'])) ?>
                             <?php endif; ?>
                         </div>
+                        <?php if (!empty($event_upi_qr_url)): ?>
+                            <div class="upi-qr-box" style="display: flex; align-items: center; gap: 0.75rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); padding: 0.5rem 0.75rem; border-radius: 8px;">
+                                <img src="<?= h($event_upi_qr_url) ?>" alt="UPI QR Code" style="width: 80px; height: 80px; border-radius: 4px; border: 1px solid #ffffff; background: #ffffff; padding: 2px; flex-shrink: 0;">
+                                <div style="font-size: 0.75rem; color: #ffffff; line-height: 1.3;">
+                                    <div style="font-weight: 700; color: #f07c1b; font-size: 0.8rem; display: flex; align-items: center; gap: 0.25rem;">
+                                        <i class="fa-solid fa-qrcode"></i> Scan to Pay
+                                    </div>
+                                    <div style="color: #a4b0be; font-size: 0.7rem; margin-top: 2px;">GPay • PhonePe • Paytm</div>
+                                    <div style="font-family: monospace; font-weight: 700; color: #ffffff; margin-top: 3px; font-size: 0.75rem;"><?= h($settings['company_upi_id']) ?></div>
+                                    <div style="font-size: 0.7rem; color: #a4b0be; margin-top: 2px;">Payable: <strong style="color: #ffffff;"><?= format_price($event_qr_amount) ?></strong></div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                         <div class="summary-box"
                             style="display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end;">
                             <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #a4b0be;">

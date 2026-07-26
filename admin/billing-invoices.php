@@ -270,6 +270,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php else: ?>
                     <?php foreach ($orders as $ord): ?>
                         <tr class="invoice-row" data-invoice="<?= h(strtolower($ord['invoice_number'])) ?>"
+                            data-digits="<?= get_numeric_invoice_barcode($ord['invoice_number'], $ord['id']) ?>"
                             data-name="<?= h(strtolower($ord['customer_name'] ?? '')) ?>"
                             data-phone="<?= h(strtolower($ord['customer_phone'] ?? '')) ?>"
                             data-method="<?= h(strtolower($ord['payment_method'])) ?>"
@@ -319,8 +320,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <td style="padding: 0.5rem 0.75rem; text-align: right;">
                                 <div style="display: flex; gap: 0.3rem; justify-content: flex-end;">
                                     <a href="billing-invoice.php?id=<?= $ord['id'] ?>" class="btn btn-secondary"
-                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem;" title="View Thermal Receipt">
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem;" title="View Invoice Details">
                                         <i class="fa-solid fa-eye"></i> View
+                                    </a>
+                                    <a href="billing-invoice-print.php?id=<?= $ord['id'] ?>" target="_blank" class="btn btn-primary"
+                                        style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: var(--accent-gradient);"
+                                        title="Print Standard A4 Invoice in Separate Page">
+                                        <i class="fa-solid fa-print"></i> A4 Print
                                     </a>
                                     <button type="button" onclick="shareWhatsAppInvoice('<?= $ord['id'] ?>', '<?= h(addslashes($ord['invoice_number'])) ?>', '<?= h(addslashes($ord['customer_name'] ?? '')) ?>', '<?= h(addslashes($ord['customer_phone'] ?? '')) ?>', <?= (float)$ord['final_amount'] ?>, '<?= date('d M Y', strtotime($ord['created_at'])) ?>')" class="btn btn-success"
                                         style="padding: 0.3rem 0.45rem; font-size: 0.7rem; height: 28px; display: inline-flex; align-items: center; gap: 0.25rem; background: #25d366; border-color: #25d366; color: #ffffff;" title="Share Invoice on WhatsApp">
@@ -356,7 +362,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
     function filterInvoices() {
-        const searchVal = document.getElementById('invoiceSearch').value.toLowerCase().trim();
+        const rawInput = document.getElementById('invoiceSearch').value;
+        const searchVal = rawInput.toLowerCase().trim();
+        const searchDigits = rawInput.replace(/[^0-9]/g, '');
         const paymentVal = document.getElementById('paymentFilter').value.toLowerCase().trim();
         const dateFrom = document.getElementById('dateFrom').value;
         const dateTo = document.getElementById('dateTo').value;
@@ -366,16 +374,23 @@ require_once __DIR__ . '/../includes/header.php';
         let visibleCount = 0;
         let totalSales = 0;
         let totalDiscount = 0;
+        let lastMatchedRow = null;
 
         // Filter Table Rows
         rows.forEach(row => {
             const inv = row.getAttribute('data-invoice') || '';
+            const digits = row.getAttribute('data-digits') || '';
             const name = row.getAttribute('data-name') || '';
             const phone = row.getAttribute('data-phone') || '';
             const method = row.getAttribute('data-method') || '';
             const date = row.getAttribute('data-date') || '';
 
-            const matchesSearch = !searchVal || inv.includes(searchVal) || name.includes(searchVal) || phone.includes(searchVal);
+            const matchesSearch = !searchVal || 
+                inv.includes(searchVal) || 
+                (searchDigits.length >= 3 && digits.includes(searchDigits)) ||
+                name.includes(searchVal) || 
+                phone.includes(searchVal);
+
             const matchesPayment = !paymentVal || method === paymentVal;
 
             let matchesDate = true;
@@ -389,6 +404,7 @@ require_once __DIR__ . '/../includes/header.php';
             if (matchesSearch && matchesPayment && matchesDate) {
                 row.style.display = '';
                 visibleCount++;
+                lastMatchedRow = row;
                 totalSales += parseFloat(row.getAttribute('data-amount') || 0);
                 totalDiscount += parseFloat(row.getAttribute('data-discount') || 0);
             } else {
@@ -406,7 +422,60 @@ require_once __DIR__ . '/../includes/header.php';
         document.getElementById('statTotalCount').textContent = visibleCount;
         document.getElementById('statAvgTicket').textContent = '₹' + avgTicket.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById('statTotalDiscount').textContent = '₹' + totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        return { visibleCount, lastMatchedRow };
     }
+
+    // Auto Barcode Scanner Buffer & Enter key handler
+    let barcodeScanBuffer = '';
+    let barcodeScanTimer = null;
+
+    function handleAutoBarcodeSubmit() {
+        const res = filterInvoices();
+        if (res.visibleCount === 1 && res.lastMatchedRow) {
+            const viewLink = res.lastMatchedRow.querySelector('a.btn-secondary[title="View Invoice Details"]');
+            if (viewLink) {
+                // Highlight row briefly before navigating
+                res.lastMatchedRow.style.backgroundColor = 'rgba(46, 213, 115, 0.2)';
+                setTimeout(() => {
+                    window.location.href = viewLink.href;
+                }, 150);
+            }
+        }
+    }
+
+    document.getElementById('invoiceSearch').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAutoBarcodeSubmit();
+        }
+    });
+
+    // Global barcode scanner keystroke listener (catches scans even if input is not focused)
+    document.addEventListener('keypress', function(e) {
+        const activeElem = document.activeElement;
+        const isInputActive = activeElem && (activeElem.tagName === 'INPUT' || activeElem.tagName === 'TEXTAREA' || activeElem.tagName === 'SELECT');
+        
+        if (isInputActive) {
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            if (barcodeScanBuffer.length >= 3) {
+                const searchInput = document.getElementById('invoiceSearch');
+                searchInput.value = barcodeScanBuffer;
+                barcodeScanBuffer = '';
+                handleAutoBarcodeSubmit();
+            }
+            barcodeScanBuffer = '';
+        } else {
+            barcodeScanBuffer += e.key;
+            clearTimeout(barcodeScanTimer);
+            barcodeScanTimer = setTimeout(() => {
+                barcodeScanBuffer = '';
+            }, 300);
+        }
+    });
 
     function setTodayFilter() {
         const today = new Date().toISOString().split('T')[0];
@@ -457,6 +526,10 @@ require_once __DIR__ . '/../includes/header.php';
 
     document.addEventListener('DOMContentLoaded', function() {
         filterInvoices();
+        const searchInput = document.getElementById('invoiceSearch');
+        if (searchInput) {
+            searchInput.focus();
+        }
     });
 </script>
 

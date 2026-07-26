@@ -6,7 +6,7 @@ check_admin_auth();
 require_permission('billing_read');
 
 $db = get_db_connection();
-$id = (int)($_GET['id'] ?? $_GET['order_id'] ?? 0);
+$id = (int) ($_GET['id'] ?? $_GET['order_id'] ?? 0);
 if (!$id) {
     header('Location: billing.php');
     exit;
@@ -21,8 +21,15 @@ if (!$order) {
     exit;
 }
 
-// Fetch order items
-$stmt_items = $db->prepare("SELECT * FROM billing_order_items WHERE order_id = :id ORDER BY id ASC");
+// Fetch order items with Category Name
+$stmt_items = $db->prepare("
+    SELECT i.*, p.category_id, c.category_name 
+    FROM billing_order_items i
+    LEFT JOIN billing_products p ON i.product_id = p.id
+    LEFT JOIN billing_categories c ON p.category_id = c.id
+    WHERE i.order_id = :id
+    ORDER BY i.id ASC
+");
 $stmt_items->execute(['id' => $id]);
 $items = $stmt_items->fetchAll();
 
@@ -33,10 +40,18 @@ $returns_list = $stmt_returns->fetchAll();
 
 $total_returned_amount = 0;
 foreach ($returns_list as $ret) {
-    $total_returned_amount += (float)$ret['refund_amount'];
+    $total_returned_amount += (float) $ret['refund_amount'];
 }
 $has_returns = ($total_returned_amount > 0);
-$net_invoice_amount = max(0, (float)$order['final_amount'] - $total_returned_amount);
+$net_invoice_amount = max(0, (float) $order['final_amount'] - $total_returned_amount);
+
+// Calculate amount in words
+$amount_in_words = convert_number_to_words($net_invoice_amount);
+if (!empty($amount_in_words)) {
+    $amount_in_words = ucwords(trim($amount_in_words)) . ' only';
+} else {
+    $amount_in_words = 'Zero only';
+}
 
 // Fetch settings
 $settings_res = $db->query("SELECT * FROM settings")->fetchAll();
@@ -44,9 +59,31 @@ $settings = [];
 foreach ($settings_res as $row) {
     $settings[$row['key']] = $row['value'];
 }
+$raw_terms = $settings['invoice_terms'] ?? 'Thanks for choosing {company_name}! Total items: {total_items}';
+$formatted_terms = str_replace(
+    ['{company_name}', '{total_items}'],
+    [$settings['company_name'] ?? 'Aedan Gardens', count($items)],
+    $raw_terms
+);
+
+// Fetch customer email and GSTIN if available
+$customer_email = '';
+$customer_gstin = '';
+if (!empty($order['customer_phone'])) {
+    $stmt_cust = $db->prepare("SELECT email, gstin FROM customers WHERE phone = :phone LIMIT 1");
+    $stmt_cust->execute(['phone' => $order['customer_phone']]);
+    $cust = $stmt_cust->fetch();
+    if ($cust) {
+        if (!empty($cust['email']))
+            $customer_email = $cust['email'];
+        if (!empty($cust['gstin']))
+            $customer_gstin = $cust['gstin'];
+    }
+}
 $thermal_paper_width = $settings['pos_thermal_paper_width'] ?? '80mm';
 $thermal_font_size = $settings['pos_thermal_font_size'] ?? ($thermal_paper_width === '58mm' ? '10px' : '11px');
 $thermal_footer_msg = $settings['pos_thermal_footer_msg'] ?? 'Thank you for your business! Please retain this receipt.';
+$upi_qr_url = generate_upi_qr_code_url($net_invoice_amount, $order['invoice_number']);
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -67,7 +104,8 @@ require_once __DIR__ . '/../includes/header.php';
         }
 
         /* Force page reset */
-        html, body {
+        html,
+        body {
             background: #ffffff !important;
             color: #000000 !important;
             margin: 0 !important;
@@ -99,7 +137,8 @@ require_once __DIR__ . '/../includes/header.php';
         }
 
         /* Make only #invoicePaper and its children visible and positioned at top-left */
-        #invoicePaper, #invoicePaper * {
+        #invoicePaper,
+        #invoicePaper * {
             visibility: visible !important;
         }
 
@@ -119,19 +158,19 @@ require_once __DIR__ . '/../includes/header.php';
             page-break-inside: auto;
         }
 
-        #invoicePaper div, 
-        #invoicePaper span, 
-        #invoicePaper td, 
-        #invoicePaper th, 
+        #invoicePaper div,
+        #invoicePaper span,
+        #invoicePaper td,
+        #invoicePaper th,
         #invoicePaper p,
         #invoicePaper strong {
             color: #0f172a !important;
         }
 
         /* Keep top header band dark with white text */
-        #invoicePaper .invoice-card-header, 
-        #invoicePaper .invoice-card-header div, 
-        #invoicePaper .invoice-card-header span, 
+        #invoicePaper .invoice-card-header,
+        #invoicePaper .invoice-card-header div,
+        #invoicePaper .invoice-card-header span,
         #invoicePaper .invoice-card-header h2 {
             background: #1a1a2e !important;
             color: #ffffff !important;
@@ -180,10 +219,13 @@ require_once __DIR__ . '/../includes/header.php';
 </style>
 
 <!-- Compact Admin Page Header Toolbar -->
-<div class="content-header" style="margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
-    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.75rem;">
+<div class="content-header"
+    style="margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.75rem;">
         <div>
-            <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin: 0; font-family: 'Outfit', sans-serif;">
+            <h1
+                style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem; margin: 0; font-family: 'Outfit', sans-serif;">
                 <i class="fa-solid fa-file-invoice" style="color: var(--accent-color);"></i>
                 Invoice details <?= h($order['invoice_number']) ?>
             </h1>
@@ -192,234 +234,296 @@ require_once __DIR__ . '/../includes/header.php';
             </p>
         </div>
         <div class="receipt-action-bar" style="display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center;">
-            <a href="billing-invoices.php" class="btn btn-secondary" style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+            <a href="billing-invoices.php" class="btn btn-secondary"
+                style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
                 <i class="fa-solid fa-arrow-left"></i> Archives
             </a>
-            <a href="billing.php" class="btn btn-secondary" style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+            <a href="billing.php" class="btn btn-secondary"
+                style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
                 <i class="fa-solid fa-calculator"></i> POS Terminal
             </a>
             <?php if (has_permission('billing_update')): ?>
-            <a href="edit-billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary" style="background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15); height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
-                <i class="fa-solid fa-pen-to-square"></i> Edit
-            </a>
+                <a href="edit-billing-invoice.php?id=<?= $order['id'] ?>" class="btn btn-secondary"
+                    style="background: rgba(255, 165, 2, 0.12); color: var(--warning); border-color: rgba(255, 165, 2, 0.15); height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fa-solid fa-pen-to-square"></i> Edit
+                </a>
             <?php endif; ?>
-            <button type="button" onclick="shareWhatsApp()" class="btn btn-success" style="background-color: #25d366; border-color: #25d366; color: #ffffff; height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+            <button type="button" onclick="shareWhatsApp()" class="btn btn-success"
+                style="background-color: #25d366; border-color: #25d366; color: #ffffff; height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
                 <i class="fa-brands fa-whatsapp"></i> WhatsApp
             </button>
 
             <!-- Thermal Print Button -->
-            <button type="button" onclick="printThermal()" class="btn btn-secondary" style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(30, 144, 255, 0.12); color: var(--info); border-color: rgba(30, 144, 255, 0.2);" title="Print <?= $thermal_paper_width ?> Thermal Receipt">
+            <button type="button" onclick="printThermal()" class="btn btn-secondary"
+                style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(30, 144, 255, 0.12); color: var(--info); border-color: rgba(30, 144, 255, 0.2);"
+                title="Print <?= $thermal_paper_width ?> Thermal Receipt">
                 <i class="fa-solid fa-receipt"></i> Thermal Print (<?= $thermal_paper_width ?>)
             </button>
 
             <!-- A4 PDF Download Button -->
-            <button type="button" onclick="downloadPDF()" class="btn btn-secondary" style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;" title="Download A4 PDF Preview">
-                <i class="fa-solid fa-file-pdf"></i> Download A4 PDF
+            <button type="button" onclick="downloadPDF()" class="btn btn-secondary"
+                style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;"
+                title="Download A4 PDF Preview">
+                <i class="fa-solid fa-file-pdf"></i> Save A4 PDF
             </button>
 
-            <!-- Print A4 Button -->
-            <button type="button" onclick="printA4()" class="btn btn-primary" style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; background: var(--accent-gradient);" title="Print Standard A4 Invoice">
-                <i class="fa-solid fa-print"></i> Print A4
-            </button>
+            <!-- Standalone A4 Print Button (Separate Page) -->
+            <a href="billing-invoice-print.php?id=<?= $order['id'] ?>" target="_blank" class="btn btn-primary"
+                style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; background: var(--accent-gradient);"
+                title="Open & Print Invoice in Separate Page">
+                <i class="fa-solid fa-up-right-from-square"></i> Open / Print A4 Page
+            </a>
         </div>
     </div>
 </div>
 
 <?php if (isset($_GET['edit_success'])): ?>
-    <div style="background-color: var(--success); color: #ffffff; padding: 0.65rem 1.25rem; border-radius: var(--border-radius-md); margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 0.85rem;">
+    <div
+        style="background-color: var(--success); color: #ffffff; padding: 0.65rem 1.25rem; border-radius: var(--border-radius-md); margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 0.85rem;">
         <span><i class="fa-solid fa-circle-check"></i> POS Invoice has been updated successfully.</span>
-        <button onclick="this.parentElement.style.display='none'" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
+        <button onclick="this.parentElement.style.display='none'"
+            style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem; font-weight: bold; line-height: 1;">&times;</button>
     </div>
 <?php endif; ?>
 
-<!-- Main A4 Invoice Card (Matching Admin UI Design Sizing) -->
-<div class="card" id="invoicePaper" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
-    
-    <!-- Top Header Banner Band -->
-    <div class="invoice-card-header" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); padding: 1.5rem 1.75rem; color: #ffffff; position: relative; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <img src="../assets/images/logo.png" alt="Logo" style="max-height: 48px; width: auto; filter: brightness(0) invert(1);">
+<!-- Main A4 Invoice Card (Matching Reference Tax Invoice Template) -->
+<div class="card" id="invoicePaper"
+    style="padding: 24px 28px; background: #ffffff; color: #000000; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif;">
+
+    <!-- 1. Header Row -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <img src="../assets/images/logo.png" alt="Logo" style="max-height: 46px; width: auto; object-fit: contain;"
+                onerror="this.style.display='none'">
             <div>
-                <div style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 800; color: #ff6b35; text-transform: uppercase; letter-spacing: 0.5px;">
-                    <?= h($settings['company_name'] ?? 'Orange Events') ?>
+                <div
+                    style="font-size: 17px; font-weight: 800; color: #2b7b38; letter-spacing: -0.3px; line-height: 1.15;">
+                    <?= h($settings['company_name'] ?? 'Aedan Gardens') ?>
                 </div>
-                <div style="font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 0.1rem;">
-                    <?= h($settings['company_subtitle'] ?? 'Premium Catering & Stage Decors') ?>
+                <div style="font-size: 10.5px; font-weight: 600; color: #333333; margin-top: 1px;">
+                    <?= h($settings['company_subtitle'] ?? '(Plant Nursery & Garden Center)') ?>
                 </div>
-                <div style="font-size: 0.78rem; color: rgba(255,255,255,0.85); margin-top: 0.4rem; line-height: 1.4;">
-                    <?= h($settings['company_address'] ?? 'Thumpoly P.O, Alappuzha') ?><br>
-                    Phone: <?= h($settings['company_phone'] ?? '9946731720') ?> | Email: <?= h($settings['company_email'] ?? 'orangedecorations@gmail.com') ?>
+                <div style="font-size: 10px; color: #111111; margin-top: 3px; line-height: 1.35;">
+                    <?= nl2br(h($settings['company_address'] ?? "Thumpoly P.O Alappuzha\nAlappuzha")) ?><br>
+                    Email: <?= h($settings['company_email'] ?? 'aedangardens04@gmail.com') ?><br>
+                    State: <?= h($settings['company_state'] ?? '32-Kerala') ?>
                     <?php if (!empty($settings['company_gstin'] ?? '')): ?>
                         <br>GSTIN: <?= h($settings['company_gstin']) ?>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
-        
+
         <div style="text-align: right;">
-            <div style="font-size: 1.25rem; font-weight: 800; color: #ffffff; letter-spacing: 1px;">INVOICE</div>
-            <div style="font-size: 1rem; font-weight: 700; color: #ff6b35; margin-top: 0.15rem;"><?= h($order['invoice_number']) ?></div>
-            <div style="font-size: 0.78rem; color: rgba(255,255,255,0.75); margin-top: 0.25rem;">
-                Date: <?= date('d-m-Y h:i A', strtotime($order['created_at'])) ?>
+            <div style="font-size: 15px; font-weight: 800; color: #000000; margin-bottom: 3px;">Tax Invoice</div>
+            <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Invoice No:
+                <?= h($order['invoice_number']) ?></div>
+            <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Date:
+                <?= date('d-m-Y', strtotime($order['created_at'])) ?></div>
+            <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Place of Supply:
+                <?= h($settings['place_of_supply'] ?? '32 Kerala') ?></div>
+        </div>
+    </div>
+
+    <!-- 2. Bill To Box -->
+    <div style="margin-bottom: 14px; font-size: 10.5px; color: #000000; line-height: 1.35;">
+        <div style="font-size: 11.5px; font-weight: 800; margin-bottom: 2px;">Bill To:</div>
+        <div style="font-weight: 700; text-transform: uppercase;">
+            <?= h($order['customer_name'] ?: 'WALK-IN CUSTOMER') ?></div>
+        <?php if (!empty($order['customer_address'])): ?>
+            <div><?= nl2br(h($order['customer_address'])) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($order['customer_phone'])): ?>
+            <div>Contact No: <?= h($order['customer_phone']) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($customer_email)): ?>
+            <div>Email: <?= h($customer_email) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($customer_gstin)): ?>
+            <div>GSTIN: <?= h($customer_gstin) ?></div>
+        <?php endif; ?>
+        <div>State: <?= h($settings['company_state'] ?? '32-Kerala') ?></div>
+    </div>
+
+    <!-- 3. Line Items Table -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 14px;">
+        <thead>
+            <tr>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: center; width: 6%;">
+                    SI No</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: left; width: 30%;">
+                    Item Name</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: left; width: 16%;">
+                    Category</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: center; width: 12%;">
+                    Size</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: center; width: 9%;">
+                    Quantity</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: center; width: 7%;">
+                    Unit</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: right; width: 10%;">
+                    Price/Unit</th>
+                <th
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; background: #ffffff; text-align: right; width: 10%;">
+                    Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php $sl = 1;
+            foreach ($items as $item): ?>
+                <tr>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; text-align: center;">
+                        <?= $sl++ ?></td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px;">
+                        <strong><?= h($item['product_name']) ?></strong></td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px;">
+                        <?= h($item['category_name'] ?: 'General') ?></td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; text-align: center;">
+                        <?= h($item['variant_size'] ?: 'Regular') ?></td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; text-align: center;">
+                        <?= (float) $item['quantity'] ?></td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; text-align: center;">Nos</td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; text-align: right;">
+                        ₹<?= number_format($item['price'], 2) ?></td>
+                    <td style="border: 1px solid #000000; padding: 5px 7px; font-size: 11px; text-align: right;">
+                        ₹<?= number_format($item['total_price'], 2) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            <tr>
+                <td colspan="6" style="border: 1px solid #000000;"></td>
+                <td
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11.5px; font-weight: 800; text-align: right;">
+                    Total</td>
+                <td
+                    style="border: 1px solid #000000; padding: 5px 7px; font-size: 11.5px; font-weight: 800; text-align: right;">
+                    ₹<?= number_format($order['total_amount'], 2) ?></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 4. Middle Grid -->
+    <div
+        style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: stretch; margin-bottom: 16px;">
+        <div
+            style="border: 1px solid #000000; background: #ffffff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;">
+            <div style="padding: 8px 10px;">
+                <div
+                    style="font-weight: 800; font-size: 11.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 5px;">
+                    Invoice Amount in Words</div>
+                <div style="font-size: 10.5px; color: #000000; line-height: 1.35;"><?= h($amount_in_words) ?></div>
             </div>
-            <div style="display: inline-block; margin-top: 0.5rem; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; background: rgba(46, 213, 115, 0.15); color: #2ed573; border: 1px solid #2ed573; text-transform: uppercase;">
-                PAID / SETTLED
+
+            <div style="border-top: 1px solid #000000; padding: 8px 10px;">
+                <div
+                    style="font-weight: 800; font-size: 11.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 5px;">
+                    Description</div>
+                <div style="font-size: 10.5px; color: #000000; line-height: 1.35;">
+                    <?= h($settings['invoice_description'] ?? 'Healthy plants with care instructions. Returns accepted within 7 days for damaged plants only.') ?>
+                </div>
             </div>
-            <?php if ($has_returns): ?>
-                <div style="display: block; margin-top: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.7rem; font-weight: 700; background: rgba(255, 71, 87, 0.15); color: #ff4757; border: 1px solid #ff4757;">
-                    ITEM RETURNED
+        </div>
+
+        <div style="border: 1px solid #000000; background: #ffffff;">
+            <div
+                style="display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                <span>Sub Total</span>
+                <span>₹<?= number_format($order['total_amount'], 2) ?></span>
+            </div>
+            <?php if ($order['discount_amount'] > 0): ?>
+                <div
+                    style="display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #dc2626;">
+                    <span>Discount</span>
+                    <span>-₹<?= number_format($order['discount_amount'], 2) ?></span>
                 </div>
             <?php endif; ?>
-        </div>
-    </div>
-
-    <!-- Metadata Details Grid Cards -->
-    <div style="padding: 1.25rem 1.5rem; background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-            
-            <!-- Customer Box -->
-            <div class="ri-print-bg" style="background: var(--bg-control); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 0.85rem 1rem;">
-                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 0.35rem;">
-                    Billed To
-                </div>
-                <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">
-                    <?= h($order['customer_name'] ?: 'Walk-in Customer') ?>
-                </div>
-                <?php if (!empty($order['customer_phone'])): ?>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem;">
-                        <i class="fa-solid fa-phone" style="font-size: 0.68rem; color: var(--text-muted);"></i> <?= h($order['customer_phone']) ?>
-                    </div>
-                <?php endif; ?>
-                <?php if (!empty($order['customer_address'])): ?>
-                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; line-height: 1.3;">
-                        <?= nl2br(h($order['customer_address'])) ?>
-                    </div>
-                <?php endif; ?>
+            <div
+                style="display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #000000; font-size: 12.5px; font-weight: 800;">
+                <span>Total</span>
+                <span>₹<?= number_format($net_invoice_amount, 2) ?></span>
             </div>
-
-            <!-- Payment Info Box -->
-            <div class="ri-print-bg" style="background: var(--bg-control); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 0.85rem 1rem;">
-                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 0.35rem;">
-                    Payment Information
-                </div>
-                <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">
-                    <?php if ($order['payment_method'] === 'Split' || !empty($order['payment_breakdown'])): ?>
-                        <span style="color: var(--accent-color);">SPLIT PAYMENT</span>
-                        <div style="font-size: 0.78rem; font-weight: normal; color: var(--text-secondary); margin-top: 0.2rem;">
-                            <?php
-                            $bd_parts = [];
-                            if (!empty($order['payment_breakdown'])) {
-                                $bd = json_decode($order['payment_breakdown'], true);
-                                if (is_array($bd)) {
-                                    foreach ($bd as $m => $a) {
-                                        if ((float)$a > 0) $bd_parts[] = h($m) . ': ₹' . number_format((float)$a, 2);
-                                    }
-                                }
-                            }
-                            if (empty($bd_parts)) {
-                                if ($order['paid_cash'] > 0) $bd_parts[] = 'Cash: ₹' . number_format($order['paid_cash'], 2);
-                                if ($order['paid_upi'] > 0)  $bd_parts[] = 'UPI: ₹' . number_format($order['paid_upi'], 2);
-                                if ($order['paid_card'] > 0) $bd_parts[] = 'Card: ₹' . number_format($order['paid_card'], 2);
-                            }
-                            echo implode(' • ', $bd_parts);
-                            ?>
-                        </div>
-                    <?php else: ?>
-                        <?= h(strtoupper($order['payment_method'])) ?>
-                    <?php endif; ?>
-                </div>
-                <div style="font-size: 0.78rem; color: var(--success); margin-top: 0.25rem; font-weight: 600;">
-                    Status: Fully Settled / Complete
-                </div>
+            <div
+                style="display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                <span>Received</span>
+                <span>₹<?= number_format($net_invoice_amount, 2) ?></span>
             </div>
-
-            <!-- Staff & Counter Box -->
-            <div class="ri-print-bg" style="background: var(--bg-control); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 0.85rem 1rem;">
-                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 0.35rem;">
-                    Cashier / Staff
-                </div>
-                <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">
-                    <?= h(ucfirst($_SESSION['admin_username'] ?? 'Admin')) ?>
-                </div>
-                <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.2rem;">
-                    POS Terminal 01
-                </div>
+            <div
+                style="display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+                <span>Balance</span>
+                <span>₹0.00</span>
             </div>
-
-        </div>
-    </div>
-
-    <!-- Items Table Section -->
-    <div style="padding: 1.25rem 1.5rem;">
-        <div style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 0.75rem;">
-            Order Line Items (<?= count($items) ?>)
-        </div>
-
-        <div class="table-responsive">
-            <table class="table" style="margin: 0; font-size: 0.85rem;">
-                <thead>
-                    <tr>
-                        <th style="padding: 0.6rem 0.75rem; width: 6%; text-align: center;">#</th>
-                        <th style="padding: 0.6rem 0.75rem;">Item Description</th>
-                        <th style="padding: 0.6rem 0.75rem; width: 16%; text-align: right;">Unit Price</th>
-                        <th style="padding: 0.6rem 0.75rem; width: 12%; text-align: center;">Qty</th>
-                        <th style="padding: 0.6rem 0.75rem; width: 18%; text-align: right;">Total Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php $sl = 1; foreach ($items as $item): ?>
-                        <tr>
-                            <td style="padding: 0.65rem 0.75rem; text-align: center; color: var(--text-muted); font-size: 0.78rem;"><?= $sl++ ?></td>
-                            <td style="padding: 0.65rem 0.75rem;">
-                                <div style="font-weight: 700; color: var(--text-primary);"><?= h($item['product_name']) ?></div>
-                                <?php if (!empty($item['variant_size']) || !empty($item['sell_type'])): ?>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem;">
-                                        <?php if (!empty($item['variant_size'])): ?>
-                                            Variant: <?= h($item['variant_size']) ?>
-                                        <?php endif; ?>
-                                        <?php if (!empty($item['sell_type']) && $item['sell_type'] === 'rental'): ?>
-                                            (Rental)
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </td>
-                            <td style="padding: 0.65rem 0.75rem; text-align: right; color: var(--text-secondary);">₹<?= number_format($item['price'], 2) ?></td>
-                            <td style="padding: 0.65rem 0.75rem; text-align: center; font-weight: 700; color: var(--text-primary);"><?= (float)$item['quantity'] ?></td>
-                            <td style="padding: 0.65rem 0.75rem; text-align: right; font-weight: 700; color: var(--text-primary);">₹<?= number_format($item['total_price'], 2) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Financial Summary Grid -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin-top: 1.5rem; align-items: flex-start;">
-            <div>
-                <div class="ri-print-bg" style="background: var(--bg-control); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 0.85rem 1rem; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5;">
-                    <strong style="color: var(--text-primary); font-size: 0.82rem;">Store Terms & Notice:</strong><br>
-                    • All sales are final. Goods once sold are covered per store terms.<br>
-                    • Retain this receipt for future reference or returns.
-                </div>
-            </div>
-
-            <div class="ri-print-bg" style="background: var(--bg-control); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1rem 1.25rem;">
-                <div style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.85rem; color: var(--text-secondary);">
-                    <span>Subtotal:</span>
-                    <span>₹<?= number_format($order['total_amount'], 2) ?></span>
-                </div>
-                <?php if ($order['discount_amount'] > 0): ?>
-                    <div style="display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.85rem; color: var(--danger);">
-                        <span>Discount:</span>
-                        <span>-₹<?= number_format($order['discount_amount'], 2) ?></span>
-                    </div>
-                <?php endif; ?>
-                <div style="display: flex; justify-content: space-between; padding-top: 0.6rem; margin-top: 0.4rem; border-top: 1px dashed var(--border-color); font-size: 1.15rem; font-weight: 800; color: var(--accent-color); font-family: 'Outfit', sans-serif;">
-                    <span>Net Total:</span>
-                    <span>₹<?= number_format($order['final_amount'], 2) ?></span>
-                </div>
+            <div
+                style="display: flex; justify-content: space-between; padding: 5px 10px; font-size: 12px; font-weight: 700; padding-top: 6px;">
+                <span>Payment Method:</span>
+                <span><?= h(strtoupper($order['payment_method'])) ?></span>
             </div>
         </div>
     </div>
+
+    <!-- 5. Terms and Conditions -->
+    <div
+        style="background-color: #f2f2f2; padding: 5px 10px; font-weight: 800; font-size: 12px; color: #000000; margin-bottom: 6px; border-radius: 2px;">
+        Terms and Conditions
+    </div>
+    <div style="font-size: 11.5px; color: #000000; margin-bottom: 16px;">
+        <?= nl2br(h($formatted_terms)) ?>
+    </div>
+
+    <!-- 6. Footer Section -->
+    <div style="display: grid; grid-template-columns: 1.1fr 1.3fr 1fr; gap: 14px; align-items: flex-end; margin-top: 10px;">
+        <!-- Left Column: UPI Scan Box -->
+        <div style="border: 1.5px dashed #000000; padding: 8px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; margin-bottom: 6px; text-transform: uppercase;">Scan to Pay with UPI</div>
+            <?php if (!empty($upi_qr_url)): ?>
+                <img src="<?= h($upi_qr_url) ?>" alt="Scan to pay" style="width: 105px; height: 105px; object-fit: contain; display: block; margin: 0 auto 4px auto;">
+            <?php endif; ?>
+            <div style="font-size: 9.5px; font-weight: 700; line-height: 1.3;">
+                UPI ID: <?= h($settings['company_upi_id'] ?? '8590594735@okbizaxis') ?><br>
+                Payee: <?= h(strtoupper($settings['company_name'] ?? 'AEDAN GARDENS')) ?>
+            </div>
+        </div>
+
+        <!-- Middle Column: Bank Details Box -->
+        <div style="font-size: 11.5px; line-height: 1.45;">
+            <div style="background-color: #f2f2f2; padding: 4px 8px; font-weight: 800; font-size: 11.5px; margin-bottom: 6px;">Company's Bank Details:</div>
+            <div style="display: flex; gap: 8px; font-size: 11px;">
+                <div style="width: 55px; font-weight: 600; color: #333;">Bank:</div>
+                <div style="font-weight: 700; color: #000;"><?= h($settings['company_bank_name'] ?? 'STATE BANK OF INDIA') ?></div>
+            </div>
+            <div style="display: flex; gap: 8px; font-size: 11px;">
+                <div style="width: 55px; font-weight: 600; color: #333;">Acc No.:</div>
+                <div style="font-weight: 700; color: #000;"><?= h($settings['company_bank_acc'] ?? '40598127711') ?></div>
+            </div>
+            <div style="display: flex; gap: 8px; font-size: 11px;">
+                <div style="width: 55px; font-weight: 600; color: #333;">IFSC:</div>
+                <div style="font-weight: 700; color: #000;"><?= h($settings['company_bank_ifsc'] ?? 'SBIN0000807') ?></div>
+            </div>
+            <div style="display: flex; gap: 8px; font-size: 11px;">
+                <div style="width: 55px; font-weight: 600; color: #333;">Name:</div>
+                <div style="font-weight: 700; color: #000;"><?= h($settings['company_bank_holder'] ?? 'AEDAN GARDENS') ?></div>
+            </div>
+        </div>
+
+        <!-- Right Column (Opposite Side): Signatory Box & Unbordered Invoice Barcode -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="border: 1px solid #000000; height: 75px; display: flex; flex-direction: column; justify-content: space-between; padding: 8px; text-align: center; font-size: 11px; font-weight: 700;">
+                <div>For, <?= h($settings['company_name'] ?? 'Aedan Gardens') ?></div>
+                <div>Authorized Signatory</div>
+            </div>
+
+            <!-- Invoice Barcode (Short High-Density Numeric Code 128) -->
+            <div style="display: flex; justify-content: center; width: 100%; height: 42px; margin-top: 6px;">
+                <?= generate_barcode_svg(get_numeric_invoice_barcode($order['invoice_number'], $order['id']), 42, 2.2) ?>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Hidden 80mm/58mm Thermal Receipt HTML for Thermal Printer -->
@@ -439,8 +543,10 @@ require_once __DIR__ . '/../includes/header.php';
 
         <div>
             <div class="thermal-flex"><span>Invoice:</span> <strong><?= h($order['invoice_number']) ?></strong></div>
-            <div class="thermal-flex"><span>Date:</span> <span><?= date('d-m-Y H:i', strtotime($order['created_at'])) ?></span></div>
-            <div class="thermal-flex"><span>Customer:</span> <span><?= h($order['customer_name'] ?: 'Walk-in') ?></span></div>
+            <div class="thermal-flex"><span>Date:</span>
+                <span><?= date('d-m-Y H:i', strtotime($order['created_at'])) ?></span></div>
+            <div class="thermal-flex"><span>Customer:</span> <span><?= h($order['customer_name'] ?: 'Walk-in') ?></span>
+            </div>
             <?php if (!empty($order['customer_phone'])): ?>
                 <div class="thermal-flex"><span>Phone:</span> <span><?= h($order['customer_phone']) ?></span></div>
             <?php endif; ?>
@@ -472,7 +578,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                             <?php endif; ?>
                         </td>
-                        <td style="text-align: center;"><?= (float)$item['quantity'] ?></td>
+                        <td style="text-align: center;"><?= (float) $item['quantity'] ?></td>
                         <td style="text-align: right;">₹<?= number_format($item['total_price'], 2) ?></td>
                     </tr>
                 <?php endforeach; ?>
@@ -482,9 +588,11 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="thermal-divider"></div>
 
         <div>
-            <div class="thermal-flex"><span>Subtotal:</span> <span>₹<?= number_format($order['total_amount'], 2) ?></span></div>
+            <div class="thermal-flex"><span>Subtotal:</span>
+                <span>₹<?= number_format($order['total_amount'], 2) ?></span></div>
             <?php if ($order['discount_amount'] > 0): ?>
-                <div class="thermal-flex"><span>Discount:</span> <span>-₹<?= number_format($order['discount_amount'], 2) ?></span></div>
+                <div class="thermal-flex"><span>Discount:</span>
+                    <span>-₹<?= number_format($order['discount_amount'], 2) ?></span></div>
             <?php endif; ?>
             <div class="thermal-flex thermal-total-row">
                 <span>NET TOTAL:</span>
@@ -503,14 +611,18 @@ require_once __DIR__ . '/../includes/header.php';
                             $bd = json_decode($order['payment_breakdown'], true);
                             if (is_array($bd)) {
                                 foreach ($bd as $m => $a) {
-                                    if ((float)$a > 0) $bd_parts[] = h($m) . ': ₹' . number_format((float)$a, 2);
+                                    if ((float) $a > 0)
+                                        $bd_parts[] = h($m) . ': ₹' . number_format((float) $a, 2);
                                 }
                             }
                         }
                         if (empty($bd_parts)) {
-                            if ($order['paid_cash'] > 0) $bd_parts[] = 'Cash: ₹' . number_format($order['paid_cash'], 2);
-                            if ($order['paid_upi'] > 0)  $bd_parts[] = 'UPI: ₹' . number_format($order['paid_upi'], 2);
-                            if ($order['paid_card'] > 0) $bd_parts[] = 'Card: ₹' . number_format($order['paid_card'], 2);
+                            if ($order['paid_cash'] > 0)
+                                $bd_parts[] = 'Cash: ₹' . number_format($order['paid_cash'], 2);
+                            if ($order['paid_upi'] > 0)
+                                $bd_parts[] = 'UPI: ₹' . number_format($order['paid_upi'], 2);
+                            if ($order['paid_card'] > 0)
+                                $bd_parts[] = 'Card: ₹' . number_format($order['paid_card'], 2);
                         }
                         echo implode(' • ', $bd_parts);
                         ?>
@@ -518,6 +630,19 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
             </div>
         </div>
+
+        <?php if (!empty($upi_qr_url)): ?>
+            <div class="thermal-divider"></div>
+            <div style="text-align: center; margin: 6px 0;">
+                <div style="font-weight: bold; font-size: 10px; margin-bottom: 3px; text-transform: uppercase;">SCAN &amp;
+                    PAY VIA UPI</div>
+                <img src="<?= h($upi_qr_url) ?>" alt="UPI Payment QR"
+                    style="width: 110px; height: 110px; display: block; margin: 0 auto; border: 1px solid #000000; padding: 2px; background: #ffffff;">
+                <div style="font-size: 9px; margin-top: 3px; font-family: monospace; font-weight: bold;">
+                    <?= h($settings['company_upi_id']) ?></div>
+                <div style="font-size: 9px;">Amount: ₹<?= number_format($net_invoice_amount, 2) ?></div>
+            </div>
+        <?php endif; ?>
 
         <div class="thermal-divider"></div>
 
@@ -534,7 +659,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     function printThermal() {
         const thermalHTML = document.getElementById('thermalReceiptContainer').innerHTML;
-        
+
         let iframe = document.getElementById('thermalPrintIframe');
         if (!iframe) {
             iframe = document.createElement('iframe');
@@ -596,7 +721,7 @@ require_once __DIR__ . '/../includes/header.php';
         `);
         doc.close();
 
-        setTimeout(function() {
+        const doPrint = function () {
             try {
                 iframe.contentWindow.focus();
                 iframe.contentWindow.print();
@@ -606,7 +731,7 @@ require_once __DIR__ . '/../includes/header.php';
                 if (printWin) {
                     printWin.document.write(doc.documentElement.outerHTML);
                     printWin.document.close();
-                    printWin.onload = function() {
+                    printWin.onload = function () {
                         printWin.print();
                         setTimeout(() => printWin.close(), 600);
                     };
@@ -614,52 +739,61 @@ require_once __DIR__ . '/../includes/header.php';
                     alert("Pop-up blocked. Please allow pop-ups for thermal printing.");
                 }
             }
-        }, 300);
+        };
+
+        const qrImg = iframe.contentWindow.document.querySelector('img');
+        if (qrImg && !qrImg.complete) {
+            qrImg.onload = function () { setTimeout(doPrint, 150); };
+            qrImg.onerror = function () { doPrint(); };
+            setTimeout(doPrint, 1500); // Fallback timeout
+        } else {
+            setTimeout(doPrint, 300);
+        }
     }
 
     function downloadPDF() {
         const element = document.getElementById('invoicePaper');
         const invoiceNo = '<?= h($order['invoice_number']) ?>';
-        
+
         const opt = {
-            margin:       [5, 5, 5, 5],
-            filename:     `Invoice_${invoiceNo}.pdf`,
-            image:        { type: 'jpeg', quality: 1.0 },
-            html2canvas:  { 
-                scale: 3, 
-                useCORS: true, 
+            margin: [5, 5, 5, 5],
+            filename: `Invoice_${invoiceNo}.pdf`,
+            image: { type: 'jpeg', quality: 1.0 },
+            html2canvas: {
+                scale: 3,
+                useCORS: true,
                 logging: false,
                 windowWidth: 1150
             },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
-        
+
         html2pdf().from(element).set(opt).save();
     }
 
     function shareWhatsApp() {
         let customerName = '<?= h(addslashes($order['customer_name'] ?? 'Customer')) ?>';
         if (!customerName || customerName === 'Walk-in Customer') customerName = 'Valued Customer';
-        
+
         const invoiceNo = '<?= h($order['invoice_number']) ?>';
         const amount = '₹<?= number_format($order['final_amount'], 2) ?>';
-        const basePath = window.location.pathname.includes('/admin/') 
-            ? window.location.pathname.substring(0, window.location.pathname.indexOf('/admin/')) 
+        const basePath = window.location.pathname.includes('/admin/')
+            ? window.location.pathname.substring(0, window.location.pathname.indexOf('/admin/'))
             : window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'));
         const publicUrl = window.location.origin + basePath + '/view-receipt.php?inv=' + encodeURIComponent(invoiceNo);
-        
+
         let rawPhone = '<?= h($order['customer_phone'] ?? '') ?>';
         let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
-        
+
         if (!cleanPhone) {
             const inputPhone = prompt(`Share E-Receipt ${invoiceNo} via WhatsApp\n\nEnter 10-digit WhatsApp Phone Number:`, '');
             if (inputPhone === null) return;
             cleanPhone = inputPhone.replace(/[^0-9]/g, '');
         }
-        
+
         const purchaseDate = '<?= date('d M Y', strtotime($order['created_at'])) ?>';
         const messageText = `Hello *${customerName}* 👋,\n\nThank you for choosing *Orange Events*! 🌟\nHere is your digital receipt *${invoiceNo}* for *${amount}* issued on *${purchaseDate}*.\n\nView & download your E-Receipt link:\n${publicUrl}\n\nHave a wonderful celebration! 🎉`;
-        
+
         const encodedText = encodeURIComponent(messageText);
         let whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
         if (cleanPhone.length >= 10) {
@@ -669,12 +803,12 @@ require_once __DIR__ . '/../includes/header.php';
             }
             whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
         }
-        
+
         window.open(whatsappUrl, '_blank');
     }
 
     // Auto-trigger print if requested in URL
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function () {
         if (window.location.search.includes('print=1') || window.location.search.includes('thermal=1')) {
             printThermal();
         }

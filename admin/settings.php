@@ -22,7 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'company_upi_id',
         'pos_thermal_paper_width',
         'pos_thermal_font_size',
-        'pos_thermal_footer_msg'
+        'pos_thermal_footer_msg',
+        'place_of_supply',
+        'invoice_description',
+        'invoice_terms'
     ];
     
     try {
@@ -241,6 +244,30 @@ $settings = get_settings();
                 <div class="form-group">
                     <label for="company_gstin" class="form-group-label">GSTIN / Tax Registration No.</label>
                     <input type="text" id="company_gstin" name="company_gstin" class="form-control" value="<?= h(isset($settings['company_gstin']) ? $settings['company_gstin'] : '') ?>" placeholder="e.g. 32AACCO2938M1Z2" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                </div>
+            </div>
+
+            <!-- A4 Tax Invoice Customization Section -->
+            <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.85rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-file-invoice" style="color: var(--accent-color);"></i> A4 Tax Invoice Customization
+                </h3>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="place_of_supply" class="form-group-label">Place of Supply (State / Code)</label>
+                    <input type="text" id="place_of_supply" name="place_of_supply" class="form-control" value="<?= h($settings['place_of_supply'] ?? '32 Kerala') ?>" placeholder="e.g. 32 Kerala" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="invoice_description" class="form-group-label">Invoice Item Description / Store Policy Note</label>
+                    <textarea id="invoice_description" name="invoice_description" class="form-control" rows="3" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.85rem;" placeholder="e.g. Healthy plants with care instructions. Returns accepted within 7 days for damaged plants only."><?= h($settings['invoice_description'] ?? 'Healthy plants with care instructions. Returns accepted within 7 days for damaged plants only.') ?></textarea>
+                    <small style="color:var(--text-muted); font-size:0.75rem; margin-top:0.2rem; display:block;">Appears inside the Description box on A4 Tax Invoices.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="invoice_terms" class="form-group-label">Terms and Conditions Notice</label>
+                    <textarea id="invoice_terms" name="invoice_terms" class="form-control" rows="2" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.85rem;" placeholder="e.g. Thanks for choosing {company_name}! Total items: {total_items}"><?= h($settings['invoice_terms'] ?? 'Thanks for choosing {company_name}! Total items: {total_items}') ?></textarea>
+                    <small style="color:var(--text-muted); font-size:0.75rem; margin-top:0.2rem; display:block;">Appears under Terms and Conditions on A4 Invoices. Use <code>{company_name}</code> and <code>{total_items}</code> for dynamic values.</small>
                 </div>
             </div>
         </div>

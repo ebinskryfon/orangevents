@@ -1,9 +1,6 @@
 <?php
 require_once __DIR__ . '/config/database.php';
-
-function h($str) {
-    return htmlspecialchars($str ?? '', ENT_QUOTES, 'UTF-8');
-}
+require_once __DIR__ . '/includes/functions.php';
 
 $db = get_db_connection();
 
@@ -46,6 +43,7 @@ $settings = [];
 foreach ($settings_res as $row) {
     $settings[$row['key']] = $row['value'];
 }
+$receipt_upi_qr_url = generate_upi_qr_code_url($order['final_amount'], $order['invoice_number']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -537,6 +535,20 @@ foreach ($settings_res as $row) {
                     <span class="total-val">₹<?= number_format($order['final_amount'], 2) ?></span>
                 </div>
             </div>
+
+            <?php if (!empty($receipt_upi_qr_url)): ?>
+                <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: #ffffff; border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; align-items: center; gap: 0.85rem;">
+                    <img src="<?= h($receipt_upi_qr_url) ?>" alt="UPI QR Code" style="width: 85px; height: 85px; border-radius: 6px; border: 1px solid var(--border-light); padding: 2px; flex-shrink: 0;">
+                    <div>
+                        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.3rem;">
+                            <i class="fa-solid fa-qrcode" style="color: var(--accent-orange);"></i> Scan &amp; Pay via UPI
+                        </div>
+                        <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 2px;">Google Pay • PhonePe • Paytm • BHIM</div>
+                        <div style="font-size: 0.78rem; font-weight: 700; color: var(--accent-orange); margin-top: 3px; font-family: monospace;"><?= h($settings['company_upi_id']) ?></div>
+                        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">Amount: <strong style="color: var(--text-primary);">₹<?= number_format($order['final_amount'], 2) ?></strong></div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
     </div>
