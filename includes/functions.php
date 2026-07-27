@@ -2,6 +2,7 @@
 /**
  * Global Utility Functions
  */
+require_once __DIR__ . '/../config/database.php';
 
 /**
  * Format currency to match Indian Rupee display (e.g. Rs. 15,000)
@@ -200,8 +201,8 @@ function get_settings()
             foreach ($rows as $row) {
                 $settings[$row['key']] = $row['value'];
             }
-        } catch (Exception $e) {
-            // Fallback
+        } catch (Throwable $e) {
+            // Fallback to defaults
         }
     }
     return $settings;
@@ -217,7 +218,28 @@ function get_settings()
 function get_setting($key, $default = '')
 {
     $settings = get_settings();
-    return isset($settings[$key]) ? $settings[$key] : $default;
+    if (isset($settings[$key]) && trim($settings[$key]) !== '') {
+        return $settings[$key];
+    }
+    
+    // Default legal and merchant verification fallbacks
+    $defaults = [
+        'company_name' => 'Orange Events',
+        'trade_name' => 'Orange Events',
+        'owner_full_name' => 'Ebin Benny',
+        'registered_address' => 'Thumpoly, Alappuzha, Kerala - 688008',
+        'company_phone' => '+91 99467 31720',
+        'company_email' => 'orangedecorations@gmail.com',
+        'policy_cancellation_duration' => 'Up to 48 hours prior to scheduled event date',
+        'policy_refund_duration' => '5 to 7 business days',
+        'policy_refund_mode' => 'Original Mode of Payment (UPI / Net Banking / Credit or Debit Card)'
+    ];
+
+    if (isset($defaults[$key])) {
+        return $defaults[$key];
+    }
+
+    return $default;
 }
 
 /**

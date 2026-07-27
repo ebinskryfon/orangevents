@@ -1,10 +1,20 @@
 <?php
 // Base public index file for Orange Events
+require_once __DIR__ . '/includes/functions.php';
+
+$trade_name = get_setting('trade_name', 'Orange Events');
+$owner_full_name = get_setting('owner_full_name', 'Ebin Benny');
+$registered_address = get_setting('registered_address', 'Thumpoly, Alappuzha, Kerala - 688008');
+$company_phone = get_setting('company_phone', '+91 99467 31720');
+$company_email = get_setting('company_email', 'orangedecorations@gmail.com');
+
 $settings = [
-    'company_name' => 'Orange Events',
-    'phone' => '+91 99467 31720',
-    'email' => 'orangedecorations@gmail.com',
-    'address' => 'Thumpoly, Alappuzha, Kerala'
+    'company_name' => $trade_name,
+    'trade_name' => $trade_name,
+    'owner_full_name' => $owner_full_name,
+    'phone' => $company_phone,
+    'email' => $company_email,
+    'address' => $registered_address
 ];
 ?>
 <!DOCTYPE html>
@@ -69,10 +79,13 @@ $settings = [
             <nav class="nav-links" id="navLinks">
                 <a href="#home" class="nav-link">Home</a>
                 <a href="#about" class="nav-link">About Us</a>
-                <a href="#services" class="nav-link">Services</a>
+                <a href="#services" class="nav-link">Services & Pricing</a>
                 <a href="#gallery" class="nav-link">Gallery</a>
-                <a href="#feedback" class="nav-link">Reviews</a>
-                <a href="#contact" class="btn-primary nav-link">Get a Quote</a>
+                <a href="terms.php" class="nav-link">Terms</a>
+                <a href="privacy.php" class="nav-link">Privacy</a>
+                <a href="refund-policy.php" class="nav-link">Refund Policy</a>
+                <a href="cancellation-policy.php" class="nav-link">Cancellation</a>
+                <a href="checkout.php" class="btn-primary nav-link" style="background: var(--primary, #FF6B00);">Book & Checkout</a>
             </nav>
         </div>
     </header>
@@ -113,21 +126,18 @@ $settings = [
     <section id="about" class="section reveal">
         <div class="about-grid">
             <div class="about-content">
-                <div class="badge" style="display: inline-block; margin-bottom: 1rem;">Our Story</div>
-                <h3>Dedicated to Making Your Dreams a Reality</h3>
-                <p>Based in Thumpoly, Alappuzha, Orange Events has grown to become the most trusted name in premium
-                    event management across Kerala.</p>
-                <p>We believe that every event is a unique story waiting to be told. Our team of expert decorators,
-                    chefs, and coordinators work tirelessly behind the scenes to ensure flawless execution.</p>
+                <div class="badge" style="display: inline-block; margin-bottom: 1rem;">About Us & Our Heritage</div>
+                <h3>Crafting Extraordinary Celebrations Across Kerala</h3>
+                <p>Operated under trade name <strong><?= h($trade_name) ?></strong> (Proprietor: <strong><?= h($owner_full_name) ?></strong>), based in Thumpoly, Alappuzha, we are Kerala's trusted premier event management agency.</p>
+                <p>We combine innovative stage decor design, master culinary catering, and seamless A-to-Z logistics coordination to bring your dream wedding, corporate gala, or family function to life with unmatched elegance.</p>
 
                 <ul class="about-features">
-                    <li><i class="fa-solid fa-check"></i> Over 500+ Successful Events Managed</li>
-                    <li><i class="fa-solid fa-check"></i> Highly Trained Culinary Experts</li>
-                    <li><i class="fa-solid fa-check"></i> 100% Client Satisfaction Guaranteed</li>
+                    <li><i class="fa-solid fa-circle-check" style="color: #FF6B00;"></i> <strong>500+ Grand Events</strong> Managed Successfully</li>
+                    <li><i class="fa-solid fa-circle-check" style="color: #FF6B00;"></i> <strong>Registered Business:</strong> <?= h($registered_address) ?></li>
+                    <li><i class="fa-solid fa-circle-check" style="color: #FF6B00;"></i> <strong>Top Culinary Chefs & In-House Artisans</strong></li>
                 </ul>
             </div>
             <div class="about-image">
-                <!-- w=800 is plenty for a half-column layout; lazy load since it's below fold -->
                 <img src="https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?q=75&w=800&auto=format&fit=crop"
                     alt="Wedding Event Setup"
                     width="800" height="533"
@@ -136,45 +146,60 @@ $settings = [
         </div>
     </section>
 
-    <!-- Services Section -->
+    <!-- Services & Pricing Section -->
     <section id="services" class="section reveal">
         <div class="section-header">
-            <h2>Our Core <span>Services</span></h2>
-            <p>We provide end-to-end event management solutions tailored to your unique vision and requirements.</p>
+            <h2>Our Core <span>Services & Transparent Pricing</span></h2>
+            <p>Select your desired service package and check out online with instant booking confirmation.</p>
         </div>
 
         <div class="services-grid">
-            <!-- Service 1 -->
-            <div class="service-card">
+            <!-- Service 1: Stage Decors -->
+            <div class="service-card" style="position: relative;">
                 <div class="service-icon">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
                 </div>
                 <h3>Premium Stage Decors</h3>
-                <p>Custom-designed stages, elegant floral arrangements, and mesmerizing lighting to create the perfect
-                    backdrop for your celebrations.</p>
-                <a href="#contact" class="service-link">Inquire Now <i class="fa-solid fa-arrow-right"></i></a>
+                <p style="margin-bottom: 0.5rem;">Custom floral stage backdrops, 3D wedding thematic setups, ambient LED lighting & pathway arches.</p>
+                <div style="background: rgba(255,107,0,0.1); border: 1px solid rgba(255,107,0,0.25); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 1rem; text-align: center;">
+                    <span style="font-size: 0.75rem; color: rgba(255,255,255,0.7); text-transform: uppercase;">Starting From</span>
+                    <h4 style="font-size: 1.25rem; color: #FF6B00; margin: 0;">Rs. 15,000 <small style="font-size: 0.75rem; color: #fff;">/ package</small></h4>
+                </div>
+                <a href="checkout.php?package=stage_royal" class="btn-primary" style="display: block; text-align: center; font-size: 0.85rem; padding: 0.65rem 1rem; border-radius: 8px; text-decoration: none;">
+                    Book & Checkout <i class="fa-solid fa-arrow-right"></i>
+                </a>
             </div>
 
-            <!-- Service 2 -->
-            <div class="service-card">
+            <!-- Service 2: Grand Catering -->
+            <div class="service-card" style="position: relative;">
                 <div class="service-icon">
                     <i class="fa-solid fa-utensils"></i>
                 </div>
-                <h3>Grand Catering</h3>
-                <p>A culinary journey featuring authentic local delicacies and global cuisines, prepared by expert chefs
-                    with the finest ingredients.</p>
-                <a href="#contact" class="service-link">View Menu <i class="fa-solid fa-arrow-right"></i></a>
+                <h3>Grand Catering Feasts</h3>
+                <p style="margin-bottom: 0.5rem;">Authentic Kerala Sadhyas on banana leaf, multi-cuisine buffets & live food counters crafted by master chefs.</p>
+                <div style="background: rgba(46,213,115,0.1); border: 1px solid rgba(46,213,115,0.25); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 1rem; text-align: center;">
+                    <span style="font-size: 0.75rem; color: rgba(255,255,255,0.7); text-transform: uppercase;">Starting From</span>
+                    <h4 style="font-size: 1.25rem; color: #2ED573; margin: 0;">Rs. 350 <small style="font-size: 0.75rem; color: #fff;">/ plate</small></h4>
+                </div>
+                <a href="checkout.php?package=catering_sadhya" class="btn-primary" style="display: block; text-align: center; font-size: 0.85rem; padding: 0.65rem 1rem; border-radius: 8px; text-decoration: none;">
+                    Book & Checkout <i class="fa-solid fa-arrow-right"></i>
+                </a>
             </div>
 
-            <!-- Service 3 -->
-            <div class="service-card">
+            <!-- Service 3: Event Management -->
+            <div class="service-card" style="position: relative;">
                 <div class="service-icon">
                     <i class="fa-solid fa-camera"></i>
                 </div>
-                <h3>Event Management</h3>
-                <p>Complete A-to-Z coordination including photography, sound systems, transport, and guest management.
-                </p>
-                <a href="#contact" class="service-link">Learn More <i class="fa-solid fa-arrow-right"></i></a>
+                <h3>Full Event Management</h3>
+                <p style="margin-bottom: 0.5rem;">Complete A-to-Z coordination: stage decor, catering, photography, sound systems, transport & guest support.</p>
+                <div style="background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.25); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 1rem; text-align: center;">
+                    <span style="font-size: 0.75rem; color: rgba(255,255,255,0.7); text-transform: uppercase;">Starting From</span>
+                    <h4 style="font-size: 1.25rem; color: #FFA500; margin: 0;">Rs. 45,000 <small style="font-size: 0.75rem; color: #fff;">/ package</small></h4>
+                </div>
+                <a href="checkout.php?package=event_silver" class="btn-primary" style="display: block; text-align: center; font-size: 0.85rem; padding: 0.65rem 1rem; border-radius: 8px; text-decoration: none;">
+                    Book & Checkout <i class="fa-solid fa-arrow-right"></i>
+                </a>
             </div>
         </div>
     </section>
@@ -315,35 +340,34 @@ $settings = [
         <div class="footer-content">
             <div class="footer-brand">
                 <div class="logo">ORANGE<span>EVENTS</span></div>
-                <p>Making your special moments truly unforgettable with premium decorations and catering services across
-                    Kerala.</p>
+                <p>This website is operated by <?= h($trade_name) ?> (Proprietor: <?= h($owner_full_name) ?>). Making your special moments truly unforgettable with premium decorations and catering services across Kerala.</p>
             </div>
 
             <div class="footer-links">
-                <h4>Quick Links</h4>
+                <h4>Legal & Policies</h4>
                 <ul>
-                    <li><a href="#home"><i class="fa-solid fa-angle-right"></i> Home</a></li>
-                    <li><a href="#about"><i class="fa-solid fa-angle-right"></i> About Us</a></li>
-                    <li><a href="#services"><i class="fa-solid fa-angle-right"></i> Our Services</a></li>
-                    <li><a href="#gallery"><i class="fa-solid fa-angle-right"></i> Event Gallery</a></li>
+                    <li><a href="terms.php"><i class="fa-solid fa-angle-right"></i> Terms & Conditions</a></li>
+                    <li><a href="privacy.php"><i class="fa-solid fa-angle-right"></i> Privacy Policy</a></li>
+                    <li><a href="refund-policy.php"><i class="fa-solid fa-angle-right"></i> Refund Policy</a></li>
+                    <li><a href="cancellation-policy.php"><i class="fa-solid fa-angle-right"></i> Cancellation Policy</a></li>
                 </ul>
             </div>
 
             <div class="footer-links">
-                <h4>Contact Us</h4>
+                <h4>Registered Contact</h4>
                 <ul class="contact-info">
                     <li><i class="fa-solid fa-location-dot"></i>
-                        <span><?= htmlspecialchars($settings['address']) ?></span>
+                        <span><?= h($registered_address) ?></span>
                     </li>
-                    <li><i class="fa-solid fa-phone"></i> <span><?= htmlspecialchars($settings['phone']) ?></span></li>
-                    <li><i class="fa-solid fa-envelope"></i> <span><?= htmlspecialchars($settings['email']) ?></span>
-                    </li>
+                    <li><i class="fa-solid fa-user-check"></i> <span>Proprietor: <?= h($owner_full_name) ?></span></li>
+                    <li><i class="fa-solid fa-phone"></i> <span><?= h($company_phone) ?></span></li>
+                    <li><i class="fa-solid fa-envelope"></i> <span><?= h($company_email) ?></span></li>
                 </ul>
             </div>
         </div>
 
         <div class="footer-bottom">
-            <p>&copy; <?= date('Y') ?> Orange Events. All rights reserved.</p>
+            <p>&copy; <?= date('Y') ?> <?= h($trade_name) ?>. Operated by <?= h($owner_full_name) ?>. All rights reserved.</p>
             <div>
                 <a href="login.php"
                     style="color: var(--text-muted); opacity: 0.5; font-size: 0.8rem; text-decoration: none; transition: opacity 0.3s;">

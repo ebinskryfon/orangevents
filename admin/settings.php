@@ -9,6 +9,9 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $keys = [
         'company_name',
+        'trade_name',
+        'owner_full_name',
+        'registered_address',
         'company_subtitle',
         'company_gstin',
         'company_address',
@@ -25,7 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'pos_thermal_footer_msg',
         'place_of_supply',
         'invoice_description',
-        'invoice_terms'
+        'invoice_terms',
+        'policy_cancellation_duration',
+        'policy_refund_duration',
+        'policy_refund_mode'
     ];
     
     try {
@@ -217,6 +223,9 @@ $settings = get_settings();
     </button>
     <button type="button" class="pos-tab-btn" onclick="switchTab('templates')">
         <i class="fa-solid fa-images"></i> Receipt Templates
+    </button>
+    <button type="button" class="pos-tab-btn" onclick="switchTab('legal')">
+        <i class="fa-solid fa-scale-balanced" style="color:var(--accent-color);"></i> Legal & Policy Verification
     </button>
     <button type="button" class="pos-tab-btn" onclick="switchTab('thermal')">
         <i class="fa-solid fa-print" style="color:var(--accent-color);"></i> POS Thermal Printer
@@ -445,6 +454,50 @@ $settings = get_settings();
             <div class="form-group">
                 <label for="pos_thermal_footer_msg" class="form-group-label">Thermal Receipt Footer Custom Message</label>
                 <textarea id="pos_thermal_footer_msg" name="pos_thermal_footer_msg" class="form-control" rows="2" style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.85rem;" placeholder="Thank you for your business! Please retain this receipt."><?= h($settings['pos_thermal_footer_msg'] ?? 'Thank you for your business! Please retain this receipt.') ?></textarea>
+            </div>
+        </div>
+
+        <!-- Tab: Legal & Policy Verification -->
+        <div id="tab-legal" class="tab-content" style="display: none;">
+            <h2 style="font-size:1.05rem; font-weight:700; color:var(--text-primary); margin:0 0 1.25rem 0; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; display:flex; align-items:center; gap:0.4rem;">
+                <i class="fa-solid fa-scale-balanced" style="color:var(--accent-color);"></i> Legal Merchant Verification & Policy Details
+            </h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+                <div class="form-group">
+                    <label for="trade_name" class="form-group-label">Operating Trade Name *</label>
+                    <input type="text" id="trade_name" name="trade_name" class="form-control" value="<?= h(get_setting('trade_name', 'Orange Events')) ?>" required style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                    <small style="color:var(--text-muted); font-size:0.75rem;">Required for Terms & Conditions ("This website is operated by Trade Name").</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="owner_full_name" class="form-group-label">Proprietor / Owner Full Name *</label>
+                    <input type="text" id="owner_full_name" name="owner_full_name" class="form-control" value="<?= h(get_setting('owner_full_name', 'Ebin Benny')) ?>" required style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                    <small style="color:var(--text-muted); font-size:0.75rem;">Proprietor full name for payment gateway verification.</small>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label for="registered_address" class="form-group-label">Registered Address (Aadhar / Official Address) *</label>
+                <textarea id="registered_address" name="registered_address" class="form-control" rows="2" required style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.85rem;"><?= h(get_setting('registered_address', 'Thumpoly, Alappuzha, Kerala - 688008')) ?></textarea>
+                <small style="color:var(--text-muted); font-size:0.75rem;">Official registered business/Aadhar address displayed on website footer & policy tabs.</small>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div class="form-group">
+                    <label for="policy_cancellation_duration" class="form-group-label">Cancellation Timeline / Duration *</label>
+                    <input type="text" id="policy_cancellation_duration" name="policy_cancellation_duration" class="form-control" value="<?= h(get_setting('policy_cancellation_duration', 'Up to 48 hours prior to scheduled event date')) ?>" required style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                </div>
+
+                <div class="form-group">
+                    <label for="policy_refund_duration" class="form-group-label">Refund Duration *</label>
+                    <input type="text" id="policy_refund_duration" name="policy_refund_duration" class="form-control" value="<?= h(get_setting('policy_refund_duration', '5 to 7 business days')) ?>" required style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                </div>
+
+                <div class="form-group">
+                    <label for="policy_refund_mode" class="form-group-label">Refund Mode *</label>
+                    <input type="text" id="policy_refund_mode" name="policy_refund_mode" class="form-control" value="<?= h(get_setting('policy_refund_mode', 'Original Mode of Payment (UPI / Net Banking / Credit or Debit Card)')) ?>" required style="background:var(--bg-control); border:1px solid var(--border-color); color:var(--text-primary); height:38px;">
+                </div>
             </div>
         </div>
 
