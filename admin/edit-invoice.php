@@ -72,6 +72,7 @@ if ($loaded_catering) {
         $selected_dishes[$row['dish_id']] = $row['plate_count'];
     }
 }
+$initial_selected_dish_ids = array_map('strval', array_keys($selected_dishes));
 
 $message = '';
 $error = '';
@@ -410,7 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         ?>
                                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
                                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; flex: 1; margin: 0; color: var(--text-primary);">
-                                                <input type="checkbox" name="dishes[]" value="<?= $dish['id'] ?>" class="dish-chk" <?= $is_checked ? 'checked' : '' ?> style="accent-color: var(--accent-color);" data-dishname="<?= h($dish['dish_name']) ?>" data-category="<?= h($cat['category_name']) ?>" onchange="togglePlatesInput(this)">
+                                                <input type="checkbox" value="<?= $dish['id'] ?>" class="dish-chk" <?= $is_checked ? 'checked' : '' ?> style="accent-color: var(--accent-color);" data-dishname="<?= h($dish['dish_name']) ?>" data-category="<?= h($cat['category_name']) ?>" onchange="toggleDishSelection(this)">
                                                 <span><?= h($dish['dish_name']) ?></span>
                                             </label>
                                             <input type="number" name="dish_plates[<?= $dish['id'] ?>]" placeholder="Plates" class="form-control dish-plates-input" value="<?= h($p_val) ?>" style="width: 70px; padding: 0.2rem 0.4rem; font-size: 0.75rem; display: <?= $is_checked ? 'inline-block' : 'none' ?>;">
@@ -559,12 +560,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Note: Adjusting items or checking dishes will instantly recompute the preview invoice values in real-time.
                 </div>
             </div>
+
+            <!-- Selected Dishes Order Preview Card -->
+            <div class="card" style="padding: 1.5rem; background: var(--bg-body); border: 1px solid var(--border-color); margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 0.5rem; font-size: 0.85rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-list-ol" style="color: var(--accent-color);"></i> Selected Dishes Order
+                </h4>
+                <div id="editInvoiceDishesList" style="display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-primary); max-height: 250px; overflow-y: auto;">
+                    <span style="color: var(--text-muted); font-style: italic;">No dishes selected yet.</span>
+                </div>
+            </div>
         </div>
         
     </div>
 </form>
 
 <script>
+let selectionOrder = <?= json_encode($initial_selected_dish_ids) ?>;
+
+function updateHiddenDishesInputs() {
+    let container = document.getElementById('hiddenDishesContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'hiddenDishesContainer';
+        const form = document.getElementById('invoiceForm');
+        if (form) form.appendChild(container);
+    }
+    container.innerHTML = '';
+    selectionOrder.forEach(dishId => {
+        const chk = document.querySelector(`.dish-chk[value="${dishId}"]`);
+        if (chk && chk.checked) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'dishes[]';
+            hidden.value = dishId;
+            container.appendChild(hidden);
+        }
+    });
+}
+
+function toggleDishSelection(chk) {
+    const dishId = String(chk.value);
+    if (chk.checked) {
+        if (!selectionOrder.includes(dishId)) {
+            selectionOrder.push(dishId);
+        }
+    } else {
+        selectionOrder = selectionOrder.filter(id => id !== dishId);
+    }
+    togglePlatesInput(chk);
+    updateHiddenDishesInputs();
+    renderDishesPreview();
+}
+
+function moveDish(dishId, direction) {
+    dishId = String(dishId);
+    const index = selectionOrder.indexOf(dishId);
+    if (index === -1) return;
+    
+    if (direction === 'up' && index > 0) {
+        const temp = selectionOrder[index];
+        selectionOrder[index] = selectionOrder[index - 1];
+        selectionOrder[index - 1] = temp;
+    } else if (direction === 'down' && index < selectionOrder.length - 1) {
+        const temp = selectionOrder[index];
+        selectionOrder[index] = selectionOrder[index + 1];
+        selectionOrder[index + 1] = temp;
+    }
+    
+    updateHiddenDishesInputs();
+    renderDishesPreview();
+}
+
+function renderDishesPreview() {
+    let selectedDishesGrouped = {};
+    selectionOrder.forEach(dishId => {
+        const chk = document.querySelector(`.dish-chk[value="${dishId}"]`);
+        if (chk && chk.checked) {
+            const cat = chk.getAttribute('data-category');
+            const dName = chk.getAttribute('data-dishname');
+            const parent = chk.closest('div');
+            const input = parent ? parent.querySelector('.dish-plates-input') : null;
+            const platesVal = input ? input.value : '';
+            
+            if (!selectedDishesGrouped[cat]) {
+                selectedDishesGrouped[cat] = [];
+            }
+            selectedDishesGrouped[cat].push({ id: dishId, name: dName, plates: platesVal });
+        }
+    });
+    
+    let htmlOutput = '';
+    const keys = Object.keys(selectedDishesGrouped);
+    if (keys.length === 0) {
+        htmlOutput = '<span style="color: var(--text-muted); font-style: italic;">No dishes selected yet.</span>';
+    } else {
+        keys.forEach(cat => {
+            htmlOutput += `<div style="margin-top: 0.5rem;"><strong style="color: var(--accent-color); font-size: 0.75rem; text-transform: uppercase;">${cat}</strong></div>`;
+            const catDishes = selectedDishesGrouped[cat];
+            catDishes.forEach((d, idx) => {
+                const platesSuffix = (d.plates && parseInt(d.plates) > 0) ? ` (${d.plates} Plates)` : '';
+                const isFirst = idx === 0;
+                const isLast = idx === catDishes.length - 1;
+                htmlOutput += `<div style="display: flex; align-items: center; justify-content: space-between; padding-left: 0.5rem; border-left: 2px solid var(--accent-color); margin-top: 0.25rem; font-size: 0.8rem;">
+                    <span>• ${d.name}${platesSuffix}</span>
+                    <div style="display: flex; gap: 0.2rem;">
+                        <button type="button" onclick="moveDish('${d.id}', 'up')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isFirst ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Up"><i class="fa-solid fa-arrow-up"></i></button>
+                        <button type="button" onclick="moveDish('${d.id}', 'down')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isLast ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Down"><i class="fa-solid fa-arrow-down"></i></button>
+                    </div>
+                </div>`;
+            });
+        });
+    }
+    const editDishesList = document.getElementById('editInvoiceDishesList');
+    if (editDishesList) editDishesList.innerHTML = htmlOutput;
+}
+
+function togglePlatesInput(chk) {
+    const parent = chk.closest('div');
+    const input = parent ? parent.querySelector('.dish-plates-input') : null;
+    if (input) {
+        if (chk.checked) {
+            input.style.display = 'inline-block';
+        } else {
+            input.style.display = 'none';
+            input.value = '';
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const totalPlatesInput = document.getElementById('total_plates');
     const perPlatePriceInput = document.getElementById('per_plate_price');
@@ -634,22 +758,16 @@ document.addEventListener('DOMContentLoaded', function() {
     taxRateInput.addEventListener('input', calculate);
     paidInput.addEventListener('input', calculate);
     
-    // Initial run
+    const form = document.getElementById('invoiceForm');
+    if (form) {
+        form.addEventListener('submit', updateHiddenDishesInputs);
+    }
+
+    // Initial runs
+    updateHiddenDishesInputs();
+    renderDishesPreview();
     calculate();
 });
-
-function togglePlatesInput(chk) {
-    const parent = chk.closest('div');
-    const input = parent ? parent.querySelector('.dish-plates-input') : null;
-    if (input) {
-        if (chk.checked) {
-            input.style.display = 'inline-block';
-        } else {
-            input.style.display = 'none';
-            input.value = '';
-        }
-    }
-}
 </script>
 
 <?php
