@@ -272,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $selected_stage_items[$row['stage_item_id']] = $row['custom_price'];
                 }
                 $selected_dishes = [];
-                $stmt_dishes = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id");
+                $stmt_dishes = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id ORDER BY id ASC");
                 $stmt_dishes->execute(['cat_id' => $catering_id]);
                 while ($row = $stmt_dishes->fetch()) {
                     $selected_dishes[$row['dish_id']] = $row['plate_count'];
@@ -300,6 +300,8 @@ $dishes_by_category = [];
 foreach ($all_dishes as $dish) {
     $dishes_by_category[$dish['category_id']][] = $dish;
 }
+
+$initial_selected_dish_ids = array_map('strval', array_keys($selected_dishes));
 ?>
 
 <div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
@@ -472,7 +474,7 @@ foreach ($all_dishes as $dish) {
                                         ?>
                                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
                                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.85rem; flex: 1; margin: 0;">
-                                                <input type="checkbox" name="dishes[]" value="<?= $dish['id'] ?>" class="dish-chk" <?= $is_checked ? 'checked' : '' ?> style="accent-color: var(--accent-color);" data-dishname="<?= h($dish['dish_name']) ?>" data-category="<?= h($cat['category_name']) ?>" onchange="calculateSummary(); togglePlatesInput(this)">
+                                                <input type="checkbox" value="<?= $dish['id'] ?>" class="dish-chk" <?= $is_checked ? 'checked' : '' ?> style="accent-color: var(--accent-color);" data-dishname="<?= h($dish['dish_name']) ?>" data-category="<?= h($cat['category_name']) ?>" onchange="toggleDishSelection(this)">
                                                 <span style="line-height: 1.2;"><?= h($dish['dish_name']) ?></span>
                                             </label>
                                             <input type="number" name="dish_plates[<?= $dish['id'] ?>]" placeholder="Plates" class="form-control dish-plates-input" value="<?= h($p_val) ?>" style="width: 75px; padding: 0.2rem 0.4rem; font-size: 0.75rem; display: <?= $is_checked ? 'inline-block' : 'none' ?>;" oninput="calculateSummary()">
@@ -693,13 +695,125 @@ function calculateSummary() {
     document.getElementById('summaryGrandTotal').textContent = 'Rs. ' + grandTotal.toLocaleString();
     document.getElementById('summaryRestToGet').textContent = 'Rs. ' + restToGet.toLocaleString();
     
-    // 5. Build Dynamic Dishes preview list grouped by category
-    const dishCheckboxes = document.querySelectorAll('.dish-chk');
-    const dishSummaryList = document.getElementById('summaryDishesList');
+// Track dish selection order dynamically
+let selectionOrder = <?= json_encode($initial_selected_dish_ids) ?>;
+
+function updateHiddenDishesInputs() {
+    let container = document.getElementById('hiddenDishesContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'hiddenDishesContainer';
+        const form = document.getElementById('eventForm');
+        if (form) form.appendChild(container);
+    }
+    container.innerHTML = '';
+    selectionOrder.forEach(dishId => {
+        const chk = document.querySelector(`.dish-chk[value="${dishId}"]`);
+        if (chk && chk.checked) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'dishes[]';
+            hidden.value = dishId;
+            container.appendChild(hidden);
+        }
+    });
+}
+
+function toggleDishSelection(chk) {
+    const dishId = String(chk.value);
+    if (chk.checked) {
+        if (!selectionOrder.includes(dishId)) {
+            selectionOrder.push(dishId);
+        }
+    } else {
+        selectionOrder = selectionOrder.filter(id => id !== dishId);
+    }
+    togglePlatesInput(chk);
+    updateHiddenDishesInputs();
+    calculateSummary();
+}
+
+function moveDish(dishId, direction) {
+    dishId = String(dishId);
+    const index = selectionOrder.indexOf(dishId);
+    if (index === -1) return;
     
-    let selectedDishesGrouped = {};
-    dishCheckboxes.forEach(chk => {
+    if (direction === 'up' && index > 0) {
+        const temp = selectionOrder[index];
+        selectionOrder[index] = selectionOrder[index - 1];
+        selectionOrder[index - 1] = temp;
+    } else if (direction === 'down' && index < selectionOrder.length - 1) {
+        const temp = selectionOrder[index];
+        selectionOrder[index] = selectionOrder[index + 1];
+        selectionOrder[index + 1] = temp;
+    }
+    
+    updateHiddenDishesInputs();
+    calculateSummary();
+}
+
+// Calculate rates dynamically in Javascript and update sticky box
+function calculateSummary() {
+    // 1. Client profile summary
+    const clientNameInput = document.getElementById('client_name').value.trim();
+    const eventDateInput = document.getElementById('event_date').value;
+    const venueInput = document.getElementById('venue').value.trim();
+    
+    document.getElementById('summaryClient').textContent = clientNameInput ? clientNameInput : 'No Client Name';
+    
+    // Format date string for display
+    let dateFormatted = '--/--/----';
+    if (eventDateInput) {
+        const dObj = new Date(eventDateInput);
+        if (!isNaN(dObj.getTime())) {
+            const dd = String(dObj.getDate()).padStart(2, '0');
+            const mm = String(dObj.getMonth() + 1).padStart(2, '0');
+            const yyyy = dObj.getFullYear();
+            dateFormatted = `${dd}/${mm}/${yyyy}`;
+        }
+    }
+    document.getElementById('summaryLogistics').textContent = `Date: ${dateFormatted} | Place: ${venueInput ? venueInput : '--'}`;
+    
+    // 2. Stage work calculations
+    let stageTotal = 0;
+    const checkboxes = document.querySelectorAll('.stage-chk');
+    
+    checkboxes.forEach(chk => {
         if (chk.checked) {
+            const itemId = chk.value;
+            const priceInput = document.querySelector(`.stage-price[name="stage_custom_prices[${itemId}]"]`);
+            if (priceInput) {
+                stageTotal += parseFloat(priceInput.value) || 0;
+            }
+        }
+    });
+    
+    document.getElementById('summaryStageTotal').textContent = 'Rs. ' + stageTotal.toLocaleString();
+    
+    // 3. Catering calculations
+    const plateCount = parseInt(document.getElementById('total_plates').value) || 0;
+    const plateRate = parseFloat(document.getElementById('per_plate_price').value) || 0;
+    const cateringTotal = plateCount * plateRate;
+    
+    document.getElementById('summaryCateringTotal').textContent = 'Rs. ' + cateringTotal.toLocaleString();
+    document.getElementById('summaryCateringDetails').textContent = `${plateCount} plates x Rs. ${plateRate.toLocaleString()}`;
+    
+    // 4. Advance calculations
+    const advancePaid = parseFloat(document.getElementById('advance_received').value) || 0;
+    document.getElementById('summaryAdvance').textContent = 'Rs. ' + advancePaid.toLocaleString();
+    
+    // 5. Grand Total & Rest to Get
+    const grandTotal = stageTotal + cateringTotal;
+    const restToGet = grandTotal - advancePaid;
+    
+    document.getElementById('summaryGrandTotal').textContent = 'Rs. ' + grandTotal.toLocaleString();
+    document.getElementById('summaryRestToGet').textContent = 'Rs. ' + restToGet.toLocaleString();
+    
+    // 5. Build Dynamic Dishes preview list grouped by category in exact selection order
+    let selectedDishesGrouped = {};
+    selectionOrder.forEach(dishId => {
+        const chk = document.querySelector(`.dish-chk[value="${dishId}"]`);
+        if (chk && chk.checked) {
             const cat = chk.getAttribute('data-category');
             const dName = chk.getAttribute('data-dishname');
             const parent = chk.closest('div');
@@ -709,7 +823,7 @@ function calculateSummary() {
             if (!selectedDishesGrouped[cat]) {
                 selectedDishesGrouped[cat] = [];
             }
-            selectedDishesGrouped[cat].push({ name: dName, plates: platesVal });
+            selectedDishesGrouped[cat].push({ id: dishId, name: dName, plates: platesVal });
         }
     });
     
@@ -720,13 +834,23 @@ function calculateSummary() {
     } else {
         keys.forEach(cat => {
             htmlOutput += `<div style="margin-top: 0.5rem;"><strong style="color: var(--accent-color); font-size: 0.75rem; text-transform: uppercase;">${cat}</strong></div>`;
-            selectedDishesGrouped[cat].forEach(d => {
+            const catDishes = selectedDishesGrouped[cat];
+            catDishes.forEach((d, idx) => {
                 const platesSuffix = (d.plates && parseInt(d.plates) > 0) ? ` (${d.plates} Plates)` : '';
-                htmlOutput += `<div style="padding-left: 0.5rem; border-left: 1px solid var(--border-color); margin-top: 0.15rem;">• ${d.name}${platesSuffix}</div>`;
+                const isFirst = idx === 0;
+                const isLast = idx === catDishes.length - 1;
+                htmlOutput += `<div style="display: flex; align-items: center; justify-content: space-between; padding-left: 0.5rem; border-left: 2px solid var(--accent-color); margin-top: 0.25rem; font-size: 0.8rem;">
+                    <span>• ${d.name}${platesSuffix}</span>
+                    <div style="display: flex; gap: 0.2rem;">
+                        <button type="button" onclick="moveDish('${d.id}', 'up')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isFirst ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Up"><i class="fa-solid fa-arrow-up"></i></button>
+                        <button type="button" onclick="moveDish('${d.id}', 'down')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isLast ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Down"><i class="fa-solid fa-arrow-down"></i></button>
+                    </div>
+                </div>`;
             });
         });
     }
-    dishSummaryList.innerHTML = htmlOutput;
+    const dishSummaryList = document.getElementById('summaryDishesList');
+    if (dishSummaryList) dishSummaryList.innerHTML = htmlOutput;
 }
 
 function togglePlatesInput(chk) {
@@ -774,13 +898,14 @@ function saveDraft() {
         }
     });
     
-    // Save Catering selected dishes & plate counts
-    document.querySelectorAll('.dish-chk').forEach(chk => {
-        if (chk.checked) {
+    // Save Catering selected dishes & plate counts in selection order
+    selectionOrder.forEach(id => {
+        const chk = document.querySelector(`.dish-chk[value="${id}"]`);
+        if (chk && chk.checked) {
             const parent = chk.closest('div');
             const input = parent ? parent.querySelector('.dish-plates-input') : null;
             data.dishes.push({
-                id: chk.value,
+                id: id,
                 plates: input ? input.value : ''
             });
         }
@@ -797,6 +922,7 @@ function setupDraftAutoSave() {
     form.addEventListener('change', saveDraft);
     
     form.addEventListener('submit', () => {
+        updateHiddenDishesInputs();
         localStorage.removeItem(DRAFT_KEY);
     });
 }
@@ -857,6 +983,7 @@ function restoreDraft() {
         }
         
         // Restore dishes
+        selectionOrder = [];
         document.querySelectorAll('.dish-chk').forEach(chk => {
             chk.checked = false;
             const parent = chk.closest('div');
@@ -868,9 +995,11 @@ function restoreDraft() {
         });
         if (data.dishes) {
             data.dishes.forEach(dish => {
-                const chk = document.querySelector(`.dish-chk[value="${dish.id}"]`);
+                const dId = String(dish.id);
+                const chk = document.querySelector(`.dish-chk[value="${dId}"]`);
                 if (chk) {
                     chk.checked = true;
+                    if (!selectionOrder.includes(dId)) selectionOrder.push(dId);
                     const parent = chk.closest('div');
                     const input = parent ? parent.querySelector('.dish-plates-input') : null;
                     if (input) {
@@ -881,6 +1010,7 @@ function restoreDraft() {
             });
         }
         
+        updateHiddenDishesInputs();
         calculateSummary();
         checkSlotClash();
         
@@ -920,6 +1050,7 @@ function handleEventClientPhoneFetch() {
 
 // Attach event listeners for initial triggers
 document.addEventListener('DOMContentLoaded', () => {
+    updateHiddenDishesInputs();
     calculateSummary();
     checkSlotClash();
     checkPendingDraft();
