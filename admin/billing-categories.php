@@ -120,28 +120,30 @@ $categories = $db->query(
         <table class="table">
             <thead>
                 <tr>
+                    <th style="width:5%;"></th>
                     <th style="width:10%;">ID</th>
-                    <th style="width:45%;">Category Name</th>
+                    <th style="width:40%;">Category Name</th>
                     <th style="width:15%; text-align:center;">Display Order</th>
                     <th style="width:15%; text-align:center;">Products Count</th>
                     <th style="width:15%; text-align:right;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="billingCategoriesTbody">
                 <?php if (empty($categories)): ?>
                     <tr>
-                        <td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem 0;">
+                        <td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem 0;">
                             No categories created yet. Click "New Category" to get started.
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($categories as $cat): ?>
-                        <tr>
+                        <tr class="billing-drag-row" data-id="<?= $cat['id'] ?>" draggable="true" style="cursor: move;">
+                            <td style="text-align:center;"><i class="fa-solid fa-grip-vertical drag-handle" title="Drag to reorder" style="cursor: grab; color: var(--text-muted);"></i></td>
                             <td><?= $cat['id'] ?></td>
                             <td style="font-weight:600; color:var(--text-primary);">
                                 <?= h($cat['category_name']) ?>
                             </td>
-                            <td style="text-align:center;"><?= $cat['display_order'] ?></td>
+                            <td style="text-align:center;" class="order-cell"><?= $cat['display_order'] ?></td>
                             <td style="text-align:center;">
                                 <span style="display:inline-block;padding:0.1rem 0.5rem;background:rgba(255,107,53,0.12);color:var(--accent-color);font-weight:600;border-radius:50px;font-size:0.75rem;">
                                     <?= $cat['product_count'] ?> items
@@ -226,6 +228,82 @@ function openEditCategory(id, name) {
     document.getElementById('editCatName').value = name;
     openModal('editCategoryModal');
 }
+
+// Drag and Drop Billing Category Reordering
+document.addEventListener('DOMContentLoaded', () => {
+    const tbody = document.getElementById('billingCategoriesTbody');
+    if (!tbody) return;
+
+    let draggedRow = null;
+
+    tbody.querySelectorAll('.billing-drag-row').forEach(row => {
+        row.addEventListener('dragstart', function (e) {
+            draggedRow = this;
+            this.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        row.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedRow = null;
+            updateBillingCategoryOrders();
+        });
+
+        row.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (this !== draggedRow && draggedRow) {
+                const rect = this.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                tbody.insertBefore(draggedRow, next ? this.nextSibling : this);
+            }
+        });
+    });
+
+    function updateBillingCategoryOrders() {
+        const rows = tbody.querySelectorAll('.billing-drag-row');
+        const orderIds = [];
+
+        rows.forEach((row, index) => {
+            const id = row.getAttribute('data-id');
+            orderIds.push(id);
+            const orderCell = row.querySelector('.order-cell');
+            if (orderCell) {
+                orderCell.textContent = index + 1;
+            }
+        });
+
+        fetch('../api/update-category-order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'billing', order: orderIds })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showBillingToast('Billing category order saved!');
+            }
+        })
+        .catch(err => console.error('Failed to update category order:', err));
+    }
+
+    function showBillingToast(msg) {
+        let toast = document.getElementById('billingToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'billingToast';
+            toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2ed573; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; transition: all 0.3s ease; opacity: 0; transform: translateY(20px);';
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+        }, 2500);
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Fetch all stage items
-$stage_items = $db->query("SELECT * FROM stage_items ORDER BY default_price DESC, item_name ASC")->fetchAll();
+$stage_items = $db->query("SELECT * FROM stage_items ORDER BY display_order ASC, item_name ASC")->fetchAll();
 ?>
 
 <div class="content-header" style="margin-bottom: 1rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;">
@@ -83,23 +83,25 @@ $stage_items = $db->query("SELECT * FROM stage_items ORDER BY default_price DESC
         <table class="table" style="width:100%; margin:0; font-size:0.8rem;">
             <thead style="background:var(--bg-control); border-bottom:1px solid var(--border-color);">
                 <tr>
+                    <th style="padding:0.6rem 0.75rem; width:40px;"></th>
                     <th style="padding:0.6rem 0.75rem;">Decoration Item</th>
                     <th style="padding:0.6rem 0.75rem;">Default Rate</th>
                     <th style="padding:0.6rem 0.75rem;">Description</th>
                     <th style="padding:0.6rem 0.75rem; text-align:right;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="stageItemsTbody">
                 <?php if (empty($stage_items)): ?>
                     <tr>
-                        <td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                        <td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted);">
                             <i class="fa-solid fa-holly-berry" style="font-size:2rem; margin-bottom:0.5rem; display:block;"></i>
                             No stage items in database. Click "Add Stage Item" to create one.
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($stage_items as $item): ?>
-                        <tr style="border-bottom:1px solid var(--border-color);">
+                        <tr class="stage-drag-row" data-id="<?= $item['id'] ?>" draggable="true" style="border-bottom:1px solid var(--border-color); cursor:move;">
+                            <td style="padding:0.6rem 0.75rem; text-align:center;"><i class="fa-solid fa-grip-vertical drag-handle" title="Drag to reorder" style="cursor:grab; color:var(--text-muted);"></i></td>
                             <td style="padding:0.6rem 0.75rem; font-weight:700; color:var(--text-primary);"><?= h($item['item_name']) ?></td>
                             <td style="padding:0.6rem 0.75rem; font-weight:700; color:var(--accent-color);">₹<?= number_format($item['default_price'], 2) ?></td>
                             <td style="padding:0.6rem 0.75rem; color:var(--text-secondary);"><?= h($item['description']) ?></td>
@@ -180,6 +182,78 @@ function openEditModal(item) {
 function closeModal(id) {
     document.getElementById(id).classList.remove('active');
 }
+
+// Drag and Drop Stage Items Reordering
+document.addEventListener('DOMContentLoaded', () => {
+    const tbody = document.getElementById('stageItemsTbody');
+    if (!tbody) return;
+
+    let draggedRow = null;
+
+    tbody.querySelectorAll('.stage-drag-row').forEach(row => {
+        row.addEventListener('dragstart', function (e) {
+            draggedRow = this;
+            this.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        row.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedRow = null;
+            updateStageItemOrders();
+        });
+
+        row.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (this !== draggedRow && draggedRow) {
+                const rect = this.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                tbody.insertBefore(draggedRow, next ? this.nextSibling : this);
+            }
+        });
+    });
+
+    function updateStageItemOrders() {
+        const rows = tbody.querySelectorAll('.stage-drag-row');
+        const orderIds = [];
+
+        rows.forEach(row => {
+            const id = row.getAttribute('data-id');
+            orderIds.push(id);
+        });
+
+        fetch('../api/update-category-order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'stage_item', order: orderIds })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showStageToast('Stage item order saved!');
+            }
+        })
+        .catch(err => console.error('Failed to update stage item order:', err));
+    }
+
+    function showStageToast(msg) {
+        let toast = document.getElementById('stageToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'stageToast';
+            toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2ed573; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; transition: all 0.3s ease; opacity: 0; transform: translateY(20px);';
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+        }, 2500);
+    }
+});
 </script>
 
 <?php

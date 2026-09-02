@@ -13,7 +13,14 @@ $order->execute(['id' => $id]);
 $order = $order->fetch();
 if (!$order) { header('Location: rentals.php'); exit; }
 
-$items = $db->prepare("SELECT * FROM rental_order_items WHERE order_id = :id ORDER BY id ASC");
+$items = $db->prepare("
+    SELECT roi.*, rc.category_name, rc.display_order 
+    FROM rental_order_items roi
+    LEFT JOIN rental_items ri ON roi.rental_item_id = ri.id
+    LEFT JOIN rental_categories rc ON ri.category_id = rc.id
+    WHERE roi.order_id = :id 
+    ORDER BY rc.display_order ASC, rc.id ASC, roi.id ASC
+");
 $items->execute(['id' => $id]);
 $items = $items->fetchAll();
 

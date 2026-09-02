@@ -139,18 +139,19 @@ foreach ($dishes as $dish) {
 <?php endif; ?>
 
 <!-- Category Accordions / Cards -->
-<div style="display: flex; flex-direction: column; gap: 2rem;">
+<div id="cateringCategoriesContainer" style="display: flex; flex-direction: column; gap: 2rem;">
     <?php foreach ($categories as $cat): ?>
-        <div class="card">
+        <div class="card category-drag-card" data-id="<?= $cat['id'] ?>" draggable="true" style="transition: transform 0.2s, box-shadow 0.2s;">
             <h2 class="card-title" style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
-                <span>
+                <span style="display: inline-flex; align-items: center;">
+                    <i class="fa-solid fa-grip-vertical drag-handle" title="Drag to reorder" style="cursor: grab; color: var(--text-muted); margin-right: 0.75rem; font-size: 1.1rem;"></i>
                     <i class="fa-solid fa-utensils" style="color: var(--accent-color); margin-right: 0.5rem;"></i>
                     <?= h($cat['category_name']) ?>
                     <span
                         style="font-size: 0.8rem; color: var(--text-secondary); font-weight: normal; margin-left: 0.5rem;">
                         <?= isset($dishes_by_cat[$cat['id']]) ? count($dishes_by_cat[$cat['id']]) : 0 ?> items
                     </span>
-                    <span style="background-color: var(--accent-color); color: white; font-size: 0.75rem; padding: 0.15rem 0.4rem; border-radius: 4px; margin-left: 0.5rem; font-weight: normal; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <span class="order-badge" style="background-color: var(--accent-color); color: white; font-size: 0.75rem; padding: 0.15rem 0.4rem; border-radius: 4px; margin-left: 0.5rem; font-weight: normal; display: inline-flex; align-items: center; gap: 0.25rem;">
                         <i class="fa-solid fa-arrow-down-short-wide" style="font-size: 0.7rem; color: white; margin-right: 0;"></i> Order: <?= (int)$cat['display_order'] ?>
                     </span>
                 </span>
@@ -388,6 +389,82 @@ foreach ($dishes as $dish) {
         }
         openModal('editDishModal');
     }
+
+    // Drag and Drop Category Reordering
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('cateringCategoriesContainer');
+        if (!container) return;
+
+        let draggedCard = null;
+
+        container.querySelectorAll('.category-drag-card').forEach(card => {
+            card.addEventListener('dragstart', function (e) {
+                draggedCard = this;
+                this.style.opacity = '0.4';
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            card.addEventListener('dragend', function () {
+                this.style.opacity = '1';
+                draggedCard = null;
+                updateCateringCategoryOrders();
+            });
+
+            card.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (this !== draggedCard && draggedCard) {
+                    const rect = this.getBoundingClientRect();
+                    const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                    container.insertBefore(draggedCard, next ? this.nextSibling : this);
+                }
+            });
+        });
+
+        function updateCateringCategoryOrders() {
+            const cards = container.querySelectorAll('.category-drag-card');
+            const orderIds = [];
+
+            cards.forEach((card, index) => {
+                const id = card.getAttribute('data-id');
+                orderIds.push(id);
+                const badge = card.querySelector('.order-badge');
+                if (badge) {
+                    badge.innerHTML = `<i class="fa-solid fa-arrow-down-short-wide" style="font-size: 0.7rem; color: white;"></i> Order: ${index + 1}`;
+                }
+            });
+
+            fetch('../api/update-category-order.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'catering', order: orderIds })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showReorderToast('Catering category order saved!');
+                }
+            })
+            .catch(err => console.error('Failed to update category order:', err));
+        }
+
+        function showReorderToast(msg) {
+            let toast = document.getElementById('reorderToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'reorderToast';
+                toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2ed573; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; transition: all 0.3s ease; opacity: 0; transform: translateY(20px);';
+                document.body.appendChild(toast);
+            }
+            toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+            }, 2500);
+        }
+    });
 </script>
 
 <?php
