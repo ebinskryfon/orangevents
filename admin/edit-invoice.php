@@ -633,21 +633,30 @@ function moveDish(dishId, direction) {
 }
 
 function renderDishesPreview() {
-    let selectedDishesGrouped = {};
-    selectionOrder.forEach(dishId => {
-        const chk = document.querySelector(`.dish-chk[value="${dishId}"]`);
-        if (chk && chk.checked) {
-            const cat = chk.getAttribute('data-category');
-            const dName = chk.getAttribute('data-dishname');
-            const parent = chk.closest('div');
-            const input = parent ? parent.querySelector('.dish-plates-input') : null;
-            const platesVal = input ? input.value : '';
-            
-            if (!selectedDishesGrouped[cat]) {
-                selectedDishesGrouped[cat] = [];
-            }
-            selectedDishesGrouped[cat].push({ id: dishId, name: dName, plates: platesVal });
+    let categoryOrder = [];
+    document.querySelectorAll('.dish-chk').forEach(chk => {
+        const cat = chk.getAttribute('data-category');
+        if (cat && !categoryOrder.includes(cat)) {
+            categoryOrder.push(cat);
         }
+    });
+
+    let selectedDishesGrouped = {};
+    categoryOrder.forEach(cat => {
+        selectionOrder.forEach(dishId => {
+            const chk = document.querySelector(`.dish-chk[value="${dishId}"]`);
+            if (chk && chk.checked && chk.getAttribute('data-category') === cat) {
+                const dName = chk.getAttribute('data-dishname');
+                const parent = chk.closest('div');
+                const input = parent ? parent.querySelector('.dish-plates-input') : null;
+                const platesVal = input ? input.value : '';
+                
+                if (!selectedDishesGrouped[cat]) {
+                    selectedDishesGrouped[cat] = [];
+                }
+                selectedDishesGrouped[cat].push({ id: dishId, name: dName, plates: platesVal });
+            }
+        });
     });
     
     let htmlOutput = '';

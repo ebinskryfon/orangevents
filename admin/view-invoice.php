@@ -72,7 +72,7 @@ if ($catering) {
                                  JOIN dishes d ON ecd.dish_id = d.id 
                                  JOIN menu_categories mc ON d.category_id = mc.id 
                                  WHERE ecd.event_catering_id = :cat_id 
-                                 ORDER BY ecd.id ASC");
+                                 ORDER BY mc.display_order ASC, ecd.id ASC");
     $stmt_dishes->execute(['cat_id' => $catering['id']]);
     $selected_dishes = $stmt_dishes->fetchAll();
 
