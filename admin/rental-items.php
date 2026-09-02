@@ -202,7 +202,7 @@ $total_cats   = count($categories);
 </div>
 
 <!-- Categories + Items -->
-<div style="display:flex;flex-direction:column;gap:2rem;">
+<div id="rentalCategoriesContainer" style="display:flex;flex-direction:column;gap:2rem;">
     <?php if (empty($categories)): ?>
         <div class="card" style="text-align:center;padding:3rem;color:var(--text-muted);">
             <i class="fa-solid fa-box-open" style="font-size:3rem;margin-bottom:1rem;opacity:0.4;"></i>
@@ -211,10 +211,11 @@ $total_cats   = count($categories);
     <?php else: ?>
         <?php foreach ($categories as $cat): ?>
             <?php $cat_items = $items_by_cat[$cat['id']] ?? []; ?>
-            <div class="card">
+            <div class="card rental-drag-card" data-id="<?= $cat['id'] ?>" draggable="true">
                 <!-- Category Header -->
                 <h2 class="card-title" style="border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
                     <span style="display:flex;align-items:center;gap:0.75rem;">
+                        <i class="fa-solid fa-grip-vertical drag-handle" title="Drag to reorder" style="cursor: grab; color: var(--text-muted); font-size: 1.1rem;"></i>
                         <span style="width:36px;height:36px;border-radius:var(--border-radius-sm);background:rgba(255,107,53,0.12);display:flex;align-items:center;justify-content:center;">
                             <i class="fa-solid <?= h($cat['icon']) ?>" style="color:var(--accent-color);font-size:1rem;"></i>
                         </span>
@@ -498,6 +499,78 @@ function openEditItemModal(item) {
     document.getElementById('itemActive').checked    = parseInt(item.is_active) === 1;
     openModal('itemModal');
 }
+
+// Drag and Drop Rental Category Reordering
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('rentalCategoriesContainer');
+    if (!container) return;
+
+    let draggedCard = null;
+
+    container.querySelectorAll('.rental-drag-card').forEach(card => {
+        card.addEventListener('dragstart', function (e) {
+            draggedCard = this;
+            this.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        card.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedCard = null;
+            updateRentalCategoryOrders();
+        });
+
+        card.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (this !== draggedCard && draggedCard) {
+                const rect = this.getBoundingClientRect();
+                const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                container.insertBefore(draggedCard, next ? this.nextSibling : this);
+            }
+        });
+    });
+
+    function updateRentalCategoryOrders() {
+        const cards = container.querySelectorAll('.rental-drag-card');
+        const orderIds = [];
+
+        cards.forEach(card => {
+            const id = card.getAttribute('data-id');
+            orderIds.push(id);
+        });
+
+        fetch('../api/update-category-order.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'rental', order: orderIds })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showRentalToast('Rental category order saved!');
+            }
+        })
+        .catch(err => console.error('Failed to update category order:', err));
+    }
+
+    function showRentalToast(msg) {
+        let toast = document.getElementById('rentalToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'rentalToast';
+            toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #2ed573; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999; transition: all 0.3s ease; opacity: 0; transform: translateY(20px);';
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${msg}`;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+        }, 2500);
+    }
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

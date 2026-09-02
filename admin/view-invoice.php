@@ -41,7 +41,7 @@ if (!$invoice) {
 }
 
 // 3. Fetch Stage Work items selected
-$stmt_stage = $db->prepare("SELECT esw.custom_price, si.item_name, si.description 
+$stmt_stage = $db->prepare("SELECT esw.custom_price, esw.quantity, esw.unit_price, si.item_name, si.description 
                             FROM event_stage_work esw 
                             JOIN stage_items si ON esw.stage_item_id = si.id 
                             WHERE esw.event_id = :id
@@ -64,24 +64,37 @@ $catering_total = 0;
 $dishes_by_category = [];
 
 if ($catering) {
-    $catering_total = $catering['per_plate_price'] * $catering['total_plates'];
+    $base_catering_total = $catering['per_plate_price'] * $catering['total_plates'];
+    $dishes_extra_total = 0;
 
     // 5. Fetch selected dishes in exact selection order
-    $stmt_dishes = $db->prepare("SELECT d.dish_name, mc.category_name, ecd.plate_count 
+    $stmt_dishes = $db->prepare("SELECT d.dish_name, mc.category_name, ecd.plate_count, ecd.dish_rate 
                                  FROM event_catering_dishes ecd 
                                  JOIN dishes d ON ecd.dish_id = d.id 
                                  JOIN menu_categories mc ON d.category_id = mc.id 
                                  WHERE ecd.event_catering_id = :cat_id 
-                                 ORDER BY mc.display_order ASC, ecd.id ASC");
+                                 ORDER BY mc.display_order ASC, mc.id ASC, ecd.id ASC");
     $stmt_dishes->execute(['cat_id' => $catering['id']]);
     $selected_dishes = $stmt_dishes->fetchAll();
 
     foreach ($selected_dishes as $sd) {
+        $dish_p = (int)($sd['plate_count'] ?? 0);
+        $dish_r = (float)($sd['dish_rate'] ?? 0);
+        $item_total = 0;
+        if ($dish_r > 0) {
+            $item_total = ($dish_p > 0) ? ($dish_p * $dish_r) : $dish_r;
+            $dishes_extra_total += $item_total;
+        }
+
         $dishes_by_category[$sd['category_name']][] = [
             'name' => $sd['dish_name'],
-            'plates' => $sd['plate_count']
+            'plates' => $dish_p,
+            'rate' => $dish_r,
+            'total' => $item_total
         ];
     }
+
+    $catering_total = $base_catering_total + $dishes_extra_total;
 }
 
 // Re-calculate Grand Total to keep invoice in sync
@@ -295,6 +308,10 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
         display: none !important;
     }
 
+    .invoice-card.hide-qr .upi-qr-box {
+        display: none !important;
+    }
+
     /* Page break helper indicators (only visible on screen when split controls checkbox is active) */
     .page-break-indicator {
         display: none;
@@ -426,6 +443,13 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
             <input type="checkbox" id="togglePaymentCheckbox" checked
                 style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
             Show Payment History
+        </label>
+
+        <label
+            style="display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+            <input type="checkbox" id="toggleQrCheckbox" checked
+                style="width: 18px; height: 18px; accent-color: var(--accent-color); cursor: pointer;">
+            Show Scan to Pay QR
         </label>
 
         <label
@@ -587,7 +611,18 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
             <div class="header-date-bar" style="display: flex; justify-content: space-between; align-items: center; padding-left: 2rem; padding-right: 2rem;">
                 <span>DATE: <?= $formatted_event_datetime ?></span>
                 <?php if ($catering): ?>
-                    <span style="font-weight: 600; font-size: 0.95rem;">NOS: <?= $catering['total_plates'] ?> &nbsp;&nbsp;|&nbsp;&nbsp; PER PLATE: Rs. <?= number_format($catering['per_plate_price'], 0) ?></span>
+                    <?php 
+                    $header_specs = [];
+                    if (!empty($catering['total_plates']) && (int)$catering['total_plates'] > 0) {
+                        $header_specs[] = "NOS: " . $catering['total_plates'];
+                    }
+                    if (!empty($catering['per_plate_price']) && (float)$catering['per_plate_price'] > 0) {
+                        $header_specs[] = "PER PLATE: Rs. " . number_format($catering['per_plate_price'], 0);
+                    }
+                    ?>
+                    <?php if (!empty($header_specs)): ?>
+                        <span style="font-weight: 600; font-size: 0.95rem;"><?= implode(' &nbsp;&nbsp;|&nbsp;&nbsp; ', $header_specs) ?></span>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
 
@@ -618,9 +653,22 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                             </div>
                             <ul class="section-list">
                                 <?php foreach ($stage_work_items as $sw): ?>
+                                    <?php 
+                                    $qty = (int)($sw['quantity'] ?? 1);
+                                    $unit_p = isset($sw['unit_price']) ? (float)$sw['unit_price'] : 0;
+                                    $c_price = (float)$sw['custom_price'];
+                                    $spec_text = ($qty > 1 && $unit_p > 0) ? "({$qty} nos x Rs " . number_format($unit_p, 0) . ")" : "";
+                                    ?>
                                     <li class="item-row">
-                                        <span class="item-name"><?= h($sw['item_name']) ?></span>
-                                        <span class="item-price">-Rs <?= number_format($sw['custom_price'], 0) ?></span>
+                                        <span class="item-name">
+                                            <?= h($sw['item_name']) ?>
+                                            <?php if ($spec_text): ?>
+                                                <span style="font-size: 0.83em; opacity: 0.78; font-weight: normal; margin-left: 0.25rem;"><?= $spec_text ?></span>
+                                            <?php endif; ?>
+                                        </span>
+                                        <?php if ($c_price > 0): ?>
+                                            <span class="item-price">-Rs <?= number_format($c_price, 0) ?></span>
+                                        <?php endif; ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -639,9 +687,23 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                             <ul
                                 class="section-list<?= (strtoupper($category_name) === 'MAIN COURSE') ? ' multi-col-list' : '' ?>">
                                 <?php foreach ($dishes as $dish): ?>
-                                    <?php $p_suffix = ($dish['plates'] > 0) ? " (" . h($dish['plates']) . " Plates)" : ""; ?>
-                                    <li class="item-row dish-row<?= ($dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
-                                        <span class="item-name"><?= h($dish['name']) . $p_suffix ?></span>
+                                    <?php 
+                                    $specs = [];
+                                    if (!empty($dish['plates']) && (int)$dish['plates'] > 0) $specs[] = h($dish['plates']) . " Plates";
+                                    if (!empty($dish['rate']) && (float)$dish['rate'] > 0) $specs[] = "Rs. " . number_format($dish['rate'], 0);
+                                    $spec_text = !empty($specs) ? "(" . implode(" x ", $specs) . ")" : ""; 
+                                    $d_total = (float)($dish['total'] ?? 0);
+                                    ?>
+                                    <li class="item-row dish-row<?= (!empty($dish['plates']) && (int)$dish['plates'] > 0) ? ' highlighted-dish' : '' ?>">
+                                        <span class="item-name">
+                                            <?= h($dish['name']) ?>
+                                            <?php if ($spec_text): ?>
+                                                <span style="font-size: 0.83em; opacity: 0.78; font-weight: normal; margin-left: 0.25rem;"><?= $spec_text ?></span>
+                                            <?php endif; ?>
+                                        </span>
+                                        <?php if ($d_total > 0): ?>
+                                            <span class="item-price">-Rs <?= number_format($d_total, 0) ?></span>
+                                        <?php endif; ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -783,32 +845,46 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                                     <h3 class="section-title">Stage & Setup Work</h3>
                                 </div>
                                 <?php foreach ($stage_work_items as $sw): ?>
+                                    <?php 
+                                    $qty = (int)($sw['quantity'] ?? 1);
+                                    $unit_p = isset($sw['unit_price']) ? (float)$sw['unit_price'] : 0;
+                                    $c_price = (float)$sw['custom_price'];
+                                    $spec_suffix = ($qty > 1 && $unit_p > 0) ? " ({$qty} nos x Rs " . number_format($unit_p, 0) . ")" : "";
+                                    ?>
                                     <div class="item-row">
-                                        <span class="item-name"><?= h($sw['item_name']) ?></span>
-                                        <span class="item-price"><?= format_price($sw['custom_price']) ?></span>
+                                        <span class="item-name"><?= h($sw['item_name']) . $spec_suffix ?></span>
+                                        <?php if ($c_price > 0): ?>
+                                            <span class="item-price"><?= format_price($c_price) ?></span>
+                                        <?php endif; ?>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
 
                         <!-- Catering Details -->
-                        <?php if ($catering): ?>
+                        <?php if ($catering && ((float)$catering['per_plate_price'] > 0 || (int)$catering['total_plates'] > 0 || $catering_total > 0)): ?>
                             <div style="margin-bottom: 1.5rem;">
                                 <div class="section-title-wrap">
                                     <h3 class="section-title">Catering Calculations</h3>
                                 </div>
-                                <div class="item-row">
-                                    <span>Rate per Plate:</span>
-                                    <span><?= format_price($catering['per_plate_price']) ?></span>
-                                </div>
-                                <div class="item-row">
-                                    <span>Plates Count:</span>
-                                    <span><?= $catering['total_plates'] ?> nos</span>
-                                </div>
-                                <div class="item-row" style="font-weight: bold;">
-                                    <span>Catering Total:</span>
-                                    <span><?= format_price($catering_total) ?></span>
-                                </div>
+                                <?php if ((float)$catering['per_plate_price'] > 0): ?>
+                                    <div class="item-row">
+                                        <span>Rate per Plate:</span>
+                                        <span><?= format_price($catering['per_plate_price']) ?></span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ((int)$catering['total_plates'] > 0): ?>
+                                    <div class="item-row">
+                                        <span>Plates Count:</span>
+                                        <span><?= $catering['total_plates'] ?> nos</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($catering_total > 0): ?>
+                                    <div class="item-row" style="font-weight: bold;">
+                                        <span>Catering Total:</span>
+                                        <span><?= format_price($catering_total) ?></span>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -936,9 +1012,17 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                                 style="color: #64ffda; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.25rem;">
                                 STAGE & SERVICES</h4>
                             <?php foreach ($stage_work_items as $sw): ?>
+                                <?php 
+                                $qty = (int)($sw['quantity'] ?? 1);
+                                $unit_p = isset($sw['unit_price']) ? (float)$sw['unit_price'] : 0;
+                                $c_price = (float)$sw['custom_price'];
+                                $spec_suffix = ($qty > 1 && $unit_p > 0) ? " ({$qty} nos x Rs " . number_format($unit_p, 0) . ")" : "";
+                                ?>
                                 <div class="item-row">
-                                    <span><?= h($sw['item_name']) ?></span>
-                                    <span><?= format_price($sw['custom_price']) ?></span>
+                                    <span><?= h($sw['item_name']) . $spec_suffix ?></span>
+                                    <?php if ($c_price > 0): ?>
+                                        <span><?= format_price($c_price) ?></span>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -1428,8 +1512,13 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                             <span class="section-subtitle">Visual & ambiance arrangements</span>
                         </div>
                         <?php foreach ($stage_work_items as $sw): ?>
+                            <?php 
+                            $qty = (int)($sw['quantity'] ?? 1);
+                            $unit_p = isset($sw['unit_price']) ? (float)$sw['unit_price'] : 0;
+                            $spec_suffix = ($qty > 1 && $unit_p > 0) ? " ({$qty} nos x Rs " . number_format($unit_p, 0) . ")" : "";
+                            ?>
                             <div class="item-row">
-                                <span class="item-name"><?= h($sw['item_name']) ?></span>
+                                <span class="item-name"><?= h($sw['item_name']) . $spec_suffix ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -1527,8 +1616,13 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                             <span class="section-subtitle">Stage designs & custom requirements</span>
                         </div>
                         <?php foreach ($stage_work_items as $sw): ?>
+                            <?php 
+                            $qty = (int)($sw['quantity'] ?? 1);
+                            $unit_p = isset($sw['unit_price']) ? (float)$sw['unit_price'] : 0;
+                            $spec_suffix = ($qty > 1 && $unit_p > 0) ? " ({$qty} nos x Rs " . number_format($unit_p, 0) . ")" : "";
+                            ?>
                             <div class="item-row">
-                                <span class="item-name"><?= h($sw['item_name']) ?></span>
+                                <span class="item-name"><?= h($sw['item_name']) . $spec_suffix ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -1627,8 +1721,13 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                             <span class="section-subtitle">Chic stage styling & accessories</span>
                         </div>
                         <?php foreach ($stage_work_items as $sw): ?>
+                            <?php 
+                            $qty = (int)($sw['quantity'] ?? 1);
+                            $unit_p = isset($sw['unit_price']) ? (float)$sw['unit_price'] : 0;
+                            $spec_suffix = ($qty > 1 && $unit_p > 0) ? " ({$qty} nos x Rs " . number_format($unit_p, 0) . ")" : "";
+                            ?>
                             <div class="item-row">
-                                <span class="item-name"><?= h($sw['item_name']) ?></span>
+                                <span class="item-name"><?= h($sw['item_name']) . $spec_suffix ?></span>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -1685,6 +1784,17 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
         document.querySelectorAll('.invoice-card').forEach(card => {
             if (e.target.checked) card.classList.remove('hide-payments');
             else card.classList.add('hide-payments');
+        });
+    });
+
+    document.getElementById('toggleQrCheckbox').addEventListener('change', function (e) {
+        document.querySelectorAll('.invoice-card').forEach(card => {
+            if (e.target.checked) card.classList.remove('hide-qr');
+            else card.classList.add('hide-qr');
+        });
+        document.querySelectorAll('.upi-qr-box').forEach(box => {
+            if (e.target.checked) box.style.setProperty('display', 'flex', 'important');
+            else box.style.setProperty('display', 'none', 'important');
         });
     });
 

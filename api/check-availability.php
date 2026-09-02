@@ -33,7 +33,7 @@ try {
     if ($clash) {
         echo json_encode([
             'available' => false, 
-            'message' => "Slot Clash: \"{$clash['title']}\" is already booked at this venue on this day at " . date('h:i A', strtotime($clash['event_time'])) . "."
+            'message' => 'Slot Clash: "' . $clash['title'] . '" is already booked at this venue on this day at ' . date('h:i A', strtotime($clash['event_time'])) . '.'
         ]);
     } else {
         echo json_encode(['available' => true]);

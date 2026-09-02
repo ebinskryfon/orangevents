@@ -33,7 +33,14 @@ if (!$order) {
 $id = (int)$order['id'];
 
 // Fetch order items
-$stmt_items = $db->prepare("SELECT * FROM billing_order_items WHERE order_id = :id ORDER BY id ASC");
+$stmt_items = $db->prepare("
+    SELECT i.*, p.category_id, c.category_name 
+    FROM billing_order_items i
+    LEFT JOIN billing_products p ON i.product_id = p.id
+    LEFT JOIN billing_categories c ON p.category_id = c.id
+    WHERE i.order_id = :id
+    ORDER BY c.display_order ASC, c.id ASC, i.id ASC
+");
 $stmt_items->execute(['id' => $id]);
 $items = $stmt_items->fetchAll();
 

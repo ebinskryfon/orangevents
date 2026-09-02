@@ -48,11 +48,16 @@ foreach ($dishes as $d) {
 
 // Fetch selected items for the event
 $selected_stage_items = [];
-$stmt_stage_sel = $db->prepare("SELECT stage_item_id, custom_price FROM event_stage_work WHERE event_id = :id ORDER BY id ASC");
+$stmt_stage_sel = $db->prepare("SELECT stage_item_id, quantity, unit_price, custom_price FROM event_stage_work WHERE event_id = :id ORDER BY id ASC");
 $stmt_stage_sel->execute(['id' => $event_id]);
 while ($row = $stmt_stage_sel->fetch()) {
-    $selected_stage_items[$row['stage_item_id']] = $row['custom_price'];
+    $selected_stage_items[$row['stage_item_id']] = [
+        'price' => $row['custom_price'],
+        'quantity' => $row['quantity'] ?: 1,
+        'unit_price' => $row['unit_price']
+    ];
 }
+$initial_selected_stage_ids = array_map('strval', array_keys($selected_stage_items));
 
 $catering_data = [
     'per_plate_price' => 250.00,
@@ -66,10 +71,13 @@ $loaded_catering = $stmt_cat->fetch();
 if ($loaded_catering) {
     $catering_data = $loaded_catering;
     
-    $stmt_dish_sel = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id ORDER BY id ASC");
+    $stmt_dish_sel = $db->prepare("SELECT dish_id, plate_count, dish_rate FROM event_catering_dishes WHERE event_catering_id = :cat_id ORDER BY id ASC");
     $stmt_dish_sel->execute(['cat_id' => $loaded_catering['id']]);
     while ($row = $stmt_dish_sel->fetch()) {
-        $selected_dishes[$row['dish_id']] = $row['plate_count'];
+        $selected_dishes[$row['dish_id']] = [
+            'plates' => $row['plate_count'],
+            'rate' => $row['dish_rate']
+        ];
     }
 }
 $initial_selected_dish_ids = array_map('strval', array_keys($selected_dishes));
@@ -94,8 +102,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dishes_posted = $_POST['dishes'] ?? [];
     
     // 3. Stage Details
-    $stage_posted = $_POST['stage_items'] ?? [];
+    $raw_stage_posted = $_POST['stage_items'] ?? [];
+    $stage_posted = array_values(array_unique($raw_stage_posted));
     $stage_prices = $_POST['stage_custom_prices'] ?? [];
+    $stage_quantities = $_POST['stage_quantities'] ?? [];
+    $stage_unit_prices = $_POST['stage_unit_prices'] ?? [];
     
     // 4. Invoice details
     $invoice_number = trim($_POST['invoice_number']);
@@ -124,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $clash_found = $clash_stmt->fetch();
             
             if ($clash_found) {
-                throw new Exception("Clash Alert: Venue is already booked for another event (\"{$clash_found['title']}\") on this date!");
+                throw new Exception('Clash Alert: Venue is already booked for another event ("' . $clash_found['title'] . '") on this date!');
             }
             
             // Check invoice number unique
@@ -157,14 +168,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 3. Update dishes
             $db->prepare("DELETE FROM event_catering_dishes WHERE event_catering_id = :id")->execute(['id' => $catering_id]);
             if (!empty($dishes_posted)) {
-                $stmt_dish_insert = $db->prepare("INSERT INTO event_catering_dishes (event_catering_id, dish_id, plate_count) VALUES (:cat_id, :dish_id, :plates)");
+                $stmt_dish_insert = $db->prepare("INSERT INTO event_catering_dishes (event_catering_id, dish_id, plate_count, dish_rate) VALUES (:cat_id, :dish_id, :plates, :rate)");
                 $dish_plates = $_POST['dish_plates'] ?? [];
+                $dish_rates = $_POST['dish_rates'] ?? [];
                 foreach ($dishes_posted as $d_id) {
                     $p_count = (isset($dish_plates[$d_id]) && $dish_plates[$d_id] !== '') ? (int)$dish_plates[$d_id] : null;
+                    $d_rate = (isset($dish_rates[$d_id]) && $dish_rates[$d_id] !== '') ? (float)$dish_rates[$d_id] : null;
                     $stmt_dish_insert->execute([
                         'cat_id' => $catering_id,
                         'dish_id' => (int)$d_id,
-                        'plates' => $p_count
+                        'plates' => $p_count,
+                        'rate' => $d_rate
                     ]);
                 }
             }
@@ -173,10 +187,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("DELETE FROM event_stage_work WHERE event_id = :ev_id")->execute(['ev_id' => $event_id]);
             $stage_total = 0.00;
             if (!empty($stage_posted)) {
-                $stmt_stage_insert = $db->prepare("INSERT INTO event_stage_work (event_id, stage_item_id, custom_price) VALUES (:ev_id, :item_id, :price)");
+                $stmt_stage_insert = $db->prepare("INSERT INTO event_stage_work (event_id, stage_item_id, quantity, unit_price, custom_price) VALUES (:ev_id, :item_id, :qty, :u_price, :price)");
                 foreach ($stage_posted as $item_id) {
                     $c_price = (float)($stage_prices[$item_id] ?? 0.00);
-                    $stmt_stage_insert->execute(['ev_id' => $event_id, 'item_id' => (int)$item_id, 'price' => $c_price]);
+                    $qty = max(1, (int)($stage_quantities[$item_id] ?? 1));
+                    $u_price = (isset($stage_unit_prices[$item_id]) && $stage_unit_prices[$item_id] !== '') ? (float)$stage_unit_prices[$item_id] : null;
+                    $stmt_stage_insert->execute([
+                        'ev_id' => $event_id,
+                        'item_id' => (int)$item_id,
+                        'qty' => $qty,
+                        'u_price' => $u_price,
+                        'price' => $c_price
+                    ]);
                     $stage_total += $c_price;
                 }
             }
@@ -360,16 +382,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php foreach ($all_stage_items as $item): ?>
                         <?php 
                         $is_checked = isset($selected_stage_items[$item['id']]);
-                        $price_val = $is_checked ? $selected_stage_items[$item['id']] : $item['default_price'];
+                        $item_data = $selected_stage_items[$item['id']] ?? null;
+                        $price_val = $is_checked ? $item_data['price'] : $item['default_price'];
+                        $qty_val = $is_checked ? ($item_data['quantity'] ?? 1) : 1;
+                        $unit_val = ($is_checked && isset($item_data['unit_price'])) ? $item_data['unit_price'] : '';
                         ?>
-                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
-                            <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; flex: 1; margin: 0;">
-                                <input type="checkbox" name="stage_items[]" value="<?= $item['id'] ?>" class="stage-chk" <?= $is_checked ? 'checked' : '' ?> style="width: 18px; height: 18px; accent-color: var(--accent-color);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); flex-wrap: wrap; gap: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; flex: 1; min-width: 180px; margin: 0;">
+                                <input type="checkbox" value="<?= $item['id'] ?>" class="stage-chk" <?= $is_checked ? 'checked' : '' ?> onchange="toggleStageSelection(this)" style="width: 18px; height: 18px; accent-color: var(--accent-color);">
                                 <span style="font-weight: 500; font-size: 0.9rem; color: var(--text-primary);"><?= h($item['item_name']) ?></span>
                             </label>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="font-size: 0.8rem; color: var(--text-muted);">Rate (Rs):</span>
-                                <input type="number" step="0.01" name="stage_custom_prices[<?= $item['id'] ?>]" value="<?= $price_val ?>" class="form-control stage-price" style="width: 110px; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+                            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">Qty:</span>
+                                <input type="number" min="1" name="stage_quantities[<?= $item['id'] ?>]" value="<?= $qty_val ?>" class="form-control stage-qty" style="width: 60px; padding: 0.35rem 0.4rem; font-size: 0.8rem;" oninput="updateStageRowTotal(<?= $item['id'] ?>)">
+                                
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">Rate/Item:</span>
+                                <input type="number" step="0.01" min="0" name="stage_unit_prices[<?= $item['id'] ?>]" value="<?= $unit_val ?>" placeholder="Optional" class="form-control stage-unit-price" style="width: 90px; padding: 0.35rem 0.4rem; font-size: 0.8rem;" oninput="updateStageRowTotal(<?= $item['id'] ?>)">
+                                
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">Total (Rs):</span>
+                                <input type="number" step="0.01" name="stage_custom_prices[<?= $item['id'] ?>]" value="<?= $price_val ?>" class="form-control stage-price" style="width: 100px; padding: 0.35rem 0.5rem; font-size: 0.85rem;" oninput="calculateSummary()">
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -384,12 +415,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="form-group">
-                        <label for="total_plates" class="form-label" style="font-weight: 600;">Total Plates *</label>
-                        <input type="number" id="total_plates" name="total_plates" class="form-control" value="<?= h($catering_data['total_plates']) ?>" min="1" required>
+                        <label for="total_plates" class="form-label" style="font-weight: 600;">Total Plates (Optional)</label>
+                        <input type="number" id="total_plates" name="total_plates" class="form-control" value="<?= h($catering_data['total_plates']) ?>" min="0">
                     </div>
                     <div class="form-group">
-                        <label for="per_plate_price" class="form-label" style="font-weight: 600;">Rate Per Plate (Rs) *</label>
-                        <input type="number" step="0.01" id="per_plate_price" name="per_plate_price" class="form-control" value="<?= h($catering_data['per_plate_price']) ?>" min="0" required>
+                        <label for="per_plate_price" class="form-label" style="font-weight: 600;">Rate Per Plate (Rs) (Optional)</label>
+                        <input type="number" step="0.01" id="per_plate_price" name="per_plate_price" class="form-control" value="<?= h($catering_data['per_plate_price']) ?>" min="0">
                     </div>
                 </div>
                 
@@ -404,19 +435,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <p style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No dishes in this category.</p>
                             <?php else: ?>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem;">
-                                    <?php foreach ($dishes_by_category[$cat['id']] as $dish): ?>
-                                        <?php 
-                                        $is_checked = array_key_exists($dish['id'], $selected_dishes);
-                                        $p_val = $is_checked ? $selected_dishes[$dish['id']] : '';
-                                        ?>
-                                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
-                                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; flex: 1; margin: 0; color: var(--text-primary);">
-                                                <input type="checkbox" value="<?= $dish['id'] ?>" class="dish-chk" <?= $is_checked ? 'checked' : '' ?> style="accent-color: var(--accent-color);" data-dishname="<?= h($dish['dish_name']) ?>" data-category="<?= h($cat['category_name']) ?>" onchange="toggleDishSelection(this)">
-                                                <span><?= h($dish['dish_name']) ?></span>
-                                            </label>
-                                            <input type="number" name="dish_plates[<?= $dish['id'] ?>]" placeholder="Plates" class="form-control dish-plates-input" value="<?= h($p_val) ?>" style="width: 70px; padding: 0.2rem 0.4rem; font-size: 0.75rem; display: <?= $is_checked ? 'inline-block' : 'none' ?>;">
-                                        </div>
-                                    <?php endforeach; ?>
+                                     <?php foreach ($dishes_by_category[$cat['id']] as $dish): ?>
+                                         <?php 
+                                         $is_checked = array_key_exists($dish['id'], $selected_dishes);
+                                         $dish_data = $is_checked ? $selected_dishes[$dish['id']] : null;
+                                         $p_val = is_array($dish_data) ? ($dish_data['plates'] ?? '') : ($is_checked ? $dish_data : '');
+                                         $r_val = is_array($dish_data) ? ($dish_data['rate'] ?? '') : '';
+                                         ?>
+                                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.5rem; background: rgba(255,255,255,0.02); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); gap: 0.35rem;">
+                                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; flex: 1; margin: 0; color: var(--text-primary);">
+                                                 <input type="checkbox" value="<?= $dish['id'] ?>" class="dish-chk" <?= $is_checked ? 'checked' : '' ?> style="accent-color: var(--accent-color);" data-dishname="<?= h($dish['dish_name']) ?>" data-category="<?= h($cat['category_name']) ?>" onchange="toggleDishSelection(this)">
+                                                 <span><?= h($dish['dish_name']) ?></span>
+                                             </label>
+                                             <div class="dish-inputs-wrap" style="display: <?= $is_checked ? 'flex' : 'none' ?>; align-items: center; gap: 0.25rem;">
+                                                 <input type="number" name="dish_plates[<?= $dish['id'] ?>]" placeholder="Qty" class="form-control dish-plates-input" value="<?= h($p_val) ?>" style="width: 60px; padding: 0.2rem 0.35rem; font-size: 0.75rem;" oninput="renderDishesPreview();">
+                                                 <input type="number" step="0.01" name="dish_rates[<?= $dish['id'] ?>]" placeholder="Rate" class="form-control dish-rate-input" value="<?= h($r_val) ?>" style="width: 65px; padding: 0.2rem 0.35rem; font-size: 0.75rem;" oninput="renderDishesPreview();">
+                                             </div>
+                                         </div>
+                                     <?php endforeach; ?>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -561,10 +597,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
+            <!-- Selected Stage Work Order Preview Card -->
+            <div class="card" style="padding: 1.5rem; background: var(--bg-body); border: 1px solid var(--border-color); margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 0.5rem; font-size: 0.85rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-list-ol" style="color: var(--accent-color);"></i> Selected Stage Work Order
+                </h4>
+                <div id="summaryStageList" style="display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-primary); max-height: 250px; overflow-y: auto;">
+                    <span style="color: var(--text-muted); font-style: italic;">No stage items selected yet.</span>
+                </div>
+            </div>
+
             <!-- Selected Dishes Order Preview Card -->
             <div class="card" style="padding: 1.5rem; background: var(--bg-body); border: 1px solid var(--border-color); margin-top: 1.5rem;">
                 <h4 style="margin-bottom: 0.5rem; font-size: 0.85rem; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.4rem;">
-                    <i class="fa-solid fa-list-ol" style="color: var(--accent-color);"></i> Selected Dishes Order
+                    <i class="fa-solid fa-utensils" style="color: var(--accent-color);"></i> Selected Dishes Order
                 </h4>
                 <div id="editInvoiceDishesList" style="display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--text-primary); max-height: 250px; overflow-y: auto;">
                     <span style="color: var(--text-muted); font-style: italic;">No dishes selected yet.</span>
@@ -576,6 +622,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </form>
 
 <script>
+function updateStageRowTotal(itemId) {
+    const qtyInput = document.querySelector(`.stage-qty[name="stage_quantities[${itemId}]"]`);
+    const unitInput = document.querySelector(`.stage-unit-price[name="stage_unit_prices[${itemId}]"]`);
+    const priceInput = document.querySelector(`.stage-price[name="stage_custom_prices[${itemId}]"]`);
+    
+    if (qtyInput && unitInput && priceInput) {
+        const qty = parseInt(qtyInput.value) || 1;
+        const unit = parseFloat(unitInput.value);
+        if (!isNaN(unit) && unit >= 0) {
+            priceInput.value = (qty * unit).toFixed(2);
+        }
+    }
+    calculateSummary();
+}
+
 let selectionOrder = <?= json_encode($initial_selected_dish_ids) ?>;
 
 function updateHiddenDishesInputs() {
@@ -648,13 +709,15 @@ function renderDishesPreview() {
             if (chk && chk.checked && chk.getAttribute('data-category') === cat) {
                 const dName = chk.getAttribute('data-dishname');
                 const parent = chk.closest('div');
-                const input = parent ? parent.querySelector('.dish-plates-input') : null;
-                const platesVal = input ? input.value : '';
+                const pInput = parent ? parent.querySelector('.dish-plates-input') : null;
+                const rInput = parent ? parent.querySelector('.dish-rate-input') : null;
+                const platesVal = pInput ? pInput.value : '';
+                const rateVal = rInput ? rInput.value : '';
                 
                 if (!selectedDishesGrouped[cat]) {
                     selectedDishesGrouped[cat] = [];
                 }
-                selectedDishesGrouped[cat].push({ id: dishId, name: dName, plates: platesVal });
+                selectedDishesGrouped[cat].push({ id: dishId, name: dName, plates: platesVal, rate: rateVal });
             }
         });
     });
@@ -668,11 +731,14 @@ function renderDishesPreview() {
             htmlOutput += `<div style="margin-top: 0.5rem;"><strong style="color: var(--accent-color); font-size: 0.75rem; text-transform: uppercase;">${cat}</strong></div>`;
             const catDishes = selectedDishesGrouped[cat];
             catDishes.forEach((d, idx) => {
-                const platesSuffix = (d.plates && parseInt(d.plates) > 0) ? ` (${d.plates} Plates)` : '';
+                let specs = [];
+                if (d.plates && parseInt(d.plates) > 0) specs.push(`${d.plates} Plates`);
+                if (d.rate && parseFloat(d.rate) > 0) specs.push(`Rs. ${d.rate}`);
+                const platesSuffix = specs.length > 0 ? ` (${specs.join(' x ')})` : '';
                 const isFirst = idx === 0;
                 const isLast = idx === catDishes.length - 1;
-                htmlOutput += `<div style="display: flex; align-items: center; justify-content: space-between; padding-left: 0.5rem; border-left: 2px solid var(--accent-color); margin-top: 0.25rem; font-size: 0.8rem;">
-                    <span>• ${d.name}${platesSuffix}</span>
+                htmlOutput += `<div class="preview-dish-row" data-dish-id="${d.id}" draggable="true" style="display: flex; align-items: center; justify-content: space-between; padding-left: 0.5rem; border-left: 2px solid var(--accent-color); margin-top: 0.25rem; font-size: 0.8rem; cursor: move;">
+                    <span><i class="fa-solid fa-grip-vertical" style="color: var(--text-muted); margin-right: 0.35rem; font-size: 0.75rem;"></i> ${d.name}${platesSuffix}</span>
                     <div style="display: flex; gap: 0.2rem;">
                         <button type="button" onclick="moveDish('${d.id}', 'up')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isFirst ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Up"><i class="fa-solid fa-arrow-up"></i></button>
                         <button type="button" onclick="moveDish('${d.id}', 'down')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isLast ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Down"><i class="fa-solid fa-arrow-down"></i></button>
@@ -682,20 +748,217 @@ function renderDishesPreview() {
         });
     }
     const editDishesList = document.getElementById('editInvoiceDishesList');
-    if (editDishesList) editDishesList.innerHTML = htmlOutput;
+    if (editDishesList) {
+        editDishesList.innerHTML = htmlOutput;
+        initEditInvoicePreviewDishDrag();
+    }
+}
+
+function initEditInvoicePreviewDishDrag() {
+    const list = document.getElementById('editInvoiceDishesList');
+    if (!list) return;
+
+    let draggedRow = null;
+
+    list.querySelectorAll('.preview-dish-row').forEach(row => {
+        row.addEventListener('dragstart', function (e) {
+            draggedRow = this;
+            this.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        row.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedRow = null;
+        });
+
+        row.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (this !== draggedRow && draggedRow) {
+                const parent = this.parentNode;
+                if (parent === draggedRow.parentNode) {
+                    const rect = this.getBoundingClientRect();
+                    const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                    parent.insertBefore(draggedRow, next ? this.nextSibling : this);
+                    
+                    const newOrder = [];
+                    list.querySelectorAll('.preview-dish-row').forEach(r => {
+                        newOrder.push(r.getAttribute('data-dish-id'));
+                    });
+                    selectionOrder = newOrder;
+                    updateHiddenDishesInputs();
+                }
+            }
+        });
+    });
 }
 
 function togglePlatesInput(chk) {
     const parent = chk.closest('div');
-    const input = parent ? parent.querySelector('.dish-plates-input') : null;
-    if (input) {
+    const wrap = parent ? parent.querySelector('.dish-inputs-wrap') : null;
+    if (wrap) {
         if (chk.checked) {
-            input.style.display = 'inline-block';
+            wrap.style.display = 'flex';
         } else {
-            input.style.display = 'none';
-            input.value = '';
+            wrap.style.display = 'none';
+            const pInput = wrap.querySelector('.dish-plates-input');
+            const rInput = wrap.querySelector('.dish-rate-input');
+            if (pInput) pInput.value = '';
+            if (rInput) rInput.value = '';
         }
     }
+}
+
+// Stage Work Drag & Drop Reordering Logic
+let stageSelectionOrder = <?= json_encode($initial_selected_stage_ids) ?>;
+
+function updateHiddenStageInputs() {
+    let container = document.getElementById('hiddenStageContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'hiddenStageContainer';
+        const form = document.getElementById('invoiceForm') || document.querySelector('form');
+        if (form) form.appendChild(container);
+    }
+    container.innerHTML = '';
+    stageSelectionOrder.forEach(itemId => {
+        const chk = document.querySelector(`.stage-chk[value="${itemId}"]`);
+        if (chk && chk.checked) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'stage_items[]';
+            hidden.value = itemId;
+            container.appendChild(hidden);
+        }
+    });
+}
+
+function toggleStageSelection(chk) {
+    const itemId = String(chk.value);
+    if (chk.checked) {
+        if (!stageSelectionOrder.includes(itemId)) {
+            stageSelectionOrder.push(itemId);
+        }
+    } else {
+        stageSelectionOrder = stageSelectionOrder.filter(id => id !== itemId);
+    }
+    updateHiddenStageInputs();
+    calculateSummary();
+}
+
+function moveStageItem(itemId, direction) {
+    itemId = String(itemId);
+    const index = stageSelectionOrder.indexOf(itemId);
+    if (index === -1) return;
+    
+    if (direction === 'up' && index > 0) {
+        const temp = stageSelectionOrder[index];
+        stageSelectionOrder[index] = stageSelectionOrder[index - 1];
+        stageSelectionOrder[index - 1] = temp;
+    } else if (direction === 'down' && index < stageSelectionOrder.length - 1) {
+        const temp = stageSelectionOrder[index];
+        stageSelectionOrder[index] = stageSelectionOrder[index + 1];
+        stageSelectionOrder[index + 1] = temp;
+    }
+    
+    updateHiddenStageInputs();
+    calculateSummary();
+}
+
+function renderStagePreview() {
+    let selectedItems = [];
+    stageSelectionOrder.forEach(itemId => {
+        const chk = document.querySelector(`.stage-chk[value="${itemId}"]`);
+        if (chk && chk.checked) {
+            const parent = chk.closest('div');
+            const nameSpan = chk.parentNode ? chk.parentNode.querySelector('span') : null;
+            const itemName = nameSpan ? nameSpan.textContent.trim() : 'Stage Item';
+            const qtyInput = parent ? parent.querySelector('.stage-qty') : null;
+            const unitInput = parent ? parent.querySelector('.stage-unit-price') : null;
+            const priceInput = parent ? parent.querySelector('.stage-price') : null;
+            
+            const qtyVal = qtyInput ? qtyInput.value : '1';
+            const unitVal = unitInput ? unitInput.value : '';
+            const priceVal = priceInput ? priceInput.value : '0';
+            
+            selectedItems.push({
+                id: itemId,
+                name: itemName,
+                qty: qtyVal,
+                unit: unitVal,
+                price: priceVal
+            });
+        }
+    });
+    
+    let htmlOutput = '';
+    if (selectedItems.length === 0) {
+        htmlOutput = '<span style="color: var(--text-muted); font-style: italic;">No stage items selected yet.</span>';
+    } else {
+        selectedItems.forEach((item, idx) => {
+            let specs = [];
+            if (item.qty && parseInt(item.qty) > 1) specs.push(`${item.qty} nos`);
+            if (item.unit && parseFloat(item.unit) > 0) specs.push(`Rs. ${item.unit}`);
+            let specSuffix = specs.length > 0 ? ` (${specs.join(' x ')})` : '';
+            if (parseFloat(item.price) > 0) specSuffix += ` - Rs. ${item.price}`;
+            
+            const isFirst = idx === 0;
+            const isLast = idx === selectedItems.length - 1;
+            htmlOutput += `<div class="preview-stage-row" data-stage-id="${item.id}" draggable="true" style="display: flex; align-items: center; justify-content: space-between; padding-left: 0.5rem; border-left: 2px solid var(--accent-color); margin-top: 0.25rem; font-size: 0.8rem; cursor: move;">
+                <span><i class="fa-solid fa-grip-vertical" style="color: var(--text-muted); margin-right: 0.35rem; font-size: 0.75rem;"></i> ${item.name}${specSuffix}</span>
+                <div style="display: flex; gap: 0.2rem;">
+                    <button type="button" onclick="moveStageItem('${item.id}', 'up')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isFirst ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Up"><i class="fa-solid fa-arrow-up"></i></button>
+                    <button type="button" onclick="moveStageItem('${item.id}', 'down')" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.7rem;" ${isLast ? 'disabled style="opacity:0.3; cursor:default;"' : ''} title="Move Down"><i class="fa-solid fa-arrow-down"></i></button>
+                </div>
+            </div>`;
+        });
+    }
+    const stageSummaryList = document.getElementById('summaryStageList');
+    if (stageSummaryList) {
+        stageSummaryList.innerHTML = htmlOutput;
+        initStagePreviewDrag();
+    }
+}
+
+function initStagePreviewDrag() {
+    const list = document.getElementById('summaryStageList');
+    if (!list) return;
+
+    let draggedRow = null;
+
+    list.querySelectorAll('.preview-stage-row').forEach(row => {
+        row.addEventListener('dragstart', function (e) {
+            draggedRow = this;
+            this.style.opacity = '0.4';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        row.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedRow = null;
+        });
+
+        row.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (this !== draggedRow && draggedRow) {
+                const parent = this.parentNode;
+                if (parent === draggedRow.parentNode) {
+                    const rect = this.getBoundingClientRect();
+                    const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                    parent.insertBefore(draggedRow, next ? this.nextSibling : this);
+                    
+                    const newOrder = [];
+                    list.querySelectorAll('.preview-stage-row').forEach(r => {
+                        newOrder.push(r.getAttribute('data-stage-id'));
+                    });
+                    stageSelectionOrder = newOrder;
+                    updateHiddenStageInputs();
+                }
+            }
+        });
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -722,7 +985,20 @@ document.addEventListener('DOMContentLoaded', function() {
     function calculate() {
         const plates = parseFloat(totalPlatesInput.value) || 0;
         const rate = parseFloat(perPlatePriceInput.value) || 0;
-        const cateringTotal = plates * rate;
+        let cateringTotal = plates * rate;
+
+        document.querySelectorAll('.dish-chk').forEach(chk => {
+            if (chk.checked) {
+                const parent = chk.closest('div');
+                const pInput = parent ? parent.querySelector('.dish-plates-input') : null;
+                const rInput = parent ? parent.querySelector('.dish-rate-input') : null;
+                const pVal = pInput ? (parseInt(pInput.value) || 0) : 0;
+                const rVal = rInput ? (parseFloat(rInput.value) || 0) : 0;
+                if (rVal > 0) {
+                    cateringTotal += (pVal > 0) ? (pVal * rVal) : rVal;
+                }
+            }
+        });
         
         let stageTotal = 0;
         stageCheckboxes.forEach(chk => {
@@ -763,18 +1039,26 @@ document.addEventListener('DOMContentLoaded', function() {
     stageCheckboxes.forEach(chk => chk.addEventListener('change', calculate));
     stagePriceInputs.forEach(input => input.addEventListener('input', calculate));
     
+    document.querySelectorAll('.dish-chk').forEach(chk => chk.addEventListener('change', calculate));
+    document.querySelectorAll('.dish-plates-input, .dish-rate-input').forEach(input => input.addEventListener('input', calculate));
+    
     discountInput.addEventListener('input', calculate);
     taxRateInput.addEventListener('input', calculate);
     paidInput.addEventListener('input', calculate);
     
     const form = document.getElementById('invoiceForm');
     if (form) {
-        form.addEventListener('submit', updateHiddenDishesInputs);
+        form.addEventListener('submit', function() {
+            updateHiddenDishesInputs();
+            updateHiddenStageInputs();
+        });
     }
 
     // Initial runs
     updateHiddenDishesInputs();
     renderDishesPreview();
+    updateHiddenStageInputs();
+    renderStagePreview();
     calculate();
 });
 </script>
