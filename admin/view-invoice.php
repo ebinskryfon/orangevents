@@ -44,7 +44,8 @@ if (!$invoice) {
 $stmt_stage = $db->prepare("SELECT esw.custom_price, si.item_name, si.description 
                             FROM event_stage_work esw 
                             JOIN stage_items si ON esw.stage_item_id = si.id 
-                            WHERE esw.event_id = :id");
+                            WHERE esw.event_id = :id
+                            ORDER BY esw.id ASC");
 $stmt_stage->execute(['id' => $event_id]);
 $stage_work_items = $stmt_stage->fetchAll();
 
@@ -65,13 +66,13 @@ $dishes_by_category = [];
 if ($catering) {
     $catering_total = $catering['per_plate_price'] * $catering['total_plates'];
 
-    // 5. Fetch selected dishes grouped by category name
+    // 5. Fetch selected dishes in exact selection order
     $stmt_dishes = $db->prepare("SELECT d.dish_name, mc.category_name, ecd.plate_count 
                                  FROM event_catering_dishes ecd 
                                  JOIN dishes d ON ecd.dish_id = d.id 
                                  JOIN menu_categories mc ON d.category_id = mc.id 
                                  WHERE ecd.event_catering_id = :cat_id 
-                                 ORDER BY mc.display_order ASC, d.dish_name ASC");
+                                 ORDER BY ecd.id ASC");
     $stmt_dishes->execute(['cat_id' => $catering['id']]);
     $selected_dishes = $stmt_dishes->fetchAll();
 
@@ -85,6 +86,7 @@ if ($catering) {
 
 // Re-calculate Grand Total to keep invoice in sync
 $grand_total = $stage_total + $catering_total;
+$formatted_event_datetime = format_date($event['event_date']) . (!empty($event['event_time']) ? ' ' . format_time($event['event_time']) : '');
 
 if ($invoice['status'] === 'draft' && $invoice['subtotal'] != $grand_total) {
     $db->prepare("UPDATE invoices SET subtotal = :sub, final_total = :final WHERE id = :inv_id")
@@ -583,7 +585,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
             </header>
 
             <div class="header-date-bar" style="display: flex; justify-content: space-between; align-items: center; padding-left: 2rem; padding-right: 2rem;">
-                <span>DATE: <?= format_date($event['event_date']) ?></span>
+                <span>DATE: <?= $formatted_event_datetime ?></span>
                 <?php if ($catering): ?>
                     <span style="font-weight: 600; font-size: 0.95rem;">NOS: <?= $catering['total_plates'] ?> &nbsp;&nbsp;|&nbsp;&nbsp; PER PLATE: Rs. <?= number_format($catering['per_plate_price'], 0) ?></span>
                 <?php endif; ?>
@@ -729,7 +731,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
             </header>
 
             <div class="header-date-bar">
-                Event Booking Date: <?= format_date($event['event_date']) ?>
+                Event Booking Date: <?= $formatted_event_datetime ?>
             </div>
 
             <div class="template-body">
@@ -876,7 +878,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                     </div>
                 </div>
                 <div class="header-date-bar">
-                    DATE: <?= format_date($event['event_date']) ?>
+                    DATE: <?= $formatted_event_datetime ?>
                 </div>
             </header>
 
@@ -1105,7 +1107,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
                         Tax Invoice</h1>
                     <div style="font-size: 0.9rem; line-height: 1.5; color: #1e293b;">
                         <strong>Invoice No:</strong> <?= h($invoice['invoice_number']) ?><br>
-                        <strong>Date:</strong> <?= format_date($event['event_date']) ?><br>
+                        <strong>Event Date & Time:</strong> <?= $formatted_event_datetime ?><br>
                         <strong>Place of Supply:</strong> 32-Kerala
                     </div>
                 </div>
@@ -1364,7 +1366,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
             </div>
             <div class="logo-contact">
                 <strong>Proposal No:</strong> <?= h($invoice['invoice_number']) ?><br>
-                <strong>Date:</strong> <?= format_date($event['event_date']) ?><br>
+                <strong>Event Date & Time:</strong> <?= $formatted_event_datetime ?><br>
                 MOB: <?= h(isset($settings['company_phone']) ? $settings['company_phone'] : '9946731720') ?>
             </div>
         </header>
@@ -1472,7 +1474,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
 
         <div class="header-date-bar">
             ROYAL EVENT PROPOSAL • <?= h(strtoupper($event['client_name'])) ?> • DATE:
-            <?= format_date($event['event_date']) ?>
+            <?= $formatted_event_datetime ?>
         </div>
 
         <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">
@@ -1572,7 +1574,7 @@ $event_upi_qr_url = generate_upi_qr_code_url($event_qr_amount, $invoice['invoice
         </header>
 
         <div class="header-date-bar">
-            Celebration Details for <?= h($event['client_name']) ?> • Event Date: <?= format_date($event['event_date']) ?>
+            Celebration Details for <?= h($event['client_name']) ?> • Event Date & Time: <?= $formatted_event_datetime ?>
         </div>
 
         <div class="template-body" style="grid-template-columns: 1fr 1fr; gap: 3rem;">

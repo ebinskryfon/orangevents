@@ -538,6 +538,9 @@ $auto_print = isset($_GET['print']) || isset($_GET['auto_print']);
             <button onclick="shareWhatsApp()" class="btn-action btn-success">
                 <i class="fa-brands fa-whatsapp"></i> Share WhatsApp
             </button>
+            <button type="button" id="toggleQrBtn" onclick="toggleQRCode()" class="btn-action btn-secondary">
+                <i class="fa-solid fa-qrcode"></i> <span id="qrBtnText">Hide Payment QR</span>
+            </button>
             <button onclick="downloadPDF()" class="btn-action btn-secondary">
                 <i class="fa-solid fa-file-pdf"></i> Save PDF
             </button>
@@ -571,7 +574,7 @@ $auto_print = isset($_GET['print']) || isset($_GET['auto_print']);
             <div class="inv-meta">
                 <div class="inv-title">Tax Invoice</div>
                 <div class="inv-meta-row">Invoice No: <?= h($order['invoice_number']) ?></div>
-                <div class="inv-meta-row">Date: <?= date('d-m-Y', strtotime($order['created_at'])) ?></div>
+                <div class="inv-meta-row">Date & Time: <?= format_datetime($order['created_at']) ?></div>
                 <div class="inv-meta-row">Place of Supply: <?= h($place_of_supply) ?></div>
             </div>
         </div>
@@ -735,6 +738,31 @@ $auto_print = isset($_GET['print']) || isset($_GET['auto_print']);
     </div>
 
     <script>
+        function toggleQRCode() {
+            const upiBox = document.querySelector('.upi-box');
+            const btnText = document.getElementById('qrBtnText');
+            if (!upiBox) return;
+
+            if (upiBox.style.display === 'none') {
+                upiBox.style.display = 'block';
+                if (btnText) btnText.innerText = 'Hide Payment QR';
+                localStorage.setItem('orange_invoice_qr_disabled', '0');
+            } else {
+                upiBox.style.display = 'none';
+                if (btnText) btnText.innerText = 'Show Payment QR';
+                localStorage.setItem('orange_invoice_qr_disabled', '1');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (localStorage.getItem('orange_invoice_qr_disabled') === '1') {
+                const upiBox = document.querySelector('.upi-box');
+                const btnText = document.getElementById('qrBtnText');
+                if (upiBox) upiBox.style.display = 'none';
+                if (btnText) btnText.innerText = 'Show Payment QR';
+            }
+        });
+
         function downloadPDF() {
             const element = document.getElementById('invoicePaper');
             const invoiceNo = '<?= h($order['invoice_number']) ?>';

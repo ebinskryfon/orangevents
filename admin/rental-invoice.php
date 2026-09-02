@@ -360,6 +360,9 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="checkbox" id="toggle-return" checked onchange="toggleElement('.meta-return', this.checked)"> Return / Notes
         </label>
         <label style="display:flex; align-items:center; gap:0.4rem; font-size: 0.9rem; cursor:pointer; color: var(--text-color);">
+            <input type="checkbox" id="toggle-qr" checked onchange="toggleElement('.ri-pay-card-upi', this.checked)"> UPI QR Code
+        </label>
+        <label style="display:flex; align-items:center; gap:0.4rem; font-size: 0.9rem; cursor:pointer; color: var(--text-color);">
             <input type="checkbox" id="toggle-payments" checked onchange="toggleElement('.payment-history-block', this.checked)"> Payment History
         </label>
         <label style="display:flex; align-items:center; gap:0.4rem; font-size: 0.9rem; cursor:pointer; color: var(--text-color);">
@@ -428,7 +431,7 @@ function toggleElement(selector, isVisible) {
         <div class="ri-inv-label">
             <h2>Rental Invoice</h2>
             <div class="ri-inv-num"><?= h($order['order_number']) ?></div>
-            <div class="ri-inv-date">Issued: <?= format_date($order['created_at']) ?></div>
+            <div class="ri-inv-date">Issued: <?= format_datetime($order['created_at']) ?></div>
             <?php
             $sc = ['draft'=>'draft','active'=>'active','overdue'=>'overdue','returned'=>'returned','cancelled'=>'cancelled'];
             $s  = $sc[$order['status']] ?? 'draft';

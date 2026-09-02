@@ -437,7 +437,7 @@ $receipt_upi_qr_url = generate_upi_qr_code_url($order['final_amount'], $order['i
             <div class="hero-label">Total Amount Paid</div>
             <div class="hero-amount">₹<?= number_format($order['final_amount'], 2) ?></div>
             <div class="hero-inv-details">
-                Invoice <strong><?= h($order['invoice_number']) ?></strong> • <?= date('d M Y, h:i A', strtotime($order['created_at'])) ?>
+                Invoice <strong><?= h($order['invoice_number']) ?></strong> • <?= format_datetime($order['created_at']) ?>
             </div>
         </div>
 
@@ -537,7 +537,7 @@ $receipt_upi_qr_url = generate_upi_qr_code_url($order['final_amount'], $order['i
             </div>
 
             <?php if (!empty($receipt_upi_qr_url)): ?>
-                <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: #ffffff; border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; align-items: center; gap: 0.85rem;">
+                <div class="upi-receipt-box" style="margin-top: 1rem; padding: 0.85rem 1rem; background: #ffffff; border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; align-items: center; gap: 0.85rem;">
                     <img src="<?= h($receipt_upi_qr_url) ?>" alt="UPI QR Code" style="width: 85px; height: 85px; border-radius: 6px; border: 1px solid var(--border-light); padding: 2px; flex-shrink: 0;">
                     <div>
                         <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.3rem;">
@@ -558,6 +558,9 @@ $receipt_upi_qr_url = generate_upi_qr_code_url($order['final_amount'], $order['i
         <button onclick="shareWhatsApp()" class="btn-action btn-whatsapp">
             <i class="fa-brands fa-whatsapp" style="font-size:1.15rem;"></i> Share via WhatsApp
         </button>
+        <button type="button" id="toggleQrBtn" onclick="toggleQRCode()" class="btn-action btn-pdf" style="background:#475569; color:#fff;">
+            <i class="fa-solid fa-qrcode"></i> <span id="qrBtnText">Hide Payment QR</span>
+        </button>
         <button onclick="downloadPDF()" class="btn-action btn-pdf">
             <i class="fa-solid fa-file-pdf"></i> Download PDF Receipt
         </button>
@@ -575,6 +578,31 @@ $receipt_upi_qr_url = generate_upi_qr_code_url($order['final_amount'], $order['i
 </div>
 
 <script>
+    function toggleQRCode() {
+        const upiBox = document.querySelector('.upi-receipt-box');
+        const btnText = document.getElementById('qrBtnText');
+        if (!upiBox) return;
+
+        if (upiBox.style.display === 'none') {
+            upiBox.style.display = 'flex';
+            if (btnText) btnText.innerText = 'Hide Payment QR';
+            localStorage.setItem('orange_invoice_qr_disabled', '0');
+        } else {
+            upiBox.style.display = 'none';
+            if (btnText) btnText.innerText = 'Show Payment QR';
+            localStorage.setItem('orange_invoice_qr_disabled', '1');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (localStorage.getItem('orange_invoice_qr_disabled') === '1') {
+            const upiBox = document.querySelector('.upi-receipt-box');
+            const btnText = document.getElementById('qrBtnText');
+            if (upiBox) upiBox.style.display = 'none';
+            if (btnText) btnText.innerText = 'Show Payment QR';
+        }
+    });
+
     function downloadPDF() {
         const element = document.getElementById('eReceiptContent');
         const invoiceNo = '<?= h($order['invoice_number']) ?>';

@@ -48,7 +48,7 @@ foreach ($dishes as $d) {
 
 // Fetch selected items for the event
 $selected_stage_items = [];
-$stmt_stage_sel = $db->prepare("SELECT stage_item_id, custom_price FROM event_stage_work WHERE event_id = :id");
+$stmt_stage_sel = $db->prepare("SELECT stage_item_id, custom_price FROM event_stage_work WHERE event_id = :id ORDER BY id ASC");
 $stmt_stage_sel->execute(['id' => $event_id]);
 while ($row = $stmt_stage_sel->fetch()) {
     $selected_stage_items[$row['stage_item_id']] = $row['custom_price'];
@@ -66,7 +66,7 @@ $loaded_catering = $stmt_cat->fetch();
 if ($loaded_catering) {
     $catering_data = $loaded_catering;
     
-    $stmt_dish_sel = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id");
+    $stmt_dish_sel = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id ORDER BY id ASC");
     $stmt_dish_sel->execute(['cat_id' => $loaded_catering['id']]);
     while ($row = $stmt_dish_sel->fetch()) {
         $selected_dishes[$row['dish_id']] = $row['plate_count'];
