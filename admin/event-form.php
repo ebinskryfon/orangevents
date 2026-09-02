@@ -50,7 +50,7 @@ if ($is_edit) {
         }
         
         // 2. Fetch Stage Work items
-        $stmt_stage = $db->prepare("SELECT stage_item_id, custom_price FROM event_stage_work WHERE event_id = :id");
+        $stmt_stage = $db->prepare("SELECT stage_item_id, custom_price FROM event_stage_work WHERE event_id = :id ORDER BY id ASC");
         $stmt_stage->execute(['id' => $event_id]);
         while ($row = $stmt_stage->fetch()) {
             $selected_stage_items[$row['stage_item_id']] = $row['custom_price'];
@@ -64,7 +64,7 @@ if ($is_edit) {
             $catering_data = $loaded_catering;
             
             // 4. Fetch Selected Catering Dishes
-            $stmt_dishes = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id");
+            $stmt_dishes = $db->prepare("SELECT dish_id, plate_count FROM event_catering_dishes WHERE event_catering_id = :cat_id ORDER BY id ASC");
             $stmt_dishes->execute(['cat_id' => $loaded_catering['id']]);
             $selected_dishes = [];
             while ($row = $stmt_dishes->fetch()) {

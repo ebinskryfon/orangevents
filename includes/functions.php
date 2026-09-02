@@ -49,6 +49,19 @@ function format_time($time_str)
 }
 
 /**
+ * Format Date & Time to readable format (e.g. 02-09-2026 06:23 PM)
+ * 
+ * @param string $datetime_str
+ * @return string
+ */
+function format_datetime($datetime_str)
+{
+    if (empty($datetime_str))
+        return '';
+    return date('d-m-Y h:i A', strtotime($datetime_str));
+}
+
+/**
  * Helper to escape output for safe HTML rendering
  * 
  * @param string $str

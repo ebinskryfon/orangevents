@@ -253,6 +253,13 @@ require_once __DIR__ . '/../includes/header.php';
                 <i class="fa-brands fa-whatsapp"></i> WhatsApp
             </button>
 
+            <!-- Toggle Payment QR Button -->
+            <button type="button" id="toggleQrBtn" onclick="toggleQRCode()" class="btn btn-secondary"
+                style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;"
+                title="Toggle Payment QR Code Visibility">
+                <i class="fa-solid fa-qrcode"></i> <span id="qrBtnText">Hide Payment QR</span>
+            </button>
+
             <!-- Thermal Print Button -->
             <button type="button" onclick="printThermal()" class="btn btn-secondary"
                 style="height: 34px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(30, 144, 255, 0.12); color: var(--info); border-color: rgba(30, 144, 255, 0.2);"
@@ -318,8 +325,8 @@ require_once __DIR__ . '/../includes/header.php';
             <div style="font-size: 15px; font-weight: 800; color: #000000; margin-bottom: 3px;">Tax Invoice</div>
             <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Invoice No:
                 <?= h($order['invoice_number']) ?></div>
-            <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Date:
-                <?= date('d-m-Y', strtotime($order['created_at'])) ?></div>
+            <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Date & Time:
+                <?= format_datetime($order['created_at']) ?></div>
             <div style="font-size: 10.5px; font-weight: 600; color: #111111; margin-top: 2px;">Place of Supply:
                 <?= h($settings['place_of_supply'] ?? '32 Kerala') ?></div>
         </div>
@@ -543,8 +550,8 @@ require_once __DIR__ . '/../includes/header.php';
 
         <div>
             <div class="thermal-flex"><span>Invoice:</span> <strong><?= h($order['invoice_number']) ?></strong></div>
-            <div class="thermal-flex"><span>Date:</span>
-                <span><?= date('d-m-Y H:i', strtotime($order['created_at'])) ?></span></div>
+            <div class="thermal-flex"><span>Date & Time:</span>
+                <span><?= format_datetime($order['created_at']) ?></span></div>
             <div class="thermal-flex"><span>Customer:</span> <span><?= h($order['customer_name'] ?: 'Walk-in') ?></span>
             </div>
             <?php if (!empty($order['customer_phone'])): ?>
@@ -807,8 +814,30 @@ require_once __DIR__ . '/../includes/header.php';
         window.open(whatsappUrl, '_blank');
     }
 
-    // Auto-trigger print if requested in URL
+    function toggleQRCode() {
+        const upiBoxes = document.querySelectorAll('.upi-box');
+        const btnText = document.getElementById('qrBtnText');
+        if (!upiBoxes.length) return;
+
+        let isHidden = (upiBoxes[0].style.display === 'none');
+        upiBoxes.forEach(box => {
+            box.style.display = isHidden ? 'block' : 'none';
+        });
+
+        if (btnText) {
+            btnText.innerText = isHidden ? 'Hide Payment QR' : 'Show Payment QR';
+        }
+        localStorage.setItem('orange_invoice_qr_disabled', isHidden ? '0' : '1');
+    }
+
+    // Restore QR preference on load
     document.addEventListener("DOMContentLoaded", function () {
+        if (localStorage.getItem('orange_invoice_qr_disabled') === '1') {
+            const upiBoxes = document.querySelectorAll('.upi-box');
+            const btnText = document.getElementById('qrBtnText');
+            upiBoxes.forEach(box => box.style.display = 'none');
+            if (btnText) btnText.innerText = 'Show Payment QR';
+        }
         if (window.location.search.includes('print=1') || window.location.search.includes('thermal=1')) {
             printThermal();
         }
